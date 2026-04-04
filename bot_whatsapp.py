@@ -215,6 +215,15 @@ KEYWORDS = {
                    "va a venir","va a asistir","va al c1","se sienta",
                    "van todos","vienen todos","se sento","se sentó",
                    "si se van a sentar","tiene vuelos","vuelos comprados"],
+    "VOLANTE": ["volante","flyer","invitacion","invitación","afiche","imagen del c1",
+               "informacion del entrenamiento","info del entrenamiento",
+               "comparte la info","comparte la informacion","mandame la info",
+               "mandame el flyer","mandame el volante","compartir la informacion"],
+    "CONSULTA_PX": ["ya confirmo","ya confirmó","ya confirma","confirmo ella",
+                    "confirmo el","se inscribio","se inscribió","ya pago","ya pagó",
+                    "esta inscrita","esta inscrito","ya esta","ya está",
+                    "ya confirmas","ya lo confirma","ya la confirma",
+                    "tiene lugar","tiene espacio","aparece en el sistema"],
     "GESTIONANDO": ["lo estoy gestionando","me muevo","me comunicare","voy a hablar",
                     "voy a contactar","tratare de","voy a preguntar",
                     "para darle una respuesta","estare informando",
@@ -231,7 +240,7 @@ def normalizar(texto):
 
 def detectar_intencion(texto):
     t = normalizar(texto)
-    orden = ["STOP","QUIEN_ERES","CAMBIO","INFO_C1","YA_SE_SENTO","NO_RECUERDA",
+    orden = ["STOP","QUIEN_ERES","CAMBIO","VOLANTE","CONSULTA_PX","INFO_C1","YA_SE_SENTO","NO_RECUERDA",
              "FALLECIO_ENFERMO","DEVOLUCION","NO_INTERESADO","NO_CONTESTA",
              "PENDIENTE","SIGUIENTE","CONFIRMADO","GESTIONANDO"]
     for intent in orden:
@@ -248,7 +257,8 @@ def buscar_px_en_texto(texto, px_list):
     if len(px_list) == 1:
         intencion = detectar_intencion(texto)
         if intencion and intencion not in ("STOP","CAMBIO","INFO_C1","NO_RECUERDA",
-                                           "FALLECIO_ENFERMO","QUIEN_ERES","DEVOLUCION"):
+                                           "FALLECIO_ENFERMO","QUIEN_ERES","DEVOLUCION",
+                                           "VOLANTE","CONSULTA_PX"):
             resultados.append({"px": px_list[0], "estatus": intencion})
         return resultados
     for px in px_list:
@@ -542,6 +552,25 @@ def r_gestionando(pila, px_list):
         "Gracias por el seguimiento. Quedamos atentos a tu reporte."
         + FIRMA)
 
+def r_volante(pila):
+    return (
+        f"Hola {pila},\n\n"
+        "Aqui tienes toda la informacion del entrenamiento:\n\n"
+        + INFO_C1 + "\n\n"
+        "Para cualquier coordinacion adicional, comunicate "
+        "directamente con tu coordinadora:\n\n"
+        + COORDINADORAS + FIRMA)
+
+def r_consulta_px(pila):
+    return (
+        f"Hola {pila},\n\n"
+        "Este canal no tiene acceso al sistema de registros.\n\n"
+        "Para confirmar la asistencia de tu participante, "
+        "comunicate directamente con ella y pide que te confirme "
+        "su decision de asistir al *C1 E27 — 1, 2 y 3 de mayo*.\n\n"
+        "Cuando tengas esa confirmacion, escribenos y lo registramos."
+        + FIRMA)
+
 def r_no_campaña():
     return (
         "Hola,\n\n"
@@ -685,6 +714,12 @@ def procesar_mensaje(telefono, texto):
         enviar_mensaje(telefono, r_no_recuerda(pila)); return
     if intencion == "FALLECIO_ENFERMO":
         enviar_mensaje(telefono, r_fallecio_enfermo(pila)); return
+    if intencion == "VOLANTE":
+        enviar_mensaje(telefono, r_volante(pila)); return
+
+    if intencion == "CONSULTA_PX":
+        enviar_mensaje(telefono, r_consulta_px(pila)); return
+
     if intencion == "GESTIONANDO":
         enviar_mensaje(telefono, r_gestionando(pila, px_list)); return
 
