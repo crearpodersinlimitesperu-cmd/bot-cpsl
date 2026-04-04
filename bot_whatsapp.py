@@ -13,44 +13,34 @@ from filelock import FileLock
 app = Flask(__name__)
 
 # ── Google Sheets ──────────────────────────────────────────────────────────
-def get_sheets_service():
+def get_sheets_client():
+    """Crea cliente gspread usando las credenciales del entorno."""
     try:
-        import importlib
-        sa_module = importlib.import_module("google.oauth2.service_account")
-        Credentials = sa_module.Credentials
-        discovery = importlib.import_module("googleapiclient.discovery")
-        build = discovery.build
+        import gspread
         creds_json = os.environ.get("GOOGLE_CREDENTIALS", "")
         if not creds_json:
             return None
         creds_dict = json.loads(creds_json)
-        creds = Credentials.from_service_account_info(
-            creds_dict,
-            scopes=["https://www.googleapis.com/auth/spreadsheets"]
-        )
-        return build("sheets", "v4", credentials=creds)
+        gc = gspread.service_account_from_dict(creds_dict)
+        return gc
     except Exception as e:
         print(f"[SHEETS ERROR] {e}")
         return None
 
 def registrar_en_sheets(telefono, imo_nombre, mensaje, respuesta_bot, estado=""):
+    """Agrega una fila al Google Sheet."""
     sheet_id = os.environ.get("SHEET_ID", "")
     if not sheet_id:
         return
     try:
-        service = get_sheets_service()
-        if not service:
+        gc = get_sheets_client()
+        if not gc:
             return
+        sh = gc.open_by_key(sheet_id)
+        ws = sh.sheet1
         ahora = datetime.now().strftime("%d/%m/%Y %H:%M")
-        valores = [[ahora, str(telefono), imo_nombre, mensaje,
-                    respuesta_bot, estado, "", ""]]
-        service.spreadsheets().values().append(
-            spreadsheetId=sheet_id,
-            range="Hoja 1!A:H",
-            valueInputOption="RAW",
-            insertDataOption="INSERT_ROWS",
-            body={"values": valores}
-        ).execute()
+        ws.append_row([ahora, str(telefono), imo_nombre, mensaje,
+                       respuesta_bot, estado, "", ""])
     except Exception as e:
         print(f"[SHEETS WRITE ERROR] {e}")
 
@@ -688,32 +678,23 @@ def enviar_respuestas_manuales():
     if not sheet_id:
         return
     try:
-        service = get_sheets_service()
-        if not service:
+        gc = get_sheets_client()
+        if not gc:
             return
-        # Leer columnas B (telefono), G (respuesta manual), H (enviado)
-        result = service.spreadsheets().values().get(
-            spreadsheetId=sheet_id,
-            range="Hoja 1!A:H"
-        ).execute()
-        rows = result.get("values", [])
+        sh = gc.open_by_key(sheet_id)
+        ws = sh.sheet1
+        rows = ws.get_all_values()
         for i, row in enumerate(rows[1:], start=2):  # saltar encabezado
             if len(row) < 7: continue
-            telefono = str(row[1]).strip() if len(row) > 1 else ""
-            respuesta_manual = str(row[6]).strip() if len(row) > 6 else ""
+            telefono = str(row[1]).strip()
+            respuesta_manual = str(row[6]).strip()
             enviado = str(row[7]).strip() if len(row) > 7 else ""
             if not telefono or not respuesta_manual or enviado == "ENVIADO":
                 continue
             # Enviar mensaje manual
             ok = enviar_mensaje(telefono, respuesta_manual)
             if ok:
-                # Marcar como enviado en columna H
-                service.spreadsheets().values().update(
-                    spreadsheetId=sheet_id,
-                    range=f"Hoja 1!H{i}",
-                    valueInputOption="RAW",
-                    body={"values": [["ENVIADO"]]}
-                ).execute()
+                ws.update_cell(i, 8, "ENVIADO")
                 print(f"[MANUAL SENT] {telefono}: {respuesta_manual[:50]}")
     except Exception as e:
         print(f"[MANUAL ERROR] {e}")
