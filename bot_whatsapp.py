@@ -13,36 +13,90 @@ from filelock import FileLock
 app = Flask(__name__)
 
 # ── Google Sheets ──────────────────────────────────────────────────────────
-def get_sheets_client():
-    """Crea cliente gspread usando las credenciales del entorno."""
+# ── Google Sheets via HTTP puro (sin librerías Google) ────────────────────
+import base64, hashlib, hmac, struct, time as _time
+
+def _make_jwt(creds_dict):
+    """Genera un JWT para autenticación con Google APIs."""
+    import math
+    now = int(_time.time())
+    header = base64.urlsafe_b64encode(
+        json.dumps({"alg":"RS256","typ":"JWT"}).encode()
+    ).rstrip(b"=")
+    payload = base64.urlsafe_b64encode(json.dumps({
+        "iss": creds_dict["client_email"],
+        "scope": "https://www.googleapis.com/auth/spreadsheets",
+        "aud": "https://oauth2.googleapis.com/token",
+        "iat": now,
+        "exp": now + 3600
+    }).encode()).rstrip(b"=")
+    msg = header + b"." + payload
     try:
-        import gspread
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import padding
+        private_key = serialization.load_pem_private_key(
+            creds_dict["private_key"].encode(), password=None
+        )
+        sig = private_key.sign(msg, padding.PKCS1v15(), hashes.SHA256())
+        sig_b64 = base64.urlsafe_b64encode(sig).rstrip(b"=")
+        return (msg + b"." + sig_b64).decode()
+    except Exception as e:
+        print(f"[JWT ERROR] {e}")
+        return None
+
+_sheets_token_cache = {"token": None, "exp": 0}
+
+def get_sheets_token():
+    """Obtiene token de acceso para Google Sheets API."""
+    global _sheets_token_cache
+    now = int(_time.time())
+    if _sheets_token_cache["token"] and now < _sheets_token_cache["exp"] - 60:
+        return _sheets_token_cache["token"]
+    try:
         creds_json = os.environ.get("GOOGLE_CREDENTIALS", "")
         if not creds_json:
             return None
         creds_dict = json.loads(creds_json)
-        gc = gspread.service_account_from_dict(creds_dict)
-        return gc
+        jwt = _make_jwt(creds_dict)
+        if not jwt:
+            return None
+        r = req_lib.post("https://oauth2.googleapis.com/token", data={
+            "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+            "assertion": jwt
+        }, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            _sheets_token_cache["token"] = data["access_token"]
+            _sheets_token_cache["exp"] = now + data.get("expires_in", 3600)
+            return data["access_token"]
+        else:
+            print(f"[SHEETS TOKEN ERROR] {r.status_code}: {r.text[:200]}")
+            return None
     except Exception as e:
-        print(f"[SHEETS ERROR] {e}")
+        print(f"[SHEETS TOKEN EXCEPTION] {e}")
         return None
 
 def registrar_en_sheets(telefono, imo_nombre, mensaje, respuesta_bot, estado=""):
-    """Agrega una fila al Google Sheet."""
+    """Agrega una fila al Google Sheet via HTTP puro."""
     sheet_id = os.environ.get("SHEET_ID", "")
     if not sheet_id:
         return
     try:
-        gc = get_sheets_client()
-        if not gc:
+        token = get_sheets_token()
+        if not token:
             return
-        sh = gc.open_by_key(sheet_id)
-        ws = sh.sheet1
         ahora = datetime.now().strftime("%d/%m/%Y %H:%M")
-        ws.append_row([ahora, str(telefono), imo_nombre, mensaje,
-                       respuesta_bot, estado, "", ""])
+        url = f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_id}/values/Hoja%201!A:H:append"
+        params = {"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"}
+        body = {"values": [[ahora, str(telefono), imo_nombre, mensaje,
+                            respuesta_bot, estado, "", ""]]}
+        headers = {"Authorization": f"Bearer {token}",
+                   "Content-Type": "application/json"}
+        r = req_lib.post(url, params=params, json=body, headers=headers, timeout=10)
+        if r.status_code not in (200, 201):
+            print(f"[SHEETS WRITE ERROR] {r.status_code}: {r.text[:200]}")
     except Exception as e:
-        print(f"[SHEETS WRITE ERROR] {e}")
+        print(f"[SHEETS WRITE EXCEPTION] {e}")
 
 def get_config():
     return {
@@ -672,29 +726,61 @@ def borrar_sesion_endpoint(telefono):
     return jsonify({"borrado": telefono}), 200
 
 
+def leer_sheet():
+    """Lee todas las filas del Sheet via HTTP puro."""
+    sheet_id = os.environ.get("SHEET_ID", "")
+    if not sheet_id:
+        return []
+    try:
+        token = get_sheets_token()
+        if not token:
+            return []
+        url = f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_id}/values/Hoja%201!A:H"
+        headers = {"Authorization": f"Bearer {token}"}
+        r = req_lib.get(url, headers=headers, timeout=10)
+        if r.status_code == 200:
+            return r.json().get("values", [])
+        return []
+    except Exception as e:
+        print(f"[SHEETS READ ERROR] {e}")
+        return []
+
+def actualizar_celda_sheet(fila, columna, valor):
+    """Actualiza una celda específica del Sheet via HTTP puro."""
+    sheet_id = os.environ.get("SHEET_ID", "")
+    if not sheet_id:
+        return
+    try:
+        token = get_sheets_token()
+        if not token:
+            return
+        rango = f"Hoja%201!{chr(64+columna)}{fila}"
+        url = f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_id}/values/{rango}"
+        params = {"valueInputOption": "RAW"}
+        body = {"values": [[valor]]}
+        headers = {"Authorization": f"Bearer {token}",
+                   "Content-Type": "application/json"}
+        req_lib.put(url, params=params, json=body, headers=headers, timeout=10)
+    except Exception as e:
+        print(f"[SHEETS UPDATE ERROR] {e}")
+
 def enviar_respuestas_manuales():
     """Revisa el Sheet cada 2 minutos y envía respuestas manuales pendientes."""
     sheet_id = os.environ.get("SHEET_ID", "")
     if not sheet_id:
         return
     try:
-        gc = get_sheets_client()
-        if not gc:
-            return
-        sh = gc.open_by_key(sheet_id)
-        ws = sh.sheet1
-        rows = ws.get_all_values()
-        for i, row in enumerate(rows[1:], start=2):  # saltar encabezado
+        rows = leer_sheet()
+        for i, row in enumerate(rows[1:], start=2):
             if len(row) < 7: continue
             telefono = str(row[1]).strip()
             respuesta_manual = str(row[6]).strip()
             enviado = str(row[7]).strip() if len(row) > 7 else ""
             if not telefono or not respuesta_manual or enviado == "ENVIADO":
                 continue
-            # Enviar mensaje manual
             ok = enviar_mensaje(telefono, respuesta_manual)
             if ok:
-                ws.update_cell(i, 8, "ENVIADO")
+                actualizar_celda_sheet(i, 8, "ENVIADO")
                 print(f"[MANUAL SENT] {telefono}: {respuesta_manual[:50]}")
     except Exception as e:
         print(f"[MANUAL ERROR] {e}")
