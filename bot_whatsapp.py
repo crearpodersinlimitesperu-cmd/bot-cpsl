@@ -19,20 +19,55 @@ app = Flask(__name__)
 HISTORIAL_FILE = "historial_chat.json"
 
 def get_historial():
+    import os, json
+    # 1. Intentar cargar historial local
     try:
         with open(HISTORIAL_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            hist = json.load(f)
+            if hist: return hist
     except:
-        return []
+        pass
+
+    # 2. Si no hay archivo local (Render reinicia), reconstruir desde Google Sheets
+    print("[HISTORIAL] Reconstruyendo historial desde Google Sheets (Render start)...")
+    historial = []
+    try:
+        rows = leer_sheet()
+        if rows:
+            # Saltamos la cabecera
+            for row in rows[1:]:
+                if len(row) < 4: continue
+                hora = str(row[0]).strip()
+                tel  = norm_tel(str(row[1]).strip())
+                msg_in, msg_out = "", ""
+                if len(row) > 3: msg_in  = str(row[3]).strip()
+                if len(row) > 4: msg_out = str(row[4]).strip()
+                if len(row) > 6: 
+                    manual = str(row[6]).strip()
+                    if manual: msg_out = manual # Respuesta manual toma precedencia si existe
+
+                if tel:
+                    if msg_in:
+                        historial.append({"telefono": tel, "texto": msg_in, "tipo": "in", "hora": hora})
+                    if msg_out:
+                        historial.append({"telefono": tel, "texto": msg_out, "tipo": "out", "hora": hora})
+            
+            # Guardamos localmente para evitar reads excesivos
+            with open(HISTORIAL_FILE, "w", encoding="utf-8") as f:
+                json.dump(historial, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"[ERROR HISTORIAL SHEETS] {e}")
+
+    return historial
 
 def append_historial(telefono, texto, tipo):
     try:
         h = get_historial()
         hora_actual = datetime.now().strftime("%d/%m %H:%M")
         h.append({"telefono": str(telefono), "texto": texto, "tipo": tipo, "hora": hora_actual})
-        # Mantener solo los últimos 500 mensajes para que no colapse la memoria
+        # Guardar historial completo sin recortar, para no dejar nada fuera
         with open(HISTORIAL_FILE, "w", encoding="utf-8") as f:
-            json.dump(h[-500:], f, ensure_ascii=False, indent=2)
+            json.dump(h, f, ensure_ascii=False, indent=2)
     except Exception as e:
         print(f"[ERROR HISTORIAL] {e}")
 
