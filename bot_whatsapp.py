@@ -839,142 +839,201 @@ HTML_CHAT = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel de Control - Creación Cuántica</title>
+    <title>Panel WhatsApp - Creación Cuántica</title>
     <style>
-        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; display: flex; height: 100vh; background-color: #efeae2; }
-        #sidebar { width: 320px; background: #fff; border-right: 1px solid #ddd; overflow-y: auto; display: flex; flex-direction: column; }
-        .header-brand { background: #008069; color: white; padding: 15px; font-size: 1.2em; font-weight: bold; }
-        .contact { padding: 15px; border-bottom: 1px solid #f0f0f0; cursor: pointer; display: flex; flex-direction: column; }
-        .contact:hover { background: #f5f5f5; }
-        .contact.active { background: #ebebeb; }
-        .contact-number { font-weight: bold; color: #111; }
-        .contact-preview { font-size: 0.85em; color: #666; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        
-        #chat-area { flex: 1; display: flex; flex-direction: column; background: #efeae2; }
-        #current-contact-header { padding: 15px 20px; background: #f0f0f0; font-weight: bold; border-bottom: 1px solid #ddd; display: flex; align-items: center;}
-        
-        #messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; }
-        .msg { max-width: 65%; margin-bottom: 10px; padding: 10px 14px; border-radius: 8px; font-size: 0.95em; line-height: 1.4; position: relative; }
-        .msg.in { background: #fff; align-self: flex-start; border-top-left-radius: 0; box-shadow: 0 1px 1px rgba(0,0,0,0.1); }
-        .msg.out { background: #d9fdd3; align-self: flex-end; border-top-right-radius: 0; box-shadow: 0 1px 1px rgba(0,0,0,0.1); }
-        .msg-time { font-size: 0.75em; color: #777; margin-top: 4px; text-align: right; }
-        
-        #input-area { padding: 15px; background: #f0f0f0; display: flex; gap: 10px; align-items: center; }
-        #msg-input { flex: 1; padding: 12px 15px; border: none; border-radius: 8px; outline: none; font-size: 1em; }
-        #send-btn { padding: 12px 24px; background: #00a884; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: background 0.2s;}
-        #send-btn:hover { background: #008f6f; }
-        #send-btn:disabled { background: #ccc; cursor: not-allowed; }
+        :root { --primary: #008069; --bg-body: #d1d7db; --bg-chat: #efeae2; --chat-bubble-out: #d9fdd3; --text-dark: #111b21; --text-muted: #667781; --border: #e9edef; --panel-bg: #ffffff; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: var(--bg-body); color: var(--text-dark); height: 100vh; display: flex; justify-content: center; align-items: center; }
+        .app-container { display: flex; width: 100%; max-width: 1400px; height: 95vh; background: var(--panel-bg); box-shadow: 0 6px 18px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; }
+        .sidebar { width: 30%; min-width: 300px; border-right: 1px solid var(--border); display: flex; flex-direction: column; background: #ffffff; }
+        .sidebar-header { background: #f0f2f5; padding: 15px 20px; font-weight: 600; font-size: 18px; border-bottom: 1px solid var(--border); }
+        .contacts-list { flex: 1; overflow-y: auto; }
+        .contact-item { padding: 15px 20px; border-bottom: 1px solid var(--border); cursor: pointer; transition: 0.2s; display: flex; align-items: center; }
+        .contact-item:hover, .contact-item.active { background: #f0f2f5; }
+        .avatar { width: 45px; height: 45px; background: #dfe5e7; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 15px; font-size: 20px; }
+        .contact-info { flex: 1; min-width: 0; }
+        .contact-info h4 { margin-bottom: 4px; font-weight: 500; font-size:15px; }
+        .contact-info p { font-size: 13px; color: var(--text-muted); text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
+        .chat-area { flex: 1; display: flex; flex-direction: column; background: var(--bg-chat); position: relative; }
+        .chat-area::before { content: ''; position: absolute; top:0; left:0; right:0; bottom:0; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); opacity: 0.06; pointer-events: none; z-index: 0; }
+        .chat-header { background: #f0f2f5; padding: 15px 25px; font-weight: 500; border-bottom: 1px solid var(--border); z-index: 1; display: flex; align-items: center; }
+        .messages-container { flex: 1; padding: 30px; overflow-y: auto; z-index: 1; display: flex; flex-direction: column; }
+        .message { max-width: 65%; padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; position: relative; font-size: 14.5px; line-height: 1.4; box-shadow: 0 1px 1px rgba(0,0,0,0.1); }
+        .message.sent { align-self: flex-end; background: var(--chat-bubble-out); border-top-right-radius: 0; }
+        .message.received { align-self: flex-start; background: #ffffff; border-top-left-radius: 0; }
+        .message .time { font-size: 11px; color: var(--text-muted); float: right; margin-top: 5px; margin-left: 15px; }
+        .chat-input-area { background: #f0f2f5; padding: 15px 25px; display: flex; align-items: center; z-index: 1; gap: 15px; }
+        .chat-input-area textarea { flex: 1; border: none; padding: 12px 15px; border-radius: 8px; resize: none; outline: none; font-family: inherit; font-size: 15px; }
+        .send-btn { background: var(--primary); color: white; border: none; width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; }
+        .send-btn:hover { background: #005c4b; }
+        .hidden { display: none !important; }
+        .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; z-index: 1; color: var(--text-muted); }
     </style>
 </head>
 <body>
-    <div id="sidebar">
-        <div class="header-brand">Creación Cuántica Chats</div>
-        <div id="contact-list">Cargando chats...</div>
-    </div>
-    <div id="chat-area">
-        <div id="current-contact-header">Selecciona un número de la lista para conversar</div>
-        <div id="messages"></div>
-        <div id="input-area">
-            <input type="text" id="msg-input" placeholder="Escribe un mensaje aquí..." disabled onkeypress="if(event.key === 'Enter') enviarMensaje()">
-            <button id="send-btn" onclick="enviarMensaje()" disabled>Enviar</button>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">💬 Chats en Vivo</div>
+            <div class="contacts-list" id="contactsList"></div>
+        </div>
+
+        <!-- Chat Area -->
+        <div class="chat-area" id="chatArea">
+            <div class="empty-state" id="emptyState">
+                <div style="font-size: 40px; margin-bottom: 20px;">🚀</div>
+                <h2>Mensajero Conectado</h2>
+                <p style="margin-top: 10px;">Selecciona un chat de la lista para ver el historial y responder.</p>
+            </div>
+
+            <div class="chat-header hidden" id="chatHeader">
+                <div class="avatar" style="width: 40px; height: 40px; margin-right: 15px; font-size: 16px;">👤</div>
+                <h3 id="chatHeaderName"></h3>
+            </div>
+
+            <div class="messages-container hidden" id="messagesContainer"></div>
+
+            <div class="chat-input-area hidden" id="chatInputArea">
+                <textarea id="messageInput" rows="1" placeholder="Escribe un mensaje aquí..." onkeydown="handleEnter(event)"></textarea>
+                <button class="send-btn" onclick="sendMessage()">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
+                </button>
+            </div>
         </div>
     </div>
 
     <script>
-        let currentPhone = null;
-        let historial = [];
+        let chatHistory = {};
+        let activeContact = null;
+        let isUserScrolling = false;
+
+        document.getElementById('messagesContainer').addEventListener('scroll', function() {
+            const container = this;
+            // if we scrolled up even a little bit, consider user is scrolling
+            isUserScrolling = (container.scrollHeight - container.scrollTop - container.clientHeight) > 20;
+        });
 
         async function cargarDatos() {
             try {
                 let res = await fetch('/api/historial');
-                historial = await res.json();
-                renderSidebar();
-                if(currentPhone) {
-                    renderMessages(currentPhone, false);
+                let data = await res.json();
+                
+                let newHistory = {};
+                for(let m of data) {
+                    if (!newHistory[m.telefono]) newHistory[m.telefono] = [];
+                    newHistory[m.telefono].push({
+                        text: m.texto,
+                        time: m.hora,
+                        sent: m.tipo === 'out'
+                    });
                 }
-            } catch (e) {
-                console.error("Error cargando historial", e);
-            }
+                chatHistory = newHistory;
+                renderContacts();
+                if (activeContact) renderMessages(false);
+            } catch (e) { console.error("Error cargando historial", e); }
         }
 
-        function renderSidebar() {
-            // Obtener números únicos (el último que escribió sale primero)
-            let phones = [...new Set(historial.map(m => m.telefono))].reverse();
-            let html = '';
+        function renderContacts() {
+            const list = document.getElementById('contactsList');
+            list.innerHTML = '';
+            
+            // Ordenar por ultimo mensaje recibido
+            const phones = Object.keys(chatHistory).reverse();
             
             if(phones.length === 0) {
-                html = '<div style="padding: 15px; color:#666; text-align:center;">Aún no hay mensajes.</div>';
-            } else {
-                phones.forEach(p => {
-                    let active = p === currentPhone ? 'active' : '';
-                    let msgs = historial.filter(m => m.telefono === p);
-                    let lastMsg = msgs[msgs.length - 1];
-                    let text = lastMsg ? lastMsg.texto : '';
-                    html += `<div class="contact ${active}" onclick="selectContact('${p}')">
-                                <div class="contact-number">${p}</div>
-                                <div class="contact-preview">${text}</div>
-                             </div>`;
-                });
+                list.innerHTML = '<div style="padding: 20px; text-align: center; color: #888; font-size: 14px;">Aún no hay mensajes.</div>';
+                return;
             }
-            document.getElementById('contact-list').innerHTML = html;
-        }
 
-        function selectContact(phone) {
-            currentPhone = phone;
-            document.getElementById('current-contact-header').innerHTML = "Chat actual: <b>" + phone + "</b>";
-            document.getElementById('msg-input').disabled = false;
-            document.getElementById('send-btn').disabled = false;
-            document.getElementById('msg-input').focus();
-            renderMessages(phone, true);
-            renderSidebar();
-        }
+            phones.forEach(phone => {
+                const messages = chatHistory[phone];
+                const lastMessage = messages[messages.length - 1].text;
 
-        function renderMessages(phone, forceScroll) {
-            let box = document.getElementById('messages');
-            // Check if user is scrolled to bottom
-            let isAtBottom = box.scrollHeight - box.scrollTop <= box.clientHeight + 50;
-
-            let msgs = historial.filter(m => m.telefono === phone);
-            let html = '';
-            msgs.forEach(m => {
-                let cls = m.tipo === 'in' ? 'in' : 'out';
-                let text = m.texto.replace(/\\n/g, '<br>');
-                html += `<div class="msg ${cls}">${text}<div class="msg-time">${m.hora}</div></div>`;
+                const div = document.createElement('div');
+                div.className = `contact-item ${activeContact === phone ? 'active' : ''}`;
+                div.onclick = () => openChat(phone);
+                
+                div.innerHTML = `
+                    <div class="avatar">👤</div>
+                    <div class="contact-info">
+                        <h4>+${phone}</h4>
+                        <p>${lastMessage}</p>
+                    </div>
+                `;
+                list.appendChild(div);
             });
+        }
+
+        function openChat(phone) {
+            activeContact = phone;
+            document.getElementById('emptyState').classList.add('hidden');
+            document.getElementById('chatHeader').classList.remove('hidden');
+            document.getElementById('messagesContainer').classList.remove('hidden');
+            document.getElementById('chatInputArea').classList.remove('hidden');
+            document.getElementById('chatHeaderName').innerText = '+' + phone;
             
-            box.innerHTML = html;
+            isUserScrolling = false; // reset
+            renderContacts();
+            renderMessages(true);
+            setTimeout(() => document.getElementById('messageInput').focus(), 100);
+        }
+
+        function renderMessages(forceBottom) {
+            const container = document.getElementById('messagesContainer');
+            container.innerHTML = '';
             
-            if(forceScroll || isAtBottom) {
-                box.scrollTop = box.scrollHeight;
+            if (!activeContact || !chatHistory[activeContact]) return;
+
+            const messages = chatHistory[activeContact];
+            messages.forEach(msg => {
+                const div = document.createElement('div');
+                div.className = `message ${msg.sent ? 'sent' : 'received'}`;
+                const textWithLineBreaks = msg.text.replace(/\\n/g, '<br>');
+                div.innerHTML = `${textWithLineBreaks}<span class="time">${msg.time}</span>`;
+                container.appendChild(div);
+            });
+
+            if (forceBottom || !isUserScrolling) {
+                container.scrollTop = container.scrollHeight;
             }
         }
 
-        async function enviarMensaje() {
-            let input = document.getElementById('msg-input');
-            let texto = input.value.trim();
-            if(!texto || !currentPhone) return;
+        function handleEnter(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        }
+
+        async function sendMessage() {
+            const textarea = document.getElementById('messageInput');
+            const mensaje = textarea.value.trim();
+            const destino = activeContact;
+
+            if (!mensaje || !destino) return;
+
+            textarea.value = '';
             
-            input.value = '';
-            
-            // Agregar visualmente rápido (Optimista)
-            let horaActual = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            historial.push({telefono: currentPhone, texto: texto, tipo: 'out', hora: horaActual});
-            renderMessages(currentPhone, true);
-            renderSidebar();
-            
+            // optimista
+            const horaActual = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            chatHistory[destino].push({ text: mensaje, time: horaActual, sent: true });
+            isUserScrolling = false;
+            renderMessages(true);
+            renderContacts();
+
             try {
                 await fetch('/api/enviar', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({telefono: currentPhone, mensaje: texto})
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ telefono: destino, mensaje: mensaje })
                 });
-                cargarDatos(); // Recargar oficial
-            } catch(e) {
-                alert("Error al enviar el mensaje.");
+                cargarDatos();
+            } catch (error) {
+                console.error("Error enviando:", error);
+                alert("Error enviando mensaje");
             }
         }
 
-        // Actualizar cada 4 segundos
         setInterval(cargarDatos, 4000);
         cargarDatos();
     </script>
