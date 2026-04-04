@@ -321,6 +321,9 @@ def marcar_stop(telefono):
             print(f"[ERROR] marcar_stop: {e}")
 
 # ── WhatsApp ───────────────────────────────────────────────────────────────
+# Diccionario global para rastrear respuestas enviadas
+_respuestas_enviadas = {}
+
 def enviar_mensaje(telefono, texto):
     cfg = get_config()
     payload = {"messaging_product":"whatsapp","to":str(telefono),
@@ -331,6 +334,9 @@ def enviar_mensaje(telefono, texto):
         r = req_lib.post(api_url(), json=payload, headers=headers, timeout=10)
         if r.status_code != 200:
             print(f"[WA ERROR] {r.status_code}: {r.text[:200]}")
+        else:
+            # Guardar respuesta enviada para registrarla en Sheets
+            _respuestas_enviadas[str(telefono)] = texto
         return r.status_code == 200
     except Exception as e:
         print(f"[WA EXCEPTION] {e}"); return False
@@ -439,6 +445,19 @@ def respuesta_pedir_fecha(pila, px_confirmados):
 
 # ── Lógica principal ───────────────────────────────────────────────────────
 def procesar_mensaje(telefono, texto):
+    """Procesa el mensaje y devuelve el texto de la respuesta enviada."""
+    _respuestas = []
+    _enviar_original = enviar_mensaje
+
+    def _enviar_tracked(tel, msg):
+        _respuestas.append(msg)
+        return _enviar_original(tel, msg)
+
+    # Patch local de enviar_mensaje
+    import builtins
+    _globals = globals()
+    _globals['_enviar_tracked_fn'] = _enviar_tracked
+
     t_norm = normalizar(texto)
     sesion = get_sesion(telefono)
     intencion_global = detectar_intencion(texto)
@@ -620,14 +639,17 @@ def recibir_mensaje():
         if tipo == "text":
             texto = msg["text"]["body"]
             print(f"[IN] {telefono}: {texto[:100]}")
-            # Cargar nombre del IMO para el Sheet
+            # Cargar nombre del IMO
             imo_nombre_sheet, _ = cargar_px_del_imo(telefono)
+            # Procesar mensaje
             procesar_mensaje(telefono, texto)
-            # Registrar en Google Sheets en segundo plano
+            # Obtener respuesta enviada y registrar en Sheets
+            respuesta_enviada = _respuestas_enviadas.pop(str(telefono), "")
             import threading as _th
             _th.Thread(
                 target=registrar_en_sheets,
-                args=(telefono, imo_nombre_sheet, texto, "", ""),
+                args=(telefono, imo_nombre_sheet, texto,
+                      respuesta_enviada[:500] if respuesta_enviada else "", ""),
                 daemon=True
             ).start()
         elif tipo in ("audio","image","document","video","sticker"):
