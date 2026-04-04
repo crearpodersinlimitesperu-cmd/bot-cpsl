@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-v3 — Respuestas enroladoras mejoradas (sin IA externa)
+v4 — Con Panel de Chat Privado Web
 """
 
 import os, re, json, threading
@@ -12,6 +12,30 @@ from openpyxl import load_workbook
 from filelock import FileLock
 
 app = Flask(__name__)
+
+# ══════════════════════════════════════════════════════════════════════════
+# HISTORIAL DE CHAT PARA PANEL WEB
+# ══════════════════════════════════════════════════════════════════════════
+HISTORIAL_FILE = "historial_chat.json"
+
+def get_historial():
+    try:
+        with open(HISTORIAL_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return []
+
+def append_historial(telefono, texto, tipo):
+    try:
+        h = get_historial()
+        hora_actual = datetime.now().strftime("%d/%m %H:%M")
+        h.append({"telefono": str(telefono), "texto": texto, "tipo": tipo, "hora": hora_actual})
+        # Mantener solo los últimos 500 mensajes para que no colapse la memoria
+        with open(HISTORIAL_FILE, "w", encoding="utf-8") as f:
+            json.dump(h[-500:], f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"[ERROR HISTORIAL] {e}")
+
 
 # ══════════════════════════════════════════════════════════════════════════
 # GOOGLE SHEETS (HTTP puro + JWT)
@@ -216,9 +240,9 @@ KEYWORDS = {
                    "van todos","vienen todos","se sento","se sentó",
                    "si se van a sentar","tiene vuelos","vuelos comprados"],
     "VOLANTE": ["volante","flyer","invitacion","invitación","afiche","imagen del c1",
-               "informacion del entrenamiento","info del entrenamiento",
-               "comparte la info","comparte la informacion","mandame la info",
-               "mandame el flyer","mandame el volante","compartir la informacion"],
+                "informacion del entrenamiento","info del entrenamiento",
+                "comparte la info","comparte la informacion","mandame la info",
+                "mandame el flyer","mandame el volante","compartir la informacion"],
     "CONSULTA_PX": ["ya confirmo","ya confirmó","ya confirma","confirmo ella",
                     "confirmo el","se inscribio","se inscribió","ya pago","ya pagó",
                     "esta inscrita","esta inscrito","ya esta","ya está",
@@ -391,6 +415,7 @@ def enviar_mensaje(telefono, texto):
             print(f"[WA ERROR] {r.status_code}: {r.text[:200]}")
         else:
             _respuestas_enviadas[str(telefono)] = texto
+            append_historial(telefono, texto, "out") # Guarda en el historial web
         return r.status_code == 200
     except Exception as e:
         print(f"[WA EXCEPTION] {e}"); return False
@@ -805,6 +830,185 @@ _hilo.start()
 print("✅ Hilo de respuestas manuales iniciados")
 
 # ══════════════════════════════════════════════════════════════════════════
+# ENDPOINTS WEB Y PANEL DE CHAT (HTML)
+# ══════════════════════════════════════════════════════════════════════════
+
+HTML_CHAT = """
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Control - Creación Cuántica</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; display: flex; height: 100vh; background-color: #efeae2; }
+        #sidebar { width: 320px; background: #fff; border-right: 1px solid #ddd; overflow-y: auto; display: flex; flex-direction: column; }
+        .header-brand { background: #008069; color: white; padding: 15px; font-size: 1.2em; font-weight: bold; }
+        .contact { padding: 15px; border-bottom: 1px solid #f0f0f0; cursor: pointer; display: flex; flex-direction: column; }
+        .contact:hover { background: #f5f5f5; }
+        .contact.active { background: #ebebeb; }
+        .contact-number { font-weight: bold; color: #111; }
+        .contact-preview { font-size: 0.85em; color: #666; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        
+        #chat-area { flex: 1; display: flex; flex-direction: column; background: #efeae2; }
+        #current-contact-header { padding: 15px 20px; background: #f0f0f0; font-weight: bold; border-bottom: 1px solid #ddd; display: flex; align-items: center;}
+        
+        #messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; }
+        .msg { max-width: 65%; margin-bottom: 10px; padding: 10px 14px; border-radius: 8px; font-size: 0.95em; line-height: 1.4; position: relative; }
+        .msg.in { background: #fff; align-self: flex-start; border-top-left-radius: 0; box-shadow: 0 1px 1px rgba(0,0,0,0.1); }
+        .msg.out { background: #d9fdd3; align-self: flex-end; border-top-right-radius: 0; box-shadow: 0 1px 1px rgba(0,0,0,0.1); }
+        .msg-time { font-size: 0.75em; color: #777; margin-top: 4px; text-align: right; }
+        
+        #input-area { padding: 15px; background: #f0f0f0; display: flex; gap: 10px; align-items: center; }
+        #msg-input { flex: 1; padding: 12px 15px; border: none; border-radius: 8px; outline: none; font-size: 1em; }
+        #send-btn { padding: 12px 24px; background: #00a884; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: background 0.2s;}
+        #send-btn:hover { background: #008f6f; }
+        #send-btn:disabled { background: #ccc; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <div class="header-brand">Creación Cuántica Chats</div>
+        <div id="contact-list">Cargando chats...</div>
+    </div>
+    <div id="chat-area">
+        <div id="current-contact-header">Selecciona un número de la lista para conversar</div>
+        <div id="messages"></div>
+        <div id="input-area">
+            <input type="text" id="msg-input" placeholder="Escribe un mensaje aquí..." disabled onkeypress="if(event.key === 'Enter') enviarMensaje()">
+            <button id="send-btn" onclick="enviarMensaje()" disabled>Enviar</button>
+        </div>
+    </div>
+
+    <script>
+        let currentPhone = null;
+        let historial = [];
+
+        async function cargarDatos() {
+            try {
+                let res = await fetch('/api/historial');
+                historial = await res.json();
+                renderSidebar();
+                if(currentPhone) {
+                    renderMessages(currentPhone, false);
+                }
+            } catch (e) {
+                console.error("Error cargando historial", e);
+            }
+        }
+
+        function renderSidebar() {
+            // Obtener números únicos (el último que escribió sale primero)
+            let phones = [...new Set(historial.map(m => m.telefono))].reverse();
+            let html = '';
+            
+            if(phones.length === 0) {
+                html = '<div style="padding: 15px; color:#666; text-align:center;">Aún no hay mensajes.</div>';
+            } else {
+                phones.forEach(p => {
+                    let active = p === currentPhone ? 'active' : '';
+                    let msgs = historial.filter(m => m.telefono === p);
+                    let lastMsg = msgs[msgs.length - 1];
+                    let text = lastMsg ? lastMsg.texto : '';
+                    html += `<div class="contact ${active}" onclick="selectContact('${p}')">
+                                <div class="contact-number">${p}</div>
+                                <div class="contact-preview">${text}</div>
+                             </div>`;
+                });
+            }
+            document.getElementById('contact-list').innerHTML = html;
+        }
+
+        function selectContact(phone) {
+            currentPhone = phone;
+            document.getElementById('current-contact-header').innerHTML = "Chat actual: <b>" + phone + "</b>";
+            document.getElementById('msg-input').disabled = false;
+            document.getElementById('send-btn').disabled = false;
+            document.getElementById('msg-input').focus();
+            renderMessages(phone, true);
+            renderSidebar();
+        }
+
+        function renderMessages(phone, forceScroll) {
+            let box = document.getElementById('messages');
+            // Check if user is scrolled to bottom
+            let isAtBottom = box.scrollHeight - box.scrollTop <= box.clientHeight + 50;
+
+            let msgs = historial.filter(m => m.telefono === phone);
+            let html = '';
+            msgs.forEach(m => {
+                let cls = m.tipo === 'in' ? 'in' : 'out';
+                let text = m.texto.replace(/\\n/g, '<br>');
+                html += `<div class="msg ${cls}">${text}<div class="msg-time">${m.hora}</div></div>`;
+            });
+            
+            box.innerHTML = html;
+            
+            if(forceScroll || isAtBottom) {
+                box.scrollTop = box.scrollHeight;
+            }
+        }
+
+        async function enviarMensaje() {
+            let input = document.getElementById('msg-input');
+            let texto = input.value.trim();
+            if(!texto || !currentPhone) return;
+            
+            input.value = '';
+            
+            // Agregar visualmente rápido (Optimista)
+            let horaActual = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            historial.push({telefono: currentPhone, texto: texto, tipo: 'out', hora: horaActual});
+            renderMessages(currentPhone, true);
+            renderSidebar();
+            
+            try {
+                await fetch('/api/enviar', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({telefono: currentPhone, mensaje: texto})
+                });
+                cargarDatos(); // Recargar oficial
+            } catch(e) {
+                alert("Error al enviar el mensaje.");
+            }
+        }
+
+        // Actualizar cada 4 segundos
+        setInterval(cargarDatos, 4000);
+        cargarDatos();
+    </script>
+</body>
+</html>
+"""
+
+@app.route("/chat", methods=["GET"])
+def panel_chat():
+    return HTML_CHAT
+
+@app.route("/api/historial", methods=["GET"])
+def api_historial():
+    return jsonify(get_historial()), 200
+
+@app.route("/api/enviar", methods=["POST"])
+def api_enviar():
+    data = request.json
+    tel = data.get("telefono")
+    msg = data.get("mensaje")
+    if tel and msg:
+        enviar_mensaje(tel, msg)
+        
+        # Opcional: También registrar la respuesta manual en el Excel principal de Google
+        imo_nombre, _ = cargar_px_del_imo(tel)
+        threading.Thread(
+            target=registrar_en_sheets,
+            args=(tel, imo_nombre, "[ENVIADO DESDE PANEL PRIVADO]", msg, "MANUAL"),
+            daemon=True).start()
+            
+        return jsonify({"status": "ok"}), 200
+    return jsonify({"error": "Faltan datos"}), 400
+
+# ══════════════════════════════════════════════════════════════════════════
 # ENDPOINTS FLASK
 # ══════════════════════════════════════════════════════════════════════════
 
@@ -829,6 +1033,10 @@ def recibir_mensaje():
         if tipo == "text":
             texto = msg["text"]["body"]
             print(f"[IN] {telefono}: {texto[:100]}")
+            
+            # Guardamos el mensaje entrante en el historial del chat web
+            append_historial(telefono, texto, "in")
+            
             imo_nombre_sheet, _ = cargar_px_del_imo(telefono)
             procesar_mensaje(telefono, texto)
             respuesta_enviada = _respuestas_enviadas.pop(str(telefono), "")
@@ -850,7 +1058,7 @@ def recibir_mensaje():
 def status():
     cfg = get_config()
     return jsonify({
-        "status": "activo", "version": "v3",
+        "status": "activo", "version": "v4_con_panel",
         "sesiones_activas": len(cargar_sesiones()),
         "excel_existe": os.path.exists(cfg["excel_path"]),
         "token_ok": bool(cfg["token"]),
@@ -869,7 +1077,7 @@ def borrar_sesion_endpoint(telefono):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     cfg  = get_config()
-    print(f"Bot CPSL v3 — puerto {port}")
+    print(f"Bot CPSL v4 — puerto {port}")
     print(f"Excel   : {cfg['excel_path']}")
     print(f"PhoneID : {cfg['phone_id'] or 'NO CONFIGURADO'}")
     print(f"Token   : {'OK' if cfg['token'] else 'NO CONFIGURADO'}")
