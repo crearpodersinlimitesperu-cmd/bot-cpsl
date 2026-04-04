@@ -1,17 +1,6 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-
-Requisitos:
-  pip install flask requests openpyxl filelock
-
-Variables de entorno:
-  WA_TOKEN        — Token de acceso de Meta
-  WA_PHONE_ID     — Phone Number ID del número de Comunicaciones
-  WA_VERIFY_TOKEN — Token de verificación del webhook (ej: "cpsl2026")
-  EXCEL_PATH      — Ruta al Excel (default: campana_imos_c1_e27.xlsx)
-  JOSE_LUIS_TEL   — Tu teléfono con código país sin + (ej: 51999123456)
-  SESSIONS_PATH   — Ruta al JSON de sesiones (default: sesiones.json)
 """
 
 import os, re, json, threading
@@ -23,7 +12,6 @@ from filelock import FileLock
 
 app = Flask(__name__)
 
-# ── Config en runtime, no en import ───────────────────────────────────────
 def get_config():
     return {
         "token":         os.environ.get("WA_TOKEN", ""),
@@ -34,106 +22,142 @@ def get_config():
         "sessions_path": os.environ.get("SESSIONS_PATH", "sesiones.json"),
     }
 
-def norm_tel(tel):
-    """
-    Normaliza teléfonos a 9 dígitos para comparar.
-    Maneja: 51XXXXXXXXX, 0XXXXXXXXX, XXXXXXXXX, 593XXXXXXXXX, etc.
-    """
-    t = str(tel).strip().replace("+","").replace(" ","").replace("-","")
-    if t.startswith("51") and len(t) == 11:
-        t = t[2:]   # quitar código Perú → 9 dígitos
-    elif t.startswith("0") and len(t) == 10:
-        t = t[1:]   # quitar 0 inicial → 9 dígitos
-    elif len(t) > 10 and not t.startswith("9"):
-        t = t[-9:]  # código de otro país → últimos 9
-    return t
-
 def api_url():
     return f"https://graph.facebook.com/v19.0/{get_config()['phone_id']}/messages"
 
 _excel_lock = threading.Lock()
 
-# ── Keywords corregidas — frases, no palabras sueltas ─────────────────────
+# ── Datos de la campaña ────────────────────────────────────────────────────
+INFO_C1 = """📅 *Capítulo 1 — Equipo 27*
+
+📍 Hotel José Antonio Deluxe
+Calle Bellavista 133, Miraflores, Lima
+
+🗓 *Viernes 1 de mayo*
+• 09:00 am — Mesa de registro (obligatorio)
+• 10:00 am — Inicio
+• 10:00 pm — Cierre aproximado
+
+🗓 *Sábado 2 de mayo*
+• 09:00 am — Ingreso
+• 10:00 am — Inicio
+• 10:00 pm — Cierre aproximado
+
+🗓 *Domingo 3 de mayo*
+• 09:00 am — Inicio
+• 09:00 pm — Cierre y celebración
+
+👕 Ropa cómoda y abrigo ligero
+💧 Trae tu botella de agua
+🚫 No se permiten alimentos ni bebidas externas al salón"""
+
+POLITICA_CAMBIO = """🔄 *Política de cambio de nombre*
+
+Los cambios de titularidad son excepcionales y aplican solo en casos de fuerza mayor autorizados por gerencia.
+
+*Condiciones:*
+• Solo aplica si el participante no está "en juego" (no ha iniciado proceso)
+• El cambio debe gestionarse a través del IMO ante la coordinación
+• *Deadline: miércoles previo al entrenamiento hasta las 6:00 pm*
+• No se aceptan cambios en la puerta del hotel el día viernes
+• El nuevo participante debe pasar por su llamada de bienvenida obligatoria
+
+Para gestionar un cambio, comunícate con tu coordinadora:"""
+
+POLITICA_DEVOLUCION = """💼 *Política de inversión*
+
+En Crear Poder Sin Límites no realizamos devoluciones bajo ninguna circunstancia una vez efectuado el pago. El espacio en el salón está asegurado desde el momento del pago.
+
+Si el participante no puede asistir a su equipo inscrito, su inversión queda congelada para el siguiente equipo inmediato. Si tampoco asiste en esa siguiente edición, pierde la inversión definitivamente.
+
+Para consultas comunícate con tu coordinadora:"""
+
+COORDINADORAS = """👩‍💼 *Coordinadoras Capítulo 1 y 2:*
+
+• Diana Moscoso: +51 912 379 744
+• Joyce Marín: +51 933 599 903
+• Leyla Pasquel: +51 919 502 385
+• Zuley Urteaga: +51 933 599 864"""
+
+STOP_CLAUSULA = "\n\nSi no deseas recibir más mensajes de este número, responde STOP."
+
+# ── Normalización de teléfonos ─────────────────────────────────────────────
+def norm_tel(tel):
+    t = str(tel).strip().replace("+","").replace(" ","").replace("-","")
+    if t.startswith("51") and len(t) == 11:
+        t = t[2:]
+    elif t.startswith("0") and len(t) == 10:
+        t = t[1:]
+    elif len(t) > 10 and not t.startswith("9"):
+        t = t[-9:]
+    return t
+
+# ── Keywords ───────────────────────────────────────────────────────────────
 KEYWORDS = {
-    "STOP": [
-        "stop", "baja", "no mas mensajes", "no quiero mensajes",
-        "desuscribir", "eliminar mi numero",
-    ],
-    "NO INTERESADO": [
-        "no quiere", "ya no quiere", "no le interesa", "no interesa",
-        "desistio", "desistió", "no va a continuar", "no continua",
-        "no continúa", "rechazo el proceso", "rechazó el proceso",
-        "no desea", "se retira", "no seguira", "no seguirá",
-        "no quiere continuar", "decidio no", "decidió no",
-        "no va a ir", "no piensa ir", "no va a asistir",
-    ],
-    "NO CONTESTA": [
-        "no contesta", "no me contesta", "no contesto",
-        "no responde", "no me responde", "sin respuesta",
-        "no lo ubico", "no la ubico", "no lo encuentro",
-        "no la encuentro", "no atiende", "ilocalizable",
-        "numero equivocado", "número equivocado",
-        "numero malo", "número malo", "telefono malo",
-        "fuera de cobertura", "no existe el numero",
-    ],
-    "PENDIENTE": [
-        "pendiente", "aun no se", "aún no sé", "todavia no",
-        "todavía no", "esta pensando", "está pensando",
-        "lo esta pensando", "lo está pensando", "evaluando",
-        "conversando con", "lo estoy hablando", "seguimos hablando",
-        "en proceso", "me avisara", "me avisará",
-        "sin respuesta aun", "sin respuesta aún",
-    ],
-    "SIGUIENTE": [
-        "siguiente equipo", "otro equipo", "proximo equipo",
-        "próximo equipo", "siguiente c1", "otro c1",
-        "en el proximo", "en el próximo", "se une luego",
-    ],
-    "CONFIRMADO": [
-        "confirma ", "confirmado", "confirmada", "confirmo",
-        "si va", "sí va", "si viene", "sí viene",
-        "asistira", "asistirá", "se va a sentar",
-        "va a venir", "va a asistir", "va al c1",
-        "se sienta", "listo para el", "lista para el",
-        "van todos", "vienen todos",
-    ],
+    "STOP": ["stop","baja","no mas mensajes","no quiero mensajes","desuscribir"],
+    "CAMBIO": ["cambio de nombre","cambiar nombre","traspaso","cambio de participante",
+               "a cambio de","quiero cambiar","cambiar a","en lugar de"],
+    "INFO_C1": ["información del c1","info del c1","horario","dónde es","donde es",
+                "dirección","fecha","cuando es","cuándo es","hotel","miraflores",
+                "siguiente c1","próximo c1","proximo c1","c1 de mayo"],
+    "YA_SE_SENTO": ["ya se sentó","ya asistió","ya fue","ya estuvo","ya lo hizo",
+                    "ya la hizo","ya participo","ya participó","ya se sentaron"],
+    "NO_RECUERDA": ["no recuerdo","no sé quién","no se quien","no conozco",
+                    "quién es","quien es esta persona","no tengo información"],
+    "FALLECIO_ENFERMO": ["falleció","fallecio","murió","murio","está muy enfermo",
+                         "esta muy enfermo","hospitalizado","grave","accidente"],
+    "NO INTERESADO": ["no quiere","ya no quiere","no le interesa","no interesa",
+                      "desistio","desistió","no va a continuar","no continua",
+                      "no continúa","no desea","se retira","no seguira",
+                      "no seguirá","no quiere continuar","decidio no","decidió no",
+                      "no va a ir","no piensa ir","no va a asistir"],
+    "NO CONTESTA": ["no contesta","no me contesta","no contesto","no responde",
+                    "no me responde","sin respuesta","no lo ubico","no la ubico",
+                    "no lo encuentro","no la encuentro","no atiende","ilocalizable",
+                    "numero malo","número malo","telefono malo","fuera de cobertura"],
+    "PENDIENTE": ["pendiente","aun no se","aún no sé","todavia no","todavía no",
+                  "esta pensando","está pensando","evaluando","conversando con",
+                  "lo estoy hablando","seguimos hablando","en proceso","me avisara"],
+    "SIGUIENTE": ["siguiente equipo","otro equipo","proximo equipo","próximo equipo",
+                  "siguiente c1","otro c1","en el proximo","en el próximo"],
+    "CONFIRMADO": ["confirma ","confirmado","confirmada","confirmo","si va","sí va",
+                   "si viene","sí viene","asistira","asistirá","se va a sentar",
+                   "va a venir","va a asistir","va al c1","se sienta",
+                   "listo para el","lista para el","van todos","vienen todos",
+                   "se sento","se sentó","ya va","ya viene"],
 }
 
-# ── Normalización ──────────────────────────────────────────────────────────
 def normalizar(texto):
     t = texto.lower().strip()
     for a, b in [("á","a"),("é","e"),("í","i"),("ó","o"),("ú","u"),("ñ","n")]:
         t = t.replace(a, b)
     return t
 
-def detectar_estatus(texto):
-    """
-    Orden de prioridad: STOP → NO INTERESADO → NO CONTESTA
-    → PENDIENTE → SIGUIENTE → CONFIRMADO
-    Usa regex de palabra completa para evitar substrings.
-    """
+def detectar_intencion(texto):
+    """Detecta la intención principal del mensaje."""
     t = normalizar(texto)
-    orden = ["STOP","NO INTERESADO","NO CONTESTA","PENDIENTE","SIGUIENTE","CONFIRMADO"]
-    for estatus in orden:
-        for kw in KEYWORDS[estatus]:
+    # Orden de prioridad
+    orden = ["STOP","CAMBIO","INFO_C1","YA_SE_SENTO","NO_RECUERDA",
+             "FALLECIO_ENFERMO","NO INTERESADO","NO CONTESTA",
+             "PENDIENTE","SIGUIENTE","CONFIRMADO"]
+    for intencion in orden:
+        for kw in KEYWORDS[intencion]:
             kw_n = normalizar(kw)
             patron = r'(?<![a-z])' + re.escape(kw_n) + r'(?![a-z])'
             if re.search(patron, t):
-                return estatus
+                return intencion
     return None
 
 def buscar_px_en_texto(texto, px_list):
-    """
-    Extrae {px, estatus} del texto libre.
-    Un solo px → estatus global. Varios px → busca cada uno.
-    """
+    """Extrae {px, estatus} del texto libre."""
     resultados = []
     t_norm = normalizar(texto)
 
     if len(px_list) == 1:
-        estatus = detectar_estatus(texto)
-        if estatus and estatus != "STOP":
-            resultados.append({"px": px_list[0], "estatus": estatus})
+        intencion = detectar_intencion(texto)
+        if intencion and intencion not in ("STOP","CAMBIO","INFO_C1",
+                                           "NO_RECUERDA","FALLECIO_ENFERMO"):
+            resultados.append({"px": px_list[0], "estatus": intencion})
         return resultados
 
     for px in px_list:
@@ -146,12 +170,12 @@ def buscar_px_en_texto(texto, px_list):
                 inicio    = max(0, match.start() - 15)
                 fin       = min(len(texto), match.end() + 100)
                 fragmento = texto[inicio:fin]
-                estatus   = detectar_estatus(fragmento) or detectar_estatus(texto)
-                if estatus and estatus != "STOP":
-                    resultados.append({"px": px, "estatus": estatus})
+                intencion = detectar_intencion(fragmento) or detectar_intencion(texto)
+                if intencion and intencion not in ("STOP","CAMBIO","INFO_C1",
+                                                   "NO_RECUERDA","FALLECIO_ENFERMO"):
+                    resultados.append({"px": px, "estatus": intencion})
                 break
 
-    # Deduplicar
     vistos, dedup = set(), []
     for r in resultados:
         if r["px"] not in vistos:
@@ -159,7 +183,7 @@ def buscar_px_en_texto(texto, px_list):
             dedup.append(r)
     return dedup
 
-# ── Sesiones en JSON (sobrevive reinicios) ─────────────────────────────────
+# ── Sesiones ───────────────────────────────────────────────────────────────
 def _sf():
     return get_config()["sessions_path"]
 
@@ -183,7 +207,7 @@ def set_sesion(tel, datos):
 def borrar_sesion(tel):
     s = cargar_sesiones(); s.pop(str(tel), None); guardar_sesiones(s)
 
-# ── Excel helpers ──────────────────────────────────────────────────────────
+# ── Excel ──────────────────────────────────────────────────────────────────
 def ep():
     return get_config()["excel_path"]
 
@@ -203,7 +227,7 @@ def cargar_px_del_imo(telefono):
                 estado = str(row[6] or "").strip().upper()
                 if imo_t == tel_n:
                     if not imo_nombre: imo_nombre = imo_n
-                    if estado in ("PENDIENTE", "") and px_n:
+                    if estado in ("PENDIENTE","ENVIADO","") and px_n:
                         px_list.append(px_n)
             wb.close()
             return imo_nombre, px_list
@@ -255,12 +279,10 @@ def marcar_stop(telefono):
             print(f"[ERROR] marcar_stop: {e}")
 
 # ── WhatsApp ───────────────────────────────────────────────────────────────
-STOP_CLAUSULA = "\n\nSi no deseas recibir más mensajes de este número, responde STOP."
-
 def enviar_mensaje(telefono, texto):
     cfg = get_config()
     payload = {"messaging_product":"whatsapp","to":str(telefono),
-               "type":"text","text":{"body":texto}}
+               "type":"text","text":{"body":texto,"preview_url":False}}
     headers = {"Authorization":f"Bearer {cfg['token']}",
                "Content-Type":"application/json"}
     try:
@@ -290,38 +312,97 @@ def notificar_jose_luis(imo_nombre, confirmados):
     enviar_mensaje(jose,
         f"✅ *Nueva confirmación C1 E27*\n\nIMO: {imo_nombre}\n\nConfirmados:\n{nombres}")
 
-
 def es_confirmacion(texto):
-    """
-    Detecta confirmación real en texto libre.
-    Diferencia 'sí' (solo) de 'si me llaman' (falso positivo).
-    """
     t = normalizar(texto)
     tokens = re.findall(r'[a-zaeioun]+', t)
-    if not tokens:
-        return False
+    if not tokens: return False
     palabras_ok  = {"ok","dale","correcto","exacto","perfecto","listo",
-                    "claro","afirmativo","confirmado","confirmo","si","si"}
+                    "claro","afirmativo","confirmado","confirmo","si","sí"}
     palabras_neg = {"no","pero","aunque","llam","contesta","puede","podria",
-                    "quiero","deseo","puedes","dices","espera","llaman"}
-    # Solo palabras de confirmación → confirmar
-    if all(tok in palabras_ok for tok in tokens):
-        return True
-    # Hay negación → no confirmar
-    if any(neg in t for neg in palabras_neg):
-        return False
-    # Primera palabra es confirmación y mensaje corto → confirmar
-    if tokens[0] in palabras_ok and len(tokens) <= 3:
-        return True
+                    "quiero","deseo","puedes","dices","espera"}
+    if all(tok in palabras_ok for tok in tokens): return True
+    if any(neg in t for neg in palabras_neg): return False
+    if tokens[0] in palabras_ok and len(tokens) <= 3: return True
     return False
+
+# ── Respuestas especiales ──────────────────────────────────────────────────
+def respuesta_cambio(pila):
+    return (
+        f"Hola {pila}, gracias por escribirnos.\n\n"
+        f"En Crear Poder Sin Límites no realizamos cambios de nombre. "
+        f"El espacio en el salón es personal e intransferible.\n\n"
+        f"Para cualquier consulta sobre tu proceso, comunícate con tu coordinadora:\n\n"
+        f"{COORDINADORAS}\n\n"
+        f"Comunicaciones Crear Poder Sin Límites Perú"
+    )
+def respuesta_info_c1(pila):
+    return (
+        f"Hola {pila}, con gusto te compartimos la información completa:\n\n"
+        f"{INFO_C1}\n\n"
+        f"Recuerda: *el C1 E27 es el único disponible en esta campaña*. "
+        f"No hay próxima edición programada para este ciclo.\n\n"
+        f"Para consultas adicionales:\n{COORDINADORAS}\n\n"
+        f"Comunicaciones Crear Poder Sin Límites Perú"
+    )
+
+def respuesta_ya_sento(pila):
+    return (
+        f"Hola {pila}, muchas gracias por informarnos. 🙏\n\n"
+        f"Revisaremos el sistema y actualizaremos el registro. "
+        f"Un abrazo y seguimos en contacto.\n\n"
+        f"Comunicaciones Crear Poder Sin Límites Perú"
+    )
+
+def respuesta_no_recuerda(pila):
+    return (
+        f"Hola {pila}, no hay problema. 😊\n\n"
+        f"¿Cómo podemos apoyarte? Si tienes alguna duda sobre las personas "
+        f"de tu equipo o sobre el proceso, con gusto te orientamos.\n\n"
+        f"También puedes comunicarte directamente con tu coordinadora:\n"
+        f"{COORDINADORAS}\n\n"
+        f"Comunicaciones Crear Poder Sin Límites Perú"
+    )
+
+def respuesta_fallecio_enfermo(pila):
+    return (
+        f"Hola {pila}, lamentamos mucho la situación. 🙏\n\n"
+        f"Por favor comunícate directamente con tu coordinadora "
+        f"para que puedan acompañarte y orientarte en este caso:\n\n"
+        f"{COORDINADORAS}\n\n"
+        f"Comunicaciones Crear Poder Sin Límites Perú"
+    )
+
+def respuesta_no_campaña(telefono):
+    return (
+        f"Hola, gracias por escribirnos. 😊\n\n"
+        f"Este canal es exclusivo para la gestión del *Capítulo 1 — Equipo 27*.\n\n"
+        f"Si deseas información sobre nuestros entrenamientos o inscribirte, "
+        f"con mucho gusto te atendemos a través de nuestras coordinadoras:\n\n"
+        f"{COORDINADORAS}\n\n"
+        f"¡Será un placer acompañarte en este proceso de transformación! 🚀\n\n"
+        f"Comunicaciones Crear Poder Sin Límites Perú"
+        + STOP_CLAUSULA
+    )
+
+def respuesta_pedir_fecha(pila, px_confirmados):
+    nombres = "\n".join(f"• {px}" for px in px_confirmados)
+    return (
+        f"Excelente {pila}. 🎉\n\n"
+        f"Nos alegra mucho saberlo. Las siguientes personas confirman su asistencia:\n\n"
+        f"{nombres}\n\n"
+        f"¿Nos puedes indicar en qué fecha exacta estarán presentes?\n"
+        f"*(Viernes 1, Sábado 2 o Domingo 3 de mayo — o los tres días)*\n\n"
+        f"Comunicaciones Crear Poder Sin Límites Perú"
+    )
 
 # ── Lógica principal ───────────────────────────────────────────────────────
 def procesar_mensaje(telefono, texto):
     t_norm = normalizar(texto)
     sesion = get_sesion(telefono)
+    intencion_global = detectar_intencion(texto)
 
-    # STOP — opt-out legal
-    if detectar_estatus(texto) == "STOP":
+    # STOP
+    if intencion_global == "STOP":
         marcar_stop(telefono)
         borrar_sesion(telefono)
         enviar_mensaje(telefono,
@@ -330,21 +411,61 @@ def procesar_mensaje(telefono, texto):
             "Comunicaciones Crear Poder Sin Límites Perú")
         return
 
+    # Esperando fecha de confirmación
+    if sesion.get("estado") == "esperando_fecha":
+        fecha = texto.strip()
+        imo_nombre = sesion.get("imo_nombre","")
+        px_confirmados = sesion.get("px_confirmados",[])
+        # Guardar fecha en observaciones
+        with _excel_lock, FileLock(ep() + ".lock"):
+            try:
+                wb = load_workbook(ep())
+                ws = wb["DATA"]
+                tel_n = norm_tel(telefono)
+                for row in ws.iter_rows(min_row=2):
+                    if not row or len(row) < 9: continue
+                    if norm_tel(str(row[3].value or "")) != tel_n: continue
+                    px_c = str(row[4].value or "").strip()
+                    for px in px_confirmados:
+                        if normalizar(px.split()[0]) == normalizar(px_c.split()[0]):
+                            row[8].value = f"Fecha: {fecha}"
+                wb.save(ep()); wb.close()
+            except Exception as e:
+                print(f"[ERROR] guardar fecha: {e}")
+        borrar_sesion(telefono)
+        notificar_jose_luis(imo_nombre, [{"px": p} for p in px_confirmados])
+        enviar_mensaje(telefono,
+            f"Perfecto, registrado. ✅\n\n"
+            f"Esperamos verles el *{fecha}* en el Hotel José Antonio Deluxe, "
+            f"Calle Bellavista 133, Miraflores.\n\n"
+            f"Recuérdales llegar a las *9:00 am* para el registro. "
+            f"Ropa cómoda y botella de agua. 💪\n\n"
+            f"Comunicaciones Crear Poder Sin Límites Perú")
+        return
+
     # Esperando confirmación del resumen
     if sesion.get("estado") == "esperando_confirmacion":
-        # Regex de palabra completa — evita "si me llaman" → falso positivo
-        confirma = es_confirmacion(texto)
-        if confirma:
+        if es_confirmacion(texto):
             extraidos = sesion.get("extraidos", [])
             actualizar_excel(extraidos, telefono)
             confirmados = [e for e in extraidos if e["estatus"] == "CONFIRMADO"]
-            if confirmados:
-                notificar_jose_luis(sesion.get("imo_nombre",""), confirmados)
             borrar_sesion(telefono)
-            enviar_mensaje(telefono,
-                f"Gracias {nombre_pila(sesion.get('imo_nombre',''))}. "
-                f"Quedamos atentos a cualquier cambio.\n\n"
-                f"Comunicaciones Crear Poder Sin Límites Perú")
+            if confirmados:
+                px_nombres = [e["px"] for e in confirmados]
+                set_sesion(telefono, {
+                    "estado": "esperando_fecha",
+                    "imo_nombre": sesion.get("imo_nombre",""),
+                    "px_confirmados": px_nombres,
+                })
+                enviar_mensaje(telefono,
+                    respuesta_pedir_fecha(
+                        nombre_pila(sesion.get("imo_nombre","")),
+                        px_nombres))
+            else:
+                enviar_mensaje(telefono,
+                    f"Gracias {nombre_pila(sesion.get('imo_nombre',''))}. "
+                    f"Quedamos atentos a cualquier cambio.\n\n"
+                    f"Comunicaciones Crear Poder Sin Límites Perú")
         else:
             borrar_sesion(telefono)
             enviar_mensaje(telefono,
@@ -352,36 +473,55 @@ def procesar_mensaje(telefono, texto):
                 "de tus personas y lo registramos correctamente." + STOP_CLAUSULA)
         return
 
-    # Primera vez / retoma
+    # Cargar IMO
     imo_nombre, px_list = cargar_px_del_imo(telefono)
+    pila = nombre_pila(imo_nombre) if imo_nombre else ""
 
+    # No es de la campaña
     if not imo_nombre:
-        enviar_mensaje(telefono,
-            "Hola. Tu número no está registrado en nuestra campaña. "
-            "Si crees que es un error, escríbele a tu coordinadora.\n\n"
-            "Comunicaciones Crear Poder Sin Límites Perú" + STOP_CLAUSULA)
+        enviar_mensaje(telefono, respuesta_no_campaña(telefono))
         return
 
+    # Intenciones especiales que no requieren lista de px
+    if intencion_global == "CAMBIO":
+        enviar_mensaje(telefono, respuesta_cambio(pila))
+        return
+
+    if intencion_global == "INFO_C1":
+        enviar_mensaje(telefono, respuesta_info_c1(pila))
+        return
+
+    if intencion_global == "YA_SE_SENTO":
+        enviar_mensaje(telefono, respuesta_ya_sento(pila))
+        return
+
+    if intencion_global == "NO_RECUERDA":
+        enviar_mensaje(telefono, respuesta_no_recuerda(pila))
+        return
+
+    if intencion_global == "FALLECIO_ENFERMO":
+        enviar_mensaje(telefono, respuesta_fallecio_enfermo(pila))
+        return
+
+    # Sin px pendientes
     if not px_list:
         enviar_mensaje(telefono,
-            f"Hola {nombre_pila(imo_nombre)}. "
-            "Ya tienes el estatus registrado para todas tus personas. "
-            "Si hay un cambio cuéntanos y lo actualizamos.\n\n"
-            "Comunicaciones Crear Poder Sin Límites Perú")
+            f"Hola {pila}. Ya tienes el estatus registrado para todas tus personas. "
+            f"Si hay algún cambio cuéntanos y lo actualizamos.\n\n"
+            f"Comunicaciones Crear Poder Sin Límites Perú")
         return
 
-    pila     = nombre_pila(imo_nombre)
+    # Extraer estatus del texto
     extraidos = buscar_px_en_texto(texto, px_list)
 
     if not extraidos:
         lista_px = "\n".join(f"{i+1}. {px}" for i, px in enumerate(px_list))
         enviar_mensaje(telefono,
-            f"Hola {pila}, gracias por responder.\n\n"
-            f"No pude identificar el estatus de tus personas. "
-            f"Por favor menciona el nombre de cada uno y su situación:\n\n"
+            f"Hola {pila}, gracias por responder. 😊\n\n"
+            f"Tienes estas personas pendientes:\n\n"
             f"{lista_px}\n\n"
-            f"Usa estas palabras:\n"
-            f"✅ *confirma* — va a sentarse\n"
+            f"Por favor indícanos el estatus de cada uno usando estas palabras:\n\n"
+            f"✅ *confirma* — va a sentarse el 1-3 de mayo\n"
             f"➡️ *siguiente equipo* — se sienta en otro equipo\n"
             f"❌ *no quiere* — no va a continuar\n"
             f"📵 *no contesta* — no has podido ubicarle\n"
@@ -390,6 +530,7 @@ def procesar_mensaje(telefono, texto):
             + STOP_CLAUSULA)
         return
 
+    # Resumen y confirmar
     set_sesion(telefono, {
         "estado":     "esperando_confirmacion",
         "imo_nombre": imo_nombre,
@@ -450,12 +591,12 @@ def recibir_mensaje():
 def status():
     cfg = get_config()
     return jsonify({
-        "status":            "activo",
-        "sesiones_activas":  len(cargar_sesiones()),
-        "excel_existe":      os.path.exists(cfg["excel_path"]),
-        "token_ok":          bool(cfg["token"]),
-        "phone_ok":          bool(cfg["phone_id"]),
-        "hora":              datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+        "status":           "activo",
+        "sesiones_activas": len(cargar_sesiones()),
+        "excel_existe":     os.path.exists(cfg["excel_path"]),
+        "token_ok":         bool(cfg["token"]),
+        "phone_ok":         bool(cfg["phone_id"]),
+        "hora":             datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
     }), 200
 
 @app.route("/sesiones", methods=["GET"])
@@ -464,14 +605,14 @@ def ver_sesiones():
 
 @app.route("/sesiones/<telefono>", methods=["DELETE"])
 def borrar_sesion_endpoint(telefono):
-    borrar_sesion(telefono); return jsonify({"borrado": telefono}), 200
+    borrar_sesion(telefono)
+    return jsonify({"borrado": telefono}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     cfg  = get_config()
     print(f"🤖 Bot CPSL — puerto {port}")
     print(f"📁 Excel   : {cfg['excel_path']}")
-    print(f"💾 Sesiones: {cfg['sessions_path']}")
     print(f"📱 PhoneID : {cfg['phone_id'] or '⚠️ NO CONFIGURADO'}")
     print(f"🔑 Token   : {'✅' if cfg['token'] else '⚠️ NO CONFIGURADO'}")
     app.run(host="0.0.0.0", port=port, debug=False)
