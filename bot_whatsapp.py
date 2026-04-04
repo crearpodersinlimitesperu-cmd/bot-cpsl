@@ -656,6 +656,59 @@ def borrar_sesion_endpoint(telefono):
     borrar_sesion(telefono)
     return jsonify({"borrado": telefono}), 200
 
+
+def enviar_respuestas_manuales():
+    """Revisa el Sheet cada 2 minutos y envía respuestas manuales pendientes."""
+    sheet_id = os.environ.get("SHEET_ID", "")
+    if not sheet_id:
+        return
+    try:
+        service = get_sheets_service()
+        if not service:
+            return
+        # Leer columnas B (telefono), G (respuesta manual), H (enviado)
+        result = service.spreadsheets().values().get(
+            spreadsheetId=sheet_id,
+            range="Hoja 1!A:H"
+        ).execute()
+        rows = result.get("values", [])
+        for i, row in enumerate(rows[1:], start=2):  # saltar encabezado
+            if len(row) < 7: continue
+            telefono = str(row[1]).strip() if len(row) > 1 else ""
+            respuesta_manual = str(row[6]).strip() if len(row) > 6 else ""
+            enviado = str(row[7]).strip() if len(row) > 7 else ""
+            if not telefono or not respuesta_manual or enviado == "ENVIADO":
+                continue
+            # Enviar mensaje manual
+            ok = enviar_mensaje(telefono, respuesta_manual)
+            if ok:
+                # Marcar como enviado en columna H
+                service.spreadsheets().values().update(
+                    spreadsheetId=sheet_id,
+                    range=f"Hoja 1!H{i}",
+                    valueInputOption="RAW",
+                    body={"values": [["ENVIADO"]]}
+                ).execute()
+                print(f"[MANUAL SENT] {telefono}: {respuesta_manual[:50]}")
+    except Exception as e:
+        print(f"[MANUAL ERROR] {e}")
+
+def hilo_respuestas_manuales():
+    """Hilo que revisa respuestas manuales cada 2 minutos."""
+    import time
+    while True:
+        try:
+            enviar_respuestas_manuales()
+        except Exception as e:
+            print(f"[HILO ERROR] {e}")
+        time.sleep(120)  # cada 2 minutos
+
+# Arrancar hilo de respuestas manuales al importar
+import threading as _threading
+_hilo = _threading.Thread(target=hilo_respuestas_manuales, daemon=True)
+_hilo.start()
+print("✅ Hilo de respuestas manuales iniciado")
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     cfg  = get_config()
