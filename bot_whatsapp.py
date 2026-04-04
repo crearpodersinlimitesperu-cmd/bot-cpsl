@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-v4 — Con Panel de Chat Privado Web
+v5 — Inteligencia de Intenciones y Fallbacks
 """
 
 import os, re, json, threading
@@ -28,13 +28,12 @@ def get_historial():
     except:
         pass
 
-    # 2. Si no hay archivo local (Render reinicia), reconstruir desde Google Sheets
-    print("[HISTORIAL] Reconstruyendo historial desde Google Sheets (Render start)...")
+    # 2. Si no hay archivo local, reconstruir desde Google Sheets
+    print("[HISTORIAL] Reconstruyendo historial desde Google Sheets...")
     historial = []
     try:
         rows = leer_sheet()
         if rows:
-            # Saltamos la cabecera
             for row in rows[1:]:
                 if len(row) < 4: continue
                 hora = str(row[0]).strip()
@@ -44,7 +43,7 @@ def get_historial():
                 if len(row) > 4: msg_out = str(row[4]).strip()
                 if len(row) > 6: 
                     manual = str(row[6]).strip()
-                    if manual: msg_out = manual # Respuesta manual toma precedencia si existe
+                    if manual: msg_out = manual 
 
                 if tel:
                     if msg_in:
@@ -52,7 +51,6 @@ def get_historial():
                     if msg_out:
                         historial.append({"telefono": tel, "texto": msg_out, "tipo": "out", "hora": hora})
             
-            # Guardamos localmente para evitar reads excesivos
             with open(HISTORIAL_FILE, "w", encoding="utf-8") as f:
                 json.dump(historial, f, ensure_ascii=False, indent=2)
     except Exception as e:
@@ -65,7 +63,6 @@ def append_historial(telefono, texto, tipo):
         h = get_historial()
         hora_actual = datetime.now().strftime("%d/%m %H:%M")
         h.append({"telefono": str(telefono), "texto": texto, "tipo": tipo, "hora": hora_actual})
-        # Guardar historial completo sin recortar, para no dejar nada fuera
         with open(HISTORIAL_FILE, "w", encoding="utf-8") as f:
             json.dump(h, f, ensure_ascii=False, indent=2)
     except Exception as e:
@@ -73,7 +70,7 @@ def append_historial(telefono, texto, tipo):
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# GOOGLE SHEETS (HTTP puro + JWT)
+# GOOGLE SHEETS
 # ══════════════════════════════════════════════════════════════════════════
 import base64, time as _time
 
@@ -119,7 +116,6 @@ def get_sheets_token():
             _sheets_token_cache = {"token": d["access_token"],
                                    "exp": now + d.get("expires_in", 3600)}
             return d["access_token"]
-        print(f"[SHEETS TOKEN ERROR] {r.status_code}: {r.text[:200]}")
     except Exception as e:
         print(f"[SHEETS TOKEN EXCEPTION] {e}")
     return None
@@ -139,8 +135,6 @@ def registrar_en_sheets(telefono, imo_nombre, mensaje, respuesta_bot, estado="")
                               respuesta_bot, estado, "", ""]]},
             headers={"Authorization": f"Bearer {token}",
                      "Content-Type": "application/json"}, timeout=10)
-        if r.status_code not in (200, 201):
-            print(f"[SHEETS WRITE ERROR] {r.status_code}: {r.text[:200]}")
     except Exception as e:
         print(f"[SHEETS WRITE EXCEPTION] {e}")
 
@@ -174,6 +168,7 @@ def actualizar_celda_sheet(fila, columna, valor):
                      "Content-Type": "application/json"}, timeout=10)
     except Exception as e:
         print(f"[SHEETS UPDATE ERROR] {e}")
+
 
 # ══════════════════════════════════════════════════════════════════════════
 # CONFIGURACION
@@ -229,51 +224,47 @@ STOP_CLAUSULA = "\n\n_Si no deseas recibir mas mensajes de este numero, responde
 FIRMA = "\n\n*Comunicaciones Crear Poder Sin Limites Peru*"
 
 # ══════════════════════════════════════════════════════════════════════════
-# KEYWORDS
+# KEYWORDS (Actualizado para mayor inteligencia)
 # ══════════════════════════════════════════════════════════════════════════
 
 KEYWORDS = {
     "STOP": ["stop","baja","no mas mensajes","no quiero mensajes","desuscribir",
              "alto","detener","no me escriban","no escriban","no les escriban"],
-    "QUIEN_ERES": ["con quien hablo","con quien tengo el gusto","quien me escribe",
-                   "quien eres","de donde me escriben","que numero es este",
-                   "de donde","con quien","quién"],
+    "NO_INTERESADO": ["no quiere","ya no quiere","no le interesa","no interesa",
+                      "desistio","desistió","no va a continuar","no continua",
+                      "no continúa","no desea","se retira","no va a ir",
+                      "no piensa ir","no va a asistir","no quiere.",
+                      "no tiene intencion","desinteresada","desinteresado",
+                      "no le gusto","no le gustó","se retiró","no quiere continuar",
+                      "ninguno","ninguna","nadie","ambas desistieron","los dos desistieron"],
+    "NO_CONTESTA": ["no contesta","no me contesta","no responde","no me responde",
+                    "sin respuesta","no lo ubico","no la ubico","bloqueo",
+                    "bloqueó","me bloqueo","me bloqueó","perdí el rastro",
+                    "ya no tengo contacto","ya no responde","no atiende"],
+    "YA_SE_SENTO": ["ya se sento","ya se sentó","ya asistio","ya asistió",
+                    "ya fue","ya estuvo","ya participo","ya participó",
+                    "se sento","se sentó","ya vino","ya vinieron",
+                    "fue cambiada","fue cambiado","ya se sentaron",
+                    "si se sento","sí se sentó","si asistió","si fue"],
+    "FALLECIO_ENFERMO": ["fallecio","falleció","murio","murió","hospitalizado",
+                         "grave","accidente","gestando","embarazada","en duelo"],
+    "SIGUIENTE": ["siguiente equipo","otro equipo","proximo equipo","siguiente c1",
+                  "otro c1","en el proximo","en mayo","siguiente oportunidad"],
+    "CONFIRMADO": ["confirma","confirmado","confirmada","confirmo","si va","sí va",
+                   "va a venir","va a asistir","va al c1","se sienta",
+                   "van todos","vienen todos","se sento","se sentó",
+                   "si se van a sentar","tiene vuelos","vuelos comprados", "ambos", "todos"],
+    "PENDIENTE": ["pendiente","aun no se","todavia no","esta pensando",
+                  "evaluando","en proceso","provincias","de viaje","fuera de lima",
+                  "regresa","para esa fecha si","si estaran","sí estarán"],
+    "DEVOLUCION": ["devolucion","devolución","devolver dinero","reembolso",
+                   "quiero mi dinero","devuelvan","quiere su dinero"],
     "CAMBIO": ["cambio de nombre","cambiar nombre","traspaso","cambio de participante",
                "a cambio de","quiero cambiar","cambiar a","en lugar de",
                "deseo cambiar","cambiar por","sustituir","reemplazar"],
     "INFO_C1": ["horario","donde es","dónde es","direccion","dirección","fecha",
                 "cuando es","cuándo es","hotel","miraflores","proximo c1",
                 "próximo c1","c1 de mayo","informacion del c1","info del c1"],
-    "YA_SE_SENTO": ["ya se sento","ya se sentó","ya asistio","ya asistió",
-                    "ya fue","ya estuvo","ya participo","ya participó",
-                    "se sento","se sentó","ya vino","ya vinieron",
-                    "fue cambiada","fue cambiado","ya se sentaron",
-                    "si se sento","sí se sentó","si asistió","si fue"],
-    "NO_RECUERDA": ["no recuerdo","no se quien","no conozco",
-                    "quien es esta persona","no tengo informacion"],
-    "FALLECIO_ENFERMO": ["fallecio","falleció","murio","murió","hospitalizado",
-                         "grave","accidente","gestando","embarazada","en duelo"],
-    "DEVOLUCION": ["devolucion","devolución","devolver dinero","reembolso",
-                   "quiero mi dinero","devuelvan","quiere su dinero"],
-    "NO_INTERESADO": ["no quiere","ya no quiere","no le interesa","no interesa",
-                      "desistio","desistió","no va a continuar","no continua",
-                      "no continúa","no desea","se retira","no va a ir",
-                      "no piensa ir","no va a asistir","no quiere.",
-                      "no tiene intencion","desinteresada","desinteresado",
-                      "no le gusto","no le gustó","se retiró","no quiere continuar"],
-    "NO_CONTESTA": ["no contesta","no me contesta","no responde","no me responde",
-                    "sin respuesta","no lo ubico","no la ubico","bloqueo",
-                    "bloqueó","me bloqueo","me bloqueó","perdí el rastro",
-                    "ya no tengo contacto","ya no responde","no atiende"],
-    "PENDIENTE": ["pendiente","aun no se","todavia no","esta pensando",
-                  "evaluando","en proceso","provincias","de viaje","fuera de lima",
-                  "regresa","para esa fecha si","si estaran","sí estarán"],
-    "SIGUIENTE": ["siguiente equipo","otro equipo","proximo equipo","siguiente c1",
-                  "otro c1","en el proximo","en mayo","siguiente oportunidad"],
-    "CONFIRMADO": ["confirma","confirmado","confirmada","confirmo","si va","sí va",
-                   "va a venir","va a asistir","va al c1","se sienta",
-                   "van todos","vienen todos","se sento","se sentó",
-                   "si se van a sentar","tiene vuelos","vuelos comprados"],
     "VOLANTE": ["volante","flyer","invitacion","invitación","afiche","imagen del c1",
                 "informacion del entrenamiento","info del entrenamiento",
                 "comparte la info","comparte la informacion","mandame la info",
@@ -283,6 +274,11 @@ KEYWORDS = {
                     "esta inscrita","esta inscrito","ya esta","ya está",
                     "ya confirmas","ya lo confirma","ya la confirma",
                     "tiene lugar","tiene espacio","aparece en el sistema"],
+    "QUIEN_ERES": ["con quien hablo","con quien tengo el gusto","quien me escribe",
+                   "quien eres","de donde me escriben","que numero es este",
+                   "de donde","con quien","quién"],
+    "NO_RECUERDA": ["no recuerdo","no se quien","no conozco",
+                    "quien es esta persona","no tengo informacion"],
     "GESTIONANDO": ["lo estoy gestionando","me muevo","me comunicare","voy a hablar",
                     "voy a contactar","tratare de","voy a preguntar",
                     "para darle una respuesta","estare informando",
@@ -299,9 +295,11 @@ def normalizar(texto):
 
 def detectar_intencion(texto):
     t = normalizar(texto)
-    orden = ["STOP","QUIEN_ERES","CAMBIO","VOLANTE","CONSULTA_PX","INFO_C1","YA_SE_SENTO","NO_RECUERDA",
-             "FALLECIO_ENFERMO","DEVOLUCION","NO_INTERESADO","NO_CONTESTA",
-             "PENDIENTE","SIGUIENTE","CONFIRMADO","GESTIONANDO"]
+    # El orden importa: Primero Negativas y Estados, luego Info y Preguntas genéricas
+    orden = ["STOP", "NO_INTERESADO", "NO_CONTESTA", "YA_SE_SENTO", "FALLECIO_ENFERMO", 
+             "SIGUIENTE", "CONFIRMADO", "PENDIENTE", "DEVOLUCION", "CAMBIO", 
+             "INFO_C1", "VOLANTE", "CONSULTA_PX", "QUIEN_ERES", "NO_RECUERDA", "GESTIONANDO"]
+    
     for intent in orden:
         for kw in KEYWORDS[intent]:
             kw_n = normalizar(kw)
@@ -313,13 +311,25 @@ def detectar_intencion(texto):
 def buscar_px_en_texto(texto, px_list):
     resultados = []
     t_norm = normalizar(texto)
+    intencion_global = detectar_intencion(texto)
+
+    # 1. Chequeo de palabras globales ("ambos", "ninguno", "todos")
+    global_words = ["ninguno", "ninguna", "ambos", "ambas", "todos", "todas", "los dos", "las dos", "nadie"]
+    if any(gw in t_norm.split() for gw in global_words) and intencion_global:
+        if intencion_global not in ("INFO_C1", "VOLANTE", "QUIEN_ERES", "CAMBIO", "DEVOLUCION"):
+            for px in px_list:
+                resultados.append({"px": px, "estatus": intencion_global})
+            return resultados
+
+    # 2. Si solo tiene 1 persona, asume que habla de ella
     if len(px_list) == 1:
-        intencion = detectar_intencion(texto)
-        if intencion and intencion not in ("STOP","CAMBIO","INFO_C1","NO_RECUERDA",
-                                           "FALLECIO_ENFERMO","QUIEN_ERES","DEVOLUCION",
-                                           "VOLANTE","CONSULTA_PX"):
-            resultados.append({"px": px_list[0], "estatus": intencion})
+        if intencion_global and intencion_global not in ("STOP","CAMBIO","INFO_C1","NO_RECUERDA",
+                                                         "FALLECIO_ENFERMO","QUIEN_ERES","DEVOLUCION",
+                                                         "VOLANTE","CONSULTA_PX"):
+            resultados.append({"px": px_list[0], "estatus": intencion_global})
         return resultados
+
+    # 3. Buscar por nombres específicos
     for px in px_list:
         tokens = [p for p in px.split() if len(p) > 3]
         for token in tokens:
@@ -330,12 +340,13 @@ def buscar_px_en_texto(texto, px_list):
                 inicio    = max(0, match.start() - 15)
                 fin       = min(len(texto), match.end() + 100)
                 fragmento = texto[inicio:fin]
-                intencion = detectar_intencion(fragmento) or detectar_intencion(texto)
+                intencion = detectar_intencion(fragmento) or intencion_global
                 if intencion and intencion not in ("STOP","CAMBIO","INFO_C1",
                                                    "NO_RECUERDA","FALLECIO_ENFERMO",
                                                    "QUIEN_ERES","DEVOLUCION"):
                     resultados.append({"px": px, "estatus": intencion})
                 break
+    
     vistos, dedup = set(), []
     for r in resultados:
         if r["px"] not in vistos:
@@ -343,7 +354,7 @@ def buscar_px_en_texto(texto, px_list):
     return dedup
 
 # ══════════════════════════════════════════════════════════════════════════
-# SESIONES
+# SESIONES Y EXCEL
 # ══════════════════════════════════════════════════════════════════════════
 
 def _sf(): return get_config()["sessions_path"]
@@ -357,10 +368,6 @@ def guardar_sesiones(s):
 def get_sesion(tel):    return cargar_sesiones().get(str(tel), {})
 def set_sesion(tel, d): s = cargar_sesiones(); s[str(tel)] = d; guardar_sesiones(s)
 def borrar_sesion(tel): s = cargar_sesiones(); s.pop(str(tel), None); guardar_sesiones(s)
-
-# ══════════════════════════════════════════════════════════════════════════
-# EXCEL
-# ══════════════════════════════════════════════════════════════════════════
 
 def norm_tel(tel):
     t = str(tel).strip().replace("+","").replace(" ","").replace("-","")
@@ -392,7 +399,7 @@ def cargar_px_del_imo(telefono):
             wb.close()
             return imo_nombre, px_list
         except Exception as e:
-            print(f"[ERROR] cargar_px: {e}"); return "", []
+            return "", []
 
 def actualizar_excel(resultados, telefono):
     hoy = datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -427,13 +434,12 @@ def marcar_stop(telefono):
                 if not row or len(row) < 7: continue
                 if norm_tel(str(row[3].value or "")) == tel_n:
                     row[6].value = "STOP"; row[7].value = hoy
-                    if len(row) > 8: row[8].value = "Opt-out solicitado"
             wb.save(ep()); wb.close()
         except Exception as e:
-            print(f"[ERROR] marcar_stop: {e}")
+            pass
 
 # ══════════════════════════════════════════════════════════════════════════
-# WHATSAPP
+# WHATSAPP Y RESPUESTAS
 # ══════════════════════════════════════════════════════════════════════════
 
 _respuestas_enviadas = {}
@@ -446,14 +452,12 @@ def enviar_mensaje(telefono, texto):
                   "type":"text","text":{"body":texto,"preview_url":False}},
             headers={"Authorization":f"Bearer {cfg['token']}",
                      "Content-Type":"application/json"}, timeout=10)
-        if r.status_code != 200:
-            print(f"[WA ERROR] {r.status_code}: {r.text[:200]}")
-        else:
+        if r.status_code == 200:
             _respuestas_enviadas[str(telefono)] = texto
-            append_historial(telefono, texto, "out") # Guarda en el historial web
+            append_historial(telefono, texto, "out") 
         return r.status_code == 200
     except Exception as e:
-        print(f"[WA EXCEPTION] {e}"); return False
+        return False
 
 def nombre_pila(s):
     partes = re.split(r'\s+', s.strip())
@@ -464,210 +468,49 @@ def nombre_pila(s):
 def formatear_resumen(extraidos):
     iconos = {"CONFIRMADO":"✅","SIGUIENTE":"➡️","NO_INTERESADO":"❌",
               "NO_CONTESTA":"📵","PENDIENTE":"⏳","GESTIONANDO":"🔄"}
-    return "\n".join(
-        f"{iconos.get(e['estatus'],'•')} {e['px']} — *{e['estatus']}*"
-        for e in extraidos)
-
-def notificar_jose_luis(imo_nombre, confirmados):
-    jose = get_config()["jose_tel"]
-    if not jose or not confirmados: return
-    nombres = "\n".join(f"• {c['px']}" for c in confirmados)
-    enviar_mensaje(jose,
-        f"✅ *Nueva confirmacion C1 E27*\n\nIMO: {imo_nombre}\n\nConfirmados:\n{nombres}")
+    return "\n".join(f"{iconos.get(e['estatus'],'•')} {e['px']} — *{e['estatus']}*" for e in extraidos)
 
 def es_confirmacion(texto):
     t = normalizar(texto)
     tokens = re.findall(r'[a-z]+', t)
     if not tokens: return False
-    ok  = {"ok","dale","correcto","exacto","perfecto","listo","claro",
-           "afirmativo","confirmado","confirmo","si","yes","asi"}
-    neg = {"no","pero","aunque","contesta","puede","podria",
-           "quiero","deseo","cambiar","espera"}
+    ok  = {"ok","dale","correcto","exacto","perfecto","listo","claro","afirmativo","confirmado","confirmo","si","yes","asi"}
+    neg = {"no","pero","aunque","contesta","puede","podria","quiero","deseo","cambiar","espera"}
     if all(tok in ok for tok in tokens): return True
     if any(neg in t for neg in neg): return False
     if tokens[0] in ok and len(tokens) <= 3: return True
     return False
 
-# ══════════════════════════════════════════════════════════════════════════
-# RESPUESTAS ENROLADORAS
-# ══════════════════════════════════════════════════════════════════════════
-
+# ----- Respuestas Plantillas -----
 def r_quien_eres(pila=""):
     s = f"Hola {pila},\n\n" if pila else "Hola,\n\n"
-    return (s +
-        "Te contactamos de *Crear Poder Sin Limites Peru*.\n\n"
-        "Somos el area de comunicaciones y estamos en seguimiento "
-        "del *Capitulo 1 — Equipo 27*, que se realiza los dias "
-        "*1, 2 y 3 de mayo* en el Hotel Jose Antonio Deluxe, Miraflores.\n\n"
-        "Como IMO, tienes participantes con una inscripcion activa "
-        "para ese entrenamiento. Queremos saber como vas con cada uno de ellos."
-        + FIRMA)
+    return (s + "Te contactamos de *Crear Poder Sin Limites Peru*.\n\nSomos el area de comunicaciones y estamos en seguimiento del *Capitulo 1 — Equipo 27* (1, 2 y 3 de mayo).\n\nComo IMO, tienes participantes con inscripcion activa. Queremos saber como vas con ellos." + FIRMA)
 
-def r_cambio(pila):
-    return (
-        f"Hola {pila},\n\n"
-        "Los cambios de nombre se gestionan directamente con tu coordinadora. "
-        "El *plazo limite es el miercoles previo al entrenamiento hasta las 6:00 pm* "
-        "y el nuevo participante debe completar su llamada de bienvenida antes de ingresar.\n\n"
-        "Comunicate con tu coordinadora para iniciar el proceso:\n\n"
-        + COORDINADORAS + FIRMA)
-
-def r_devolucion(pila):
-    return (
-        f"Hola {pila},\n\n"
-        "En Crear Poder Sin Limites *no realizamos devoluciones* "
-        "una vez efectuado el pago. El espacio esta reservado "
-        "desde el momento del compromiso.\n\n"
-        "Lo que aplica es que la inversion queda *activa para el siguiente "
-        "equipo inmediato*. El participante tiene una nueva oportunidad "
-        "de honrar su compromiso y vivir el entrenamiento.\n\n"
-        "Para coordinar esto con tu coordinadora:\n\n"
-        + COORDINADORAS + FIRMA)
-
-def r_info_c1(pila):
-    return (
-        f"Hola {pila}, aqui tienes la informacion completa:\n\n"
-        + INFO_C1 + "\n\n"
-        "Para cualquier consulta adicional:\n\n"
-        + COORDINADORAS + FIRMA)
-
-def r_ya_sento(pila):
-    return (
-        f"Hola {pila},\n\n"
-        "Gracias por informarnos. Actualizamos el registro "
-        "de inmediato.\n\n"
-        "Cada persona que toma la decision de sentarse "
-        "da un paso que transforma su vida. Bien hecho."
-        + FIRMA)
-
-def r_no_recuerda(pila):
-    return (
-        f"Hola {pila},\n\n"
-        "Sin problema. Si tienes alguna consulta sobre las personas "
-        "de tu equipo o sobre el proceso, escribenos.\n\n"
-        "Tambien puedes comunicarte directamente con tu coordinadora:\n\n"
-        + COORDINADORAS + FIRMA)
-
-def r_fallecio_enfermo(pila):
-    return (
-        f"Hola {pila},\n\n"
-        "Recibimos tu mensaje. Lamentamos la situacion. 🙏\n\n"
-        "Por favor comunicate con tu coordinadora para que "
-        "puedan orientarte sobre los siguientes pasos:\n\n"
-        + COORDINADORAS + FIRMA)
-
-def r_no_interesado(pila, px_list):
-    extra = ""
-    if len(px_list) > 1:
-        extra = ("\n\n¿Como estan tus otras personas? "
-                 "Cuentanos para tener el registro completo de tu equipo.")
-    return (
-        f"Hola {pila},\n\n"
-        "Recibido. Cada persona elige en que momento toma accion. "
-        "Mientras tanto, su inscripcion sigue activa hasta el *3 de mayo*."
-        + extra + FIRMA)
-
-def r_no_contesta(pila, px_list):
-    extra = ""
-    if len(px_list) > 1:
-        extra = ("\n\n¿Como estan tus otras personas? "
-                 "Cuentanos para tener el registro completo.")
-    return (
-        f"Hola {pila},\n\n"
-        "Entendido. Te recomendamos intentar por via telefonica directa "
-        "o a traves de alguien cercano a esa persona. "
-        "La inscripcion sigue activa hasta el *1 de mayo*."
-        + extra + FIRMA)
+def r_cambio(pila): return (f"Hola {pila},\n\nLos cambios de nombre se gestionan directamente con tu coordinadora. El límite es el miércoles previo a las 6:00 pm.\n\n" + COORDINADORAS + FIRMA)
+def r_devolucion(pila): return (f"Hola {pila},\n\nEn Crear no realizamos devoluciones una vez efectuado el pago. Lo que aplica es que la inversión queda activa para el siguiente equipo.\n\n" + COORDINADORAS + FIRMA)
+def r_info_c1(pila): return (f"Hola {pila}, aqui tienes la informacion completa:\n\n" + INFO_C1 + "\n\n" + COORDINADORAS + FIRMA)
+def r_ya_sento(pila): return (f"Hola {pila},\n\nGracias por informarnos. Actualizamos el registro.\n\nCada persona que toma la decision de sentarse da un paso que transforma su vida." + FIRMA)
+def r_no_recuerda(pila): return (f"Hola {pila},\n\nSin problema. Si tienes alguna consulta sobre tu equipo, comunicate con tu coordinadora:\n\n" + COORDINADORAS + FIRMA)
+def r_fallecio_enfermo(pila): return (f"Hola {pila},\n\nRecibimos tu mensaje. Lamentamos la situacion. 🙏\n\nPor favor comunicate con tu coordinadora:\n\n" + COORDINADORAS + FIRMA)
+def r_no_interesado(pila, px_list): return (f"Hola {pila},\n\nRecibido. Cada persona elige en que momento toma accion. Mientras tanto, su inscripcion sigue activa hasta el *3 de mayo*." + FIRMA)
+def r_no_contesta(pila, px_list): return (f"Hola {pila},\n\nEntendido. Te recomendamos intentar por via telefonica directa. La inscripcion sigue activa hasta el *1 de mayo*." + FIRMA)
+def r_volante(pila): return (f"Hola {pila},\n\nAqui tienes toda la informacion del entrenamiento:\n\n" + INFO_C1 + "\n\n" + FIRMA)
+def r_consulta_px(pila): return (f"Hola {pila},\n\nEste canal no tiene acceso al sistema de registros. Para confirmar asistencia, comunicate directamente con el participante." + FIRMA)
 
 def r_pendiente(pila, px_list):
-    if px_list:
-        lista = "\n".join(f"{i+1}. {px}" for i, px in enumerate(px_list))
-        return (
-            f"Hola {pila},\n\n"
-            "Recibido. El C1 E27 es el *1, 2 y 3 de mayo*. "
-            "Las inscripciones siguen activas.\n\n"
-            "Personas pendientes de confirmar en tu equipo:\n\n"
-            + lista +
-            "\n\nCuando tengas una actualizacion, escribenos."
-            + FIRMA)
-    return (
-        f"Hola {pila}, recibido.\n\n"
-        "El C1 es el *1, 2 y 3 de mayo*. "
-        "Cualquier novedad, escribenos de inmediato."
-        + FIRMA)
+    lista = "\n".join(f"• {px}" for px in px_list) if px_list else ""
+    return (f"Hola {pila},\n\nRecibido. El C1 E27 es el *1, 2 y 3 de mayo*.\n\nPersonas pendientes:\n{lista}\n\nCuando tengas una actualizacion, escribenos." + FIRMA) if px_list else (f"Hola {pila}, recibido. Cualquier novedad, escribenos." + FIRMA)
 
-def r_gestionando(pila, px_list):
-    if px_list:
-        lista = "\n".join(f"{i+1}. {px}" for i, px in enumerate(px_list))
-        return (
-            f"Hola {pila},\n\n"
-            "Gracias por el seguimiento. Tu gestion como IMO "
-            "es clave para que cada persona pueda tomar su decision.\n\n"
-            "Personas pendientes de confirmar en tu equipo:\n\n"
-            + lista +
-            "\n\nEscribenos cuando tengas una actualizacion."
-            + FIRMA)
-    return (
-        f"Hola {pila},\n\n"
-        "Gracias por el seguimiento. Quedamos atentos a tu reporte."
-        + FIRMA)
-
-def r_volante(pila):
-    return (
-        f"Hola {pila},\n\n"
-        "Aqui tienes toda la informacion del entrenamiento:\n\n"
-        + INFO_C1 + "\n\n"
-        "Para cualquier coordinacion adicional, comunicate "
-        "directamente con tu coordinadora:\n\n"
-        + COORDINADORAS + FIRMA)
-
-def r_consulta_px(pila):
-    return (
-        f"Hola {pila},\n\n"
-        "Este canal no tiene acceso al sistema de registros.\n\n"
-        "Para confirmar la asistencia de tu participante, "
-        "comunicate directamente con ella y pide que te confirme "
-        "su decision de asistir al *C1 E27 — 1, 2 y 3 de mayo*.\n\n"
-        "Cuando tengas esa confirmacion, escribenos y lo registramos."
-        + FIRMA)
+def r_no_entendido(pila, px_list):
+    lista = "\n".join(f"• {px}" for px in px_list)
+    return (f"Hola {pila},\n\nDisculpa, no logré comprender tu mensaje. 🤔\n\nPara poder registrarlo bien, por favor dime si asisten o no asisten estas personas:\n\n{lista}\n\n*(Puedes responder de forma sencilla, por ejemplo: 'Todos asisten', 'Ninguno va', o detallar por nombre)*" + FIRMA)
 
 def r_no_campaña():
-    return (
-        "Hola,\n\n"
-        "Te contactamos de *Crear Poder Sin Limites Peru*.\n\n"
-        "Este canal esta destinado al seguimiento del "
-        "*Capitulo 1 — Equipo 27* (1, 2 y 3 de mayo).\n\n"
-        "Si deseas informacion sobre nuestros entrenamientos "
-        "de transformacion personal, comunicate con nuestras coordinadoras:\n\n"
-        + COORDINADORAS
-        + FIRMA + STOP_CLAUSULA)
+    return ("Hola,\n\nTe contactamos de *Crear Poder Sin Limites Peru*.\n\nEste canal es de seguimiento exclusivo para IMOs del *Capitulo 1 — Equipo 27*.\n\nSi deseas informacion de entrenamientos, comunicate aquí:\n\n" + COORDINADORAS + FIRMA)
 
 def r_pedir_fecha(pila, px_confirmados):
     nombres = "\n".join(f"• {px}" for px in px_confirmados)
-    return (
-        f"Hola {pila},\n\n"
-        "Confirmacion registrada para:\n\n"
-        + nombres +
-        "\n\n¿En que dia estaran presentes?\n"
-        "*(Viernes 1, Sabado 2, Domingo 3 de mayo — o los tres dias)*\n\n"
-        "Recuerdales presentarse a las *9:00 am* en mesa de registro."
-        + FIRMA)
-
-def r_sin_info(pila, px_list):
-    lista = "\n".join(f"{i+1}. {px}" for i, px in enumerate(px_list))
-    return (
-        f"Hola {pila},\n\n"
-        "Estas personas de tu equipo tienen inscripcion activa "
-        "para el *C1 E27 — 1, 2 y 3 de mayo*:\n\n"
-        + lista +
-        "\n\nIndicanos el estatus de cada una:\n\n"
-        "✅ *confirma* — asistira el 1-3 de mayo\n"
-        "➡️ *siguiente equipo* — asistira en otra edicion\n"
-        "❌ *no quiere* — no va a continuar\n"
-        "📵 *no contesta* — sin respuesta\n"
-        "⏳ *pendiente* — en conversacion\n\n"
-        "_Ejemplo: Jorge confirma, Maria no contesta, Pedro pendiente_"
-        + STOP_CLAUSULA)
+    return (f"Hola {pila},\n\nConfirmacion registrada para:\n\n{nombres}\n\n¿En que dia estaran presentes?\n*(Viernes 1, Sabado 2, Domingo 3 de mayo — o los tres dias)*" + FIRMA)
 
 # ══════════════════════════════════════════════════════════════════════════
 # LOGICA PRINCIPAL
@@ -677,157 +520,83 @@ def procesar_mensaje(telefono, texto):
     sesion    = get_sesion(telefono)
     intencion = detectar_intencion(texto)
 
-    # STOP
     if intencion == "STOP":
-        marcar_stop(telefono)
-        borrar_sesion(telefono)
-        enviar_mensaje(telefono,
-            "Listo. Has sido dado de baja de este canal de comunicaciones. "
-            "No recibiras mas mensajes de este numero."
-            + FIRMA)
+        marcar_stop(telefono); borrar_sesion(telefono)
+        enviar_mensaje(telefono, "Listo. Has sido dado de baja de este canal. No recibiras mas mensajes." + FIRMA)
         return
+
+    # IMO no registrado en Base
+    imo_nombre, px_list = cargar_px_del_imo(telefono)
+    pila = nombre_pila(imo_nombre) if imo_nombre else ""
+    
+    if not imo_nombre:
+        if intencion == "VOLANTE": enviar_mensaje(telefono, r_volante("")); return
+        if intencion == "INFO_C1": enviar_mensaje(telefono, r_info_c1("")); return
+        enviar_mensaje(telefono, r_no_campaña()); return
 
     # Esperando fecha
     if sesion.get("estado") == "esperando_fecha":
-        fecha      = texto.strip()
-        imo_nombre = sesion.get("imo_nombre", "")
-        px_confirm = sesion.get("px_confirmados", [])
-        with _excel_lock, FileLock(ep() + ".lock"):
-            try:
-                wb = load_workbook(ep())
-                ws = wb["DATA"]
-                tel_n = norm_tel(telefono)
-                for row in ws.iter_rows(min_row=2):
-                    if not row or len(row) < 9: continue
-                    if norm_tel(str(row[3].value or "")) != tel_n: continue
-                    px_c = str(row[4].value or "").strip()
-                    for px in px_confirm:
-                        if normalizar(px.split()[0]) == normalizar(px_c.split()[0]):
-                            row[8].value = f"Fecha: {fecha}"
-                wb.save(ep()); wb.close()
-            except Exception as e:
-                print(f"[ERROR] guardar fecha: {e}")
         borrar_sesion(telefono)
-        notificar_jose_luis(imo_nombre, [{"px": p} for p in px_confirm])
-        pila = nombre_pila(imo_nombre) if imo_nombre else ""
-        enviar_mensaje(telefono,
-            f"Hola {pila},\n\n"
-            "Confirmacion registrada.\n\n"
-            "Los esperamos en:\n"
-            "*Hotel Jose Antonio Deluxe*\n"
-            "Calle Bellavista 133, Miraflores\n\n"
-            "Mesa de registro a las *9:00 am*. "
-            "Ropa comoda y botella de agua."
-            + FIRMA)
+        px_confirm = sesion.get("px_confirmados", [])
+        enviar_mensaje(telefono, f"Hola {pila},\n\nConfirmacion registrada.\n\nLos esperamos en el *Hotel Jose Antonio Deluxe*, Mesa de registro a las *9:00 am*." + FIRMA)
         return
 
-    # Esperando confirmacion del resumen
+    # Esperando confirmación del resumen (SÍ / NO)
     if sesion.get("estado") == "esperando_confirmacion":
         if es_confirmacion(texto):
-            extraidos  = sesion.get("extraidos", [])
-            imo_nombre = sesion.get("imo_nombre", "")
+            extraidos = sesion.get("extraidos", [])
             actualizar_excel(extraidos, telefono)
             confirmados = [e for e in extraidos if e["estatus"] == "CONFIRMADO"]
             borrar_sesion(telefono)
             if confirmados:
                 px_nombres = [e["px"] for e in confirmados]
-                set_sesion(telefono, {
-                    "estado": "esperando_fecha",
-                    "imo_nombre": imo_nombre,
-                    "px_confirmados": px_nombres,
-                })
-                enviar_mensaje(telefono, r_pedir_fecha(nombre_pila(imo_nombre), px_nombres))
+                set_sesion(telefono, {"estado": "esperando_fecha", "px_confirmados": px_nombres})
+                enviar_mensaje(telefono, r_pedir_fecha(pila, px_nombres))
             else:
-                pila = nombre_pila(imo_nombre) if imo_nombre else ""
-                enviar_mensaje(telefono,
-                    f"Gracias {pila}, todo quedo registrado.\n\n"
-                    "Las inscripciones siguen activas hasta el *1 de mayo*. "
-                    "Si hay algun cambio en el estatus de tus personas, escribenos."
-                    + FIRMA)
+                enviar_mensaje(telefono, f"Gracias {pila}, todo quedo registrado.\n\nLas inscripciones siguen activas hasta el *1 de mayo*." + FIRMA)
         else:
             borrar_sesion(telefono)
-            enviar_mensaje(telefono,
-                "Entendido. Por favor vuelvenos a enviar el estatus de "
-                "tus personas y lo registramos correctamente."
-                + STOP_CLAUSULA)
+            enviar_mensaje(telefono, "Entendido. Por favor vuelvenos a enviar el estatus de tus personas." + STOP_CLAUSULA)
         return
 
-    # Cargar IMO
-    imo_nombre, px_list = cargar_px_del_imo(telefono)
-    pila = nombre_pila(imo_nombre) if imo_nombre else ""
-
-    if not imo_nombre:
-        enviar_mensaje(telefono, r_no_campaña())
-        return
-
-    if intencion == "QUIEN_ERES":
-        enviar_mensaje(telefono, r_quien_eres(pila)); return
-    if intencion == "CAMBIO":
-        enviar_mensaje(telefono, r_cambio(pila)); return
-    if intencion == "DEVOLUCION":
-        enviar_mensaje(telefono, r_devolucion(pila)); return
-    if intencion == "INFO_C1":
-        enviar_mensaje(telefono, r_info_c1(pila)); return
-    if intencion == "YA_SE_SENTO":
-        enviar_mensaje(telefono, r_ya_sento(pila)); return
-    if intencion == "NO_RECUERDA":
-        enviar_mensaje(telefono, r_no_recuerda(pila)); return
-    if intencion == "FALLECIO_ENFERMO":
-        enviar_mensaje(telefono, r_fallecio_enfermo(pila)); return
-    if intencion == "VOLANTE":
-        enviar_mensaje(telefono, r_volante(pila)); return
-
-    if intencion == "CONSULTA_PX":
-        enviar_mensaje(telefono, r_consulta_px(pila)); return
-
-    if intencion == "GESTIONANDO":
-        enviar_mensaje(telefono, r_gestionando(pila, px_list)); return
-
+    # Si ya no tiene personas pendientes
     if not px_list:
-        enviar_mensaje(telefono,
-            f"Hola {pila},\n\n"
-            "Ya tienes el estatus registrado para todas tus personas.\n\n"
-            "Si hay algun cambio en el estatus antes del *1 de mayo*, "
-            "escribenos y lo actualizamos."
-            + FIRMA)
+        if intencion in ("INFO_C1", "VOLANTE"): 
+            enviar_mensaje(telefono, r_volante(pila)); return
+        enviar_mensaje(telefono, f"Hola {pila},\n\nYa tienes el estatus registrado para todas tus personas.\n\nSi hay algun cambio antes del *1 de mayo*, escribenos." + FIRMA)
         return
 
+    # Respuestas directas que no procesan personas
+    if intencion == "QUIEN_ERES": enviar_mensaje(telefono, r_quien_eres(pila)); return
+    if intencion == "CAMBIO": enviar_mensaje(telefono, r_cambio(pila)); return
+    if intencion == "DEVOLUCION": enviar_mensaje(telefono, r_devolucion(pila)); return
+    if intencion == "INFO_C1": enviar_mensaje(telefono, r_info_c1(pila)); return
+    if intencion == "YA_SE_SENTO": enviar_mensaje(telefono, r_ya_sento(pila)); return
+    if intencion == "NO_RECUERDA": enviar_mensaje(telefono, r_no_recuerda(pila)); return
+    if intencion == "FALLECIO_ENFERMO": enviar_mensaje(telefono, r_fallecio_enfermo(pila)); return
+    if intencion == "VOLANTE": enviar_mensaje(telefono, r_volante(pila)); return
+    if intencion == "CONSULTA_PX": enviar_mensaje(telefono, r_consulta_px(pila)); return
+
+    # Extraer intenciones de las personas
     extraidos = buscar_px_en_texto(texto, px_list)
 
     if not extraidos:
-        if intencion == "NO_INTERESADO":
-            enviar_mensaje(telefono, r_no_interesado(pila, px_list)); return
-        if intencion == "NO_CONTESTA":
-            enviar_mensaje(telefono, r_no_contesta(pila, px_list)); return
-        if intencion == "PENDIENTE":
-            enviar_mensaje(telefono, r_pendiente(pila, px_list)); return
-        if intencion == "SIGUIENTE":
-            enviar_mensaje(telefono,
-                f"Hola {pila},\n\n"
-                "Recibido. Las inscripciones siguen activas para el siguiente equipo. "  
-                "Si alguna persona de tu equipo puede asistir el "
-                "*1, 2 o 3 de mayo*, aun hay lugar.\n\n"
-                "Escribenos cuando tengas una actualizacion."
-                + FIRMA); return
-        enviar_mensaje(telefono, r_sin_info(pila, px_list))
+        if intencion == "NO_INTERESADO": enviar_mensaje(telefono, r_no_interesado(pila, px_list)); return
+        if intencion == "NO_CONTESTA": enviar_mensaje(telefono, r_no_contesta(pila, px_list)); return
+        if intencion == "PENDIENTE" or intencion == "GESTIONANDO": enviar_mensaje(telefono, r_pendiente(pila, px_list)); return
+        if intencion == "SIGUIENTE": enviar_mensaje(telefono, f"Hola {pila},\n\nRecibido. Las inscripciones siguen activas para el siguiente equipo." + FIRMA); return
+        
+        # Fallback Empático en vez del listado robótico
+        enviar_mensaje(telefono, r_no_entendido(pila, px_list))
         return
 
-    set_sesion(telefono, {
-        "estado": "esperando_confirmacion",
-        "imo_nombre": imo_nombre,
-        "px_list": px_list,
-        "extraidos": extraidos,
-    })
-    no_mencionados = [
-        px for px in px_list
-        if not any(
-            normalizar(px.split()[0]) == normalizar(e["px"].split()[0])
-            for e in extraidos if px.split() and e["px"].split())
-    ]
+    # Confirmar Resumen
+    set_sesion(telefono, {"estado": "esperando_confirmacion", "extraidos": extraidos})
+    no_mencionados = [px for px in px_list if not any(normalizar(px.split()[0]) == normalizar(e["px"].split()[0]) for e in extraidos)]
+    
     msg = f"Perfecto {pila}, registre lo siguiente:\n\n{formatear_resumen(extraidos)}"
     if no_mencionados:
-        faltantes = "\n".join(f"• {px}" for px in no_mencionados)
-        msg += f"\n\n⚠️ Faltaron:\n{faltantes}\nPuedes incluirlas en tu siguiente mensaje."
+        msg += "\n\n⚠️ Faltaron:\n" + "\n".join(f"• {p}" for p in no_mencionados) + "\nPuedes incluirlas luego."
     msg += "\n\n¿Esta correcto? Responde *SI* para confirmar o indícanos los cambios."
     enviar_mensaje(telefono, msg)
 
@@ -846,26 +615,23 @@ def enviar_respuestas_manuales():
             resp_man = str(row[6]).strip()
             enviado  = str(row[7]).strip() if len(row) > 7 else ""
             if not telefono or not resp_man or enviado == "ENVIADO": continue
-            ok = enviar_mensaje(telefono, resp_man)
-            if ok:
+            if enviar_mensaje(telefono, resp_man):
                 actualizar_celda_sheet(i, 8, "ENVIADO")
-                print(f"[MANUAL SENT] {telefono}: {resp_man[:50]}")
     except Exception as e:
-        print(f"[MANUAL ERROR] {e}")
+        pass
 
 def hilo_respuestas_manuales():
     import time
     while True:
         try: enviar_respuestas_manuales()
-        except Exception as e: print(f"[HILO ERROR] {e}")
+        except: pass
         time.sleep(120)
 
 _hilo = threading.Thread(target=hilo_respuestas_manuales, daemon=True)
 _hilo.start()
-print("✅ Hilo de respuestas manuales iniciados")
 
 # ══════════════════════════════════════════════════════════════════════════
-# ENDPOINTS WEB Y PANEL DE CHAT (HTML)
+# ENDPOINTS WEB Y PANEL DE CHAT
 # ══════════════════════════════════════════════════════════════════════════
 
 HTML_CHAT = """
@@ -907,13 +673,11 @@ HTML_CHAT = """
 </head>
 <body>
     <div class="app-container">
-        <!-- Sidebar -->
         <div class="sidebar">
-            <div class="sidebar-header">💬 Chats en Vivo</div>
+            <div class="sidebar-header">💬 Panel de Chats</div>
             <div class="contacts-list" id="contactsList"></div>
         </div>
 
-        <!-- Chat Area -->
         <div class="chat-area" id="chatArea">
             <div class="empty-state" id="emptyState">
                 <div style="font-size: 40px; margin-bottom: 20px;">🚀</div>
@@ -944,7 +708,6 @@ HTML_CHAT = """
 
         document.getElementById('messagesContainer').addEventListener('scroll', function() {
             const container = this;
-            // if we scrolled up even a little bit, consider user is scrolling
             isUserScrolling = (container.scrollHeight - container.scrollTop - container.clientHeight) > 20;
         });
 
@@ -956,11 +719,7 @@ HTML_CHAT = """
                 let newHistory = {};
                 for(let m of data) {
                     if (!newHistory[m.telefono]) newHistory[m.telefono] = [];
-                    newHistory[m.telefono].push({
-                        text: m.texto,
-                        time: m.hora,
-                        sent: m.tipo === 'out'
-                    });
+                    newHistory[m.telefono].push({ text: m.texto, time: m.hora, sent: m.tipo === 'out' });
                 }
                 chatHistory = newHistory;
                 renderContacts();
@@ -971,8 +730,6 @@ HTML_CHAT = """
         function renderContacts() {
             const list = document.getElementById('contactsList');
             list.innerHTML = '';
-            
-            // Ordenar por ultimo mensaje recibido
             const phones = Object.keys(chatHistory).reverse();
             
             if(phones.length === 0) {
@@ -1007,7 +764,7 @@ HTML_CHAT = """
             document.getElementById('chatInputArea').classList.remove('hidden');
             document.getElementById('chatHeaderName').innerText = '+' + phone;
             
-            isUserScrolling = false; // reset
+            isUserScrolling = false; 
             renderContacts();
             renderMessages(true);
             setTimeout(() => document.getElementById('messageInput').focus(), 100);
@@ -1049,7 +806,6 @@ HTML_CHAT = """
 
             textarea.value = '';
             
-            // optimista
             const horaActual = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
             chatHistory[destino].push({ text: mensaje, time: horaActual, sent: true });
             isUserScrolling = false;
@@ -1064,7 +820,6 @@ HTML_CHAT = """
                 });
                 cargarDatos();
             } catch (error) {
-                console.error("Error enviando:", error);
                 alert("Error enviando mensaje");
             }
         }
@@ -1091,25 +846,17 @@ def api_enviar():
     msg = data.get("mensaje")
     if tel and msg:
         enviar_mensaje(tel, msg)
-        
-        # Opcional: También registrar la respuesta manual en el Excel principal de Google
         imo_nombre, _ = cargar_px_del_imo(tel)
         threading.Thread(
             target=registrar_en_sheets,
             args=(tel, imo_nombre, "[ENVIADO DESDE PANEL PRIVADO]", msg, "MANUAL"),
             daemon=True).start()
-            
         return jsonify({"status": "ok"}), 200
     return jsonify({"error": "Faltan datos"}), 400
 
-# ══════════════════════════════════════════════════════════════════════════
-# ENDPOINTS FLASK
-# ══════════════════════════════════════════════════════════════════════════
-
 @app.route("/webhook", methods=["GET"])
 def verificar_webhook():
-    mode, token, challenge = (request.args.get(k) for k in
-        ["hub.mode","hub.verify_token","hub.challenge"])
+    mode, token, challenge = (request.args.get(k) for k in ["hub.mode","hub.verify_token","hub.challenge"])
     if mode == "subscribe" and token == get_config()["verify_token"]:
         return challenge, 200
     return "Token invalido", 403
@@ -1126,9 +873,6 @@ def recibir_mensaje():
         tipo     = msg.get("type","")
         if tipo == "text":
             texto = msg["text"]["body"]
-            print(f"[IN] {telefono}: {texto[:100]}")
-            
-            # Guardamos el mensaje entrante en el historial del chat web
             append_historial(telefono, texto, "in")
             
             imo_nombre_sheet, _ = cargar_px_del_imo(telefono)
@@ -1141,38 +885,16 @@ def recibir_mensaje():
                 daemon=True).start()
         elif tipo in ("audio","image","document","video","sticker"):
             enviar_mensaje(telefono,
-                "Por favor responde con texto para que podamos "
-                "registrar correctamente tu reporte. " + ("No procesamos mensajes de voz."
-                if tipo=="audio" else "No procesamos archivos multimedia."))
-    except (KeyError, IndexError, TypeError) as e:
-        print(f"[ERROR] Webhook: {e}")
+                "Por favor responde con texto para que podamos registrar tu reporte. "
+                "No procesamos archivos multimedia ni audios.")
+    except Exception as e:
+        pass
     return jsonify({"status":"ok"}), 200
 
 @app.route("/status", methods=["GET"])
 def status():
-    cfg = get_config()
-    return jsonify({
-        "status": "activo", "version": "v4_con_panel",
-        "sesiones_activas": len(cargar_sesiones()),
-        "excel_existe": os.path.exists(cfg["excel_path"]),
-        "token_ok": bool(cfg["token"]),
-        "hora": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-    }), 200
-
-@app.route("/sesiones", methods=["GET"])
-def ver_sesiones():
-    return jsonify(cargar_sesiones()), 200
-
-@app.route("/sesiones/<telefono>", methods=["DELETE"])
-def borrar_sesion_endpoint(telefono):
-    borrar_sesion(telefono)
-    return jsonify({"borrado": telefono}), 200
+    return jsonify({"status": "activo", "version": "v5_inteligente"}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    cfg  = get_config()
-    print(f"Bot CPSL v4 — puerto {port}")
-    print(f"Excel   : {cfg['excel_path']}")
-    print(f"PhoneID : {cfg['phone_id'] or 'NO CONFIGURADO'}")
-    print(f"Token   : {'OK' if cfg['token'] else 'NO CONFIGURADO'}")
     app.run(host="0.0.0.0", port=port, debug=False)
