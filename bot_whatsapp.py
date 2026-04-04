@@ -34,6 +34,20 @@ def get_config():
         "sessions_path": os.environ.get("SESSIONS_PATH", "sesiones.json"),
     }
 
+def norm_tel(tel):
+    """
+    Normaliza teléfonos a 9 dígitos para comparar.
+    Maneja: 51XXXXXXXXX, 0XXXXXXXXX, XXXXXXXXX, 593XXXXXXXXX, etc.
+    """
+    t = str(tel).strip().replace("+","").replace(" ","").replace("-","")
+    if t.startswith("51") and len(t) == 11:
+        t = t[2:]   # quitar código Perú → 9 dígitos
+    elif t.startswith("0") and len(t) == 10:
+        t = t[1:]   # quitar 0 inicial → 9 dígitos
+    elif len(t) > 10 and not t.startswith("9"):
+        t = t[-9:]  # código de otro país → últimos 9
+    return t
+
 def api_url():
     return f"https://graph.facebook.com/v19.0/{get_config()['phone_id']}/messages"
 
@@ -180,11 +194,11 @@ def cargar_px_del_imo(telefono):
             wb     = load_workbook(ep(), data_only=True, read_only=True)
             ws     = wb["DATA"]
             px_list, imo_nombre = [], ""
-            tel_n  = str(telefono).strip().lstrip("+")
+            tel_n  = norm_tel(telefono)
             for row in ws.iter_rows(min_row=2, values_only=True):
                 if not row or len(row) < 7: continue
                 imo_n  = str(row[0] or "").strip()
-                imo_t  = str(row[3] or "").strip().lstrip("+")
+                imo_t  = norm_tel(str(row[3] or ""))
                 px_n   = str(row[4] or "").strip()
                 estado = str(row[6] or "").strip().upper()
                 if imo_t == tel_n:
@@ -198,7 +212,7 @@ def cargar_px_del_imo(telefono):
 
 def actualizar_excel(resultados, telefono):
     hoy   = datetime.now().strftime("%d/%m/%Y %H:%M")
-    tel_n = str(telefono).strip().lstrip("+")
+    tel_n = norm_tel(telefono)
     cambios = 0
     with _excel_lock, FileLock(ep() + ".lock"):
         try:
@@ -206,7 +220,7 @@ def actualizar_excel(resultados, telefono):
             ws = wb["DATA"]
             for row in ws.iter_rows(min_row=2):
                 if not row or len(row) < 7: continue
-                imo_t = str(row[3].value or "").strip().lstrip("+")
+                imo_t = norm_tel(str(row[3].value or ""))
                 px_c  = str(row[4].value or "").strip()
                 if imo_t != tel_n: continue
                 for r in resultados:
@@ -223,7 +237,7 @@ def actualizar_excel(resultados, telefono):
     return cambios
 
 def marcar_stop(telefono):
-    tel_n = str(telefono).strip().lstrip("+")
+    tel_n = norm_tel(telefono)
     hoy   = datetime.now().strftime("%d/%m/%Y %H:%M")
     with _excel_lock, FileLock(ep() + ".lock"):
         try:
@@ -231,7 +245,7 @@ def marcar_stop(telefono):
             ws = wb["DATA"]
             for row in ws.iter_rows(min_row=2):
                 if not row or len(row) < 7: continue
-                if str(row[3].value or "").strip().lstrip("+") == tel_n:
+                if norm_tel(str(row[3].value or "")) == tel_n:
                     row[6].value = "STOP"
                     row[7].value = hoy
                     if len(row) > 8:
