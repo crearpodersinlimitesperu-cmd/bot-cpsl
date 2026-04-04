@@ -15,8 +15,11 @@ app = Flask(__name__)
 # ── Google Sheets ──────────────────────────────────────────────────────────
 def get_sheets_service():
     try:
-        from google.oauth2.service_account import Credentials
-        from googleapiclient.discovery import build
+        import importlib
+        sa_module = importlib.import_module("google.oauth2.service_account")
+        Credentials = sa_module.Credentials
+        discovery = importlib.import_module("googleapiclient.discovery")
+        build = discovery.build
         creds_json = os.environ.get("GOOGLE_CREDENTIALS", "")
         if not creds_json:
             return None
