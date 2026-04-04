@@ -12,6 +12,45 @@ from filelock import FileLock
 
 app = Flask(__name__)
 
+# ── Google Sheets ──────────────────────────────────────────────────────────
+def get_sheets_service():
+    try:
+        from google.oauth2.service_account import Credentials
+        from googleapiclient.discovery import build
+        creds_json = os.environ.get("GOOGLE_CREDENTIALS", "")
+        if not creds_json:
+            return None
+        creds_dict = json.loads(creds_json)
+        creds = Credentials.from_service_account_info(
+            creds_dict,
+            scopes=["https://www.googleapis.com/auth/spreadsheets"]
+        )
+        return build("sheets", "v4", credentials=creds)
+    except Exception as e:
+        print(f"[SHEETS ERROR] {e}")
+        return None
+
+def registrar_en_sheets(telefono, imo_nombre, mensaje, respuesta_bot, estado=""):
+    sheet_id = os.environ.get("SHEET_ID", "")
+    if not sheet_id:
+        return
+    try:
+        service = get_sheets_service()
+        if not service:
+            return
+        ahora = datetime.now().strftime("%d/%m/%Y %H:%M")
+        valores = [[ahora, str(telefono), imo_nombre, mensaje,
+                    respuesta_bot, estado, "", ""]]
+        service.spreadsheets().values().append(
+            spreadsheetId=sheet_id,
+            range="Hoja 1!A:H",
+            valueInputOption="RAW",
+            insertDataOption="INSERT_ROWS",
+            body={"values": valores}
+        ).execute()
+    except Exception as e:
+        print(f"[SHEETS WRITE ERROR] {e}")
+
 def get_config():
     return {
         "token":         os.environ.get("WA_TOKEN", ""),
@@ -578,7 +617,16 @@ def recibir_mensaje():
         if tipo == "text":
             texto = msg["text"]["body"]
             print(f"[IN] {telefono}: {texto[:100]}")
+            # Cargar nombre del IMO para el Sheet
+            imo_nombre_sheet, _ = cargar_px_del_imo(telefono)
             procesar_mensaje(telefono, texto)
+            # Registrar en Google Sheets en segundo plano
+            import threading as _th
+            _th.Thread(
+                target=registrar_en_sheets,
+                args=(telefono, imo_nombre_sheet, texto, "", ""),
+                daemon=True
+            ).start()
         elif tipo in ("audio","image","document","video","sticker"):
             enviar_mensaje(telefono,
                 "Por favor responde con texto. No podemos procesar " +
