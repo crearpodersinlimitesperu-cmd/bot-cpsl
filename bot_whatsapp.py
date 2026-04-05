@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-v7 MAGISTRAL — Exclusión Automática, NLP Avanzado y Panel Pro
+v8 MAGISTRAL + INTELIGENCIA ARTIFICIAL GEMINI
 """
 
 import os, re, json, threading
@@ -11,12 +11,84 @@ import requests as req_lib
 from openpyxl import load_workbook
 from filelock import FileLock
 
+# ---- NUEVO: IMPORTAR GEMINI ----
+try:
+    import google.generativeai as genai
+except ImportError:
+    genai = None
+
 app = Flask(__name__)
+
+# ══════════════════════════════════════════════════════════════════════════
+# CONFIGURACION Y UTILIDADES
+# ══════════════════════════════════════════════════════════════════════════
+
+def get_config():
+    return {
+        "token":         os.environ.get("WA_TOKEN", ""),
+        "phone_id":      os.environ.get("WA_PHONE_ID", ""),
+        "verify_token":  os.environ.get("WA_VERIFY_TOKEN", "cpsl2026"),
+        "excel_path":    os.environ.get("EXCEL_PATH", "campana_imos_c1_e27.xlsx"),
+        "jose_tel":      os.environ.get("JOSE_LUIS_TEL", ""),
+        "sessions_path": os.environ.get("SESSIONS_PATH", "sesiones.json"),
+        "gemini_key":    os.environ.get("GEMINI_API_KEY", ""), # Llave de Gemini
+    }
+
+def api_url(): return f"https://graph.facebook.com/v19.0/{get_config()['phone_id']}/messages"
+_excel_lock = threading.Lock()
+
+def norm_tel(tel):
+    t = str(tel).strip().replace("+","").replace(" ","").replace("-","")
+    if t.startswith("51") and len(t) == 11: t = t[2:]
+    elif t.startswith("0") and len(t) == 10: t = t[1:]
+    elif len(t) > 10 and not t.startswith("9"): t = t[-9:]
+    return t
+
+def ep(): return get_config()["excel_path"]
+
+# ══════════════════════════════════════════════════════════════════════════
+# MOTOR DE INTELIGENCIA ARTIFICIAL (GEMINI)
+# ══════════════════════════════════════════════════════════════════════════
+
+def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre):
+    cfg = get_config()
+    # Si no hay llave de Gemini instalada o la librería falló, mandamos el texto normal
+    if not cfg["gemini_key"] or genai is None:
+        return plantilla_base 
+    
+    try:
+        genai.configure(api_key=cfg["gemini_key"])
+        # Usamos el modelo flash que es rapidísimo para chats
+        model = genai.GenerativeModel('gemini-1.5-flash') 
+        
+        prompt = f"""
+        Eres el asistente de WhatsApp de 'Comunicaciones Crear Poder Sin Límites Perú'.
+        Estás hablando con un líder (IMO) llamado {imo_nombre}.
+        
+        Él/Ella acaba de escribir este mensaje: "{mensaje_usuario}"
+        
+        Por reglas de la empresa, DEBES darle exactamente esta información de respuesta:
+        "{plantilla_base}"
+        
+        Tu tarea: Reescribe la respuesta de la empresa para que suene como una conversación MUY natural, empática, humana y cálida.
+        Reglas estrictas:
+        1. NO inventes fechas, reglas, ni devuelvas dinero si la plantilla dice que no.
+        2. Mantén la información intacta, solo cambia el tono (que no suene a robot).
+        3. Sé breve (máximo 2 o 3 párrafos cortos).
+        4. Despídete siempre como "Comunicaciones Crear Poder Sin Límites Perú".
+        """
+        
+        respuesta_ia = model.generate_content(prompt)
+        if respuesta_ia.text:
+            return respuesta_ia.text.strip()
+        return plantilla_base
+    except Exception as e:
+        print(f"[GEMINI ERROR] {e}")
+        return plantilla_base # Fallback seguro
 
 # ══════════════════════════════════════════════════════════════════════════
 # LISTA MAGISTRAL DE EXCLUSIÓN AUTOMÁTICA
 # ══════════════════════════════════════════════════════════════════════════
-# El bot ignorará a estas personas automáticamente, sin que tengas que tocar el Excel.
 EXCLUIDOS_CAMPAÑA = [
     "VERóNICA CECILIA SILVA SOTELO", "MOISéS SAMUEL ESTRADA CIRILO", "DANILO PRETEL OCAMPO",
     "MELANNY KATIUSKA TRUJILLO HUALLPATUERO", "MARCO ANTONIO TINGO TAYPE", "MILTO CHOCAN MORALES",
@@ -33,8 +105,7 @@ EXCLUIDOS_CAMPAÑA = [
 def esta_excluido(nombre_px):
     px_norm = normalizar(nombre_px)
     for excluido in EXCLUIDOS_CAMPAÑA:
-        if normalizar(excluido) in px_norm or px_norm in normalizar(excluido):
-            return True
+        if normalizar(excluido) in px_norm or px_norm in normalizar(excluido): return True
     return False
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -47,34 +118,24 @@ def get_historial():
         with open(HISTORIAL_FILE, "r", encoding="utf-8") as f:
             hist = json.load(f)
             if hist: return hist
-    except:
-        pass
+    except: pass
 
-    print("[HISTORIAL] Sincronizando historial maestro con Google Sheets...")
     historial = []
     try:
         rows = leer_sheet()
         if rows:
             for row in rows[1:]:
                 if len(row) < 4: continue
-                hora = str(row[0]).strip()
-                tel  = norm_tel(str(row[1]).strip())
+                hora = str(row[0]).strip(); tel = norm_tel(str(row[1]).strip())
                 msg_in, msg_out = "", ""
                 if len(row) > 3: msg_in  = str(row[3]).strip()
                 if len(row) > 4: msg_out = str(row[4]).strip()
-                if len(row) > 6: 
-                    manual = str(row[6]).strip()
-                    if manual: msg_out = manual 
-
+                if len(row) > 6 and str(row[6]).strip(): msg_out = str(row[6]).strip()
                 if tel:
                     if msg_in: historial.append({"telefono": tel, "texto": msg_in, "tipo": "in", "hora": hora})
                     if msg_out: historial.append({"telefono": tel, "texto": msg_out, "tipo": "out", "hora": hora})
-            
-            with open(HISTORIAL_FILE, "w", encoding="utf-8") as f:
-                json.dump(historial[-1000:], f, ensure_ascii=False, indent=2) # Guarda max 1000 para optimizar
-    except Exception as e:
-        print(f"[ERROR HISTORIAL SHEETS] {e}")
-
+            with open(HISTORIAL_FILE, "w", encoding="utf-8") as f: json.dump(historial[-1000:], f, ensure_ascii=False, indent=2) 
+    except: pass
     return historial
 
 def append_historial(telefono, texto, tipo):
@@ -82,10 +143,8 @@ def append_historial(telefono, texto, tipo):
         h = get_historial()
         hora_actual = datetime.now().strftime("%d/%m %H:%M")
         h.append({"telefono": str(telefono), "texto": texto, "tipo": tipo, "hora": hora_actual})
-        with open(HISTORIAL_FILE, "w", encoding="utf-8") as f:
-            json.dump(h[-1000:], f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        pass
+        with open(HISTORIAL_FILE, "w", encoding="utf-8") as f: json.dump(h[-1000:], f, ensure_ascii=False, indent=2)
+    except: pass
 
 # ══════════════════════════════════════════════════════════════════════════
 # GOOGLE SHEETS CORE
@@ -95,12 +154,7 @@ import base64, time as _time
 def _make_jwt(creds_dict):
     now = int(_time.time())
     header  = base64.urlsafe_b64encode(json.dumps({"alg":"RS256","typ":"JWT"}).encode()).rstrip(b"=")
-    payload = base64.urlsafe_b64encode(json.dumps({
-        "iss": creds_dict["client_email"],
-        "scope": "https://www.googleapis.com/auth/spreadsheets",
-        "aud": "https://oauth2.googleapis.com/token",
-        "iat": now, "exp": now + 3600,
-    }).encode()).rstrip(b"=")
+    payload = base64.urlsafe_b64encode(json.dumps({"iss": creds_dict["client_email"],"scope": "https://www.googleapis.com/auth/spreadsheets","aud": "https://oauth2.googleapis.com/token","iat": now, "exp": now + 3600}).encode()).rstrip(b"=")
     msg = header + b"." + payload
     try:
         from cryptography.hazmat.primitives import hashes, serialization
@@ -108,30 +162,25 @@ def _make_jwt(creds_dict):
         pk  = serialization.load_pem_private_key(creds_dict["private_key"].encode(), password=None)
         sig = pk.sign(msg, padding.PKCS1v15(), hashes.SHA256())
         return (msg + b"." + base64.urlsafe_b64encode(sig).rstrip(b"=")).decode()
-    except Exception as e:
-        return None
+    except: return None
 
 _sheets_token_cache = {"token": None, "exp": 0}
 
 def get_sheets_token():
     global _sheets_token_cache
     now = int(_time.time())
-    if _sheets_token_cache["token"] and now < _sheets_token_cache["exp"] - 60:
-        return _sheets_token_cache["token"]
+    if _sheets_token_cache["token"] and now < _sheets_token_cache["exp"] - 60: return _sheets_token_cache["token"]
     try:
         creds_json = os.environ.get("GOOGLE_CREDENTIALS", "")
         if not creds_json: return None
-        creds = json.loads(creds_json)
-        jwt   = _make_jwt(creds)
+        jwt = _make_jwt(json.loads(creds_json))
         if not jwt: return None
-        r = req_lib.post("https://oauth2.googleapis.com/token",
-            data={"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": jwt}, timeout=10)
+        r = req_lib.post("https://oauth2.googleapis.com/token", data={"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": jwt}, timeout=10)
         if r.status_code == 200:
             d = r.json()
             _sheets_token_cache = {"token": d["access_token"], "exp": now + d.get("expires_in", 3600)}
             return d["access_token"]
-    except Exception as e:
-        pass
+    except: pass
     return None
 
 def registrar_en_sheets(telefono, imo_nombre, mensaje, respuesta_bot, estado=""):
@@ -142,10 +191,7 @@ def registrar_en_sheets(telefono, imo_nombre, mensaje, respuesta_bot, estado="")
         if not token: return
         ahora = datetime.now().strftime("%d/%m/%Y %H:%M")
         url   = (f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_id}/values/Hoja%201!A:H:append")
-        req_lib.post(url,
-            params={"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"},
-            json={"values": [[ahora, str(telefono), imo_nombre, mensaje, respuesta_bot, estado, "", ""]]},
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=10)
+        req_lib.post(url, params={"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"}, json={"values": [[ahora, str(telefono), imo_nombre, mensaje, respuesta_bot, estado, "", ""]]}, headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=10)
     except: pass
 
 def leer_sheet():
@@ -154,8 +200,7 @@ def leer_sheet():
     try:
         token = get_sheets_token()
         if not token: return []
-        url = (f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_id}/values/Hoja%201!A:H")
-        r = req_lib.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=10)
+        r = req_lib.get(f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_id}/values/Hoja%201!A:H", headers={"Authorization": f"Bearer {token}"}, timeout=10)
         if r.status_code == 200: return r.json().get("values", [])
     except: pass
     return []
@@ -167,40 +212,11 @@ def actualizar_celda_sheet(fila, columna, valor):
         token = get_sheets_token()
         if not token: return
         rango = f"Hoja%201!{chr(64+columna)}{fila}"
-        url   = (f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_id}/values/{rango}")
-        req_lib.put(url, params={"valueInputOption": "RAW"},
-            json={"values": [[valor]]},
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=10)
+        req_lib.put(f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_id}/values/{rango}", params={"valueInputOption": "RAW"}, json={"values": [[valor]]}, headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=10)
     except: pass
 
 # ══════════════════════════════════════════════════════════════════════════
-# CONFIGURACION Y UTILIDADES
-# ══════════════════════════════════════════════════════════════════════════
-
-def get_config():
-    return {
-        "token":         os.environ.get("WA_TOKEN", ""),
-        "phone_id":      os.environ.get("WA_PHONE_ID", ""),
-        "verify_token":  os.environ.get("WA_VERIFY_TOKEN", "cpsl2026"),
-        "excel_path":    os.environ.get("EXCEL_PATH", "campana_imos_c1_e27.xlsx"),
-        "jose_tel":      os.environ.get("JOSE_LUIS_TEL", ""),
-        "sessions_path": os.environ.get("SESSIONS_PATH", "sesiones.json"),
-    }
-
-def api_url(): return f"https://graph.facebook.com/v19.0/{get_config()['phone_id']}/messages"
-_excel_lock = threading.Lock()
-
-def norm_tel(tel):
-    t = str(tel).strip().replace("+","").replace(" ","").replace("-","")
-    if t.startswith("51") and len(t) == 11: t = t[2:]
-    elif t.startswith("0") and len(t) == 10: t = t[1:]
-    elif len(t) > 10 and not t.startswith("9"): t = t[-9:]
-    return t
-
-def ep(): return get_config()["excel_path"]
-
-# ══════════════════════════════════════════════════════════════════════════
-# INTELIGENCIA Y LECTURA DE EXCEL (MAGISTRAL)
+# INTELIGENCIA Y LECTURA DE EXCEL 
 # ══════════════════════════════════════════════════════════════════════════
 
 def cargar_px_del_imo(telefono):
@@ -220,15 +236,11 @@ def cargar_px_del_imo(telefono):
                 
                 if imo_t == tel_n:
                     if not imo_nombre: imo_nombre = imo_n
-                    # Regla Magistral: Si no tiene estado o está en proceso, Y NO ESTÁ EXCLUIDO
                     if estado in ("PENDIENTE","ENVIADO","") and px_n:
-                        if not esta_excluido(px_n):
-                            px_list.append(px_n)
+                        if not esta_excluido(px_n): px_list.append(px_n)
             wb.close()
             return imo_nombre, px_list
-        except Exception as e:
-            print(f"[ERROR] Cargar PX: {e}")
-            return "", []
+        except: return "", []
 
 def actualizar_excel(resultados, telefono):
     hoy = datetime.now().strftime("%d/%m/%Y %H:%M")
@@ -239,15 +251,13 @@ def actualizar_excel(resultados, telefono):
             ws = wb["DATA"]
             for row in ws.iter_rows(min_row=2):
                 if not row or len(row) < 7: continue
-                imo_t = norm_tel(str(row[3].value or ""))
-                px_c  = str(row[4].value or "").strip()
+                imo_t = norm_tel(str(row[3].value or "")); px_c = str(row[4].value or "").strip()
                 if imo_t != tel_n: continue
                 for r in resultados:
                     pa_r = normalizar(r["px"].split()[0]) if r["px"].split() else ""
                     pa_c = normalizar(px_c.split()[0]) if px_c.split() else ""
                     if normalizar(r["px"]) == normalizar(px_c) or (pa_r == pa_c and len(pa_r) > 3):
-                        row[6].value = r["estatus"]
-                        row[7].value = hoy; break
+                        row[6].value = r["estatus"]; row[7].value = hoy; break
             wb.save(ep()); wb.close()
         except: pass
 
@@ -260,13 +270,12 @@ def marcar_stop(telefono):
             ws = wb["DATA"]
             for row in ws.iter_rows(min_row=2):
                 if not row or len(row) < 7: continue
-                if norm_tel(str(row[3].value or "")) == tel_n:
-                    row[6].value = "STOP"; row[7].value = hoy
+                if norm_tel(str(row[3].value or "")) == tel_n: row[6].value = "STOP"; row[7].value = hoy
             wb.save(ep()); wb.close()
         except: pass
 
 # ══════════════════════════════════════════════════════════════════════════
-# KEYWORDS NLP (PROCESAMIENTO LENGUAJE NATURAL)
+# KEYWORDS NLP 
 # ══════════════════════════════════════════════════════════════════════════
 KEYWORDS = {
     "STOP": ["stop","baja","no mas mensajes","no quiero mensajes","desuscribir","alto","detener","no me escriban","no escriban","no les escriban"],
@@ -299,8 +308,7 @@ def detectar_intencion(texto):
              "INFO_C1", "VOLANTE", "CONSULTA_PX", "QUIEN_ERES", "NO_RECUERDA", "GESTIONANDO"]
     for intent in orden:
         for kw in KEYWORDS[intent]:
-            patron = r'(?<![a-z])' + re.escape(normalizar(kw)) + r'(?![a-z])'
-            if re.search(patron, t): return intent
+            if re.search(r'(?<![a-z])' + re.escape(normalizar(kw)) + r'(?![a-z])', t): return intent
     return None
 
 def buscar_px_en_texto(texto, px_list):
@@ -337,24 +345,40 @@ def buscar_px_en_texto(texto, px_list):
     return dedup
 
 # ══════════════════════════════════════════════════════════════════════════
-# WHATSAPP Y RESPUESTAS
+# SESIONES Y RESPUESTAS
 # ══════════════════════════════════════════════════════════════════════════
+
+def _sf(): return get_config()["sessions_path"]
+def cargar_sesiones():
+    try:
+        with open(_sf(), "r", encoding="utf-8") as f: return json.load(f)
+    except: return {}
+def guardar_sesiones(s):
+    with open(_sf(), "w", encoding="utf-8") as f: json.dump(s, f, ensure_ascii=False, indent=2)
+def get_sesion(tel): return cargar_sesiones().get(str(tel), {})
+def set_sesion(tel, d): s = cargar_sesiones(); s[str(tel)] = d; guardar_sesiones(s)
+def borrar_sesion(tel): s = cargar_sesiones(); s.pop(str(tel), None); guardar_sesiones(s)
+
+_respuestas_enviadas = {}
 
 def enviar_mensaje(telefono, texto):
     cfg = get_config()
     try:
         r = req_lib.post(api_url(),
-            json={"messaging_product":"whatsapp","to":str(telefono),
-                  "type":"text","text":{"body":texto,"preview_url":False}},
+            json={"messaging_product":"whatsapp","to":str(telefono),"type":"text","text":{"body":texto,"preview_url":False}},
             headers={"Authorization":f"Bearer {cfg['token']}", "Content-Type":"application/json"}, timeout=10)
         if r.status_code == 200: append_historial(telefono, texto, "out") 
         return r.status_code == 200
     except: return False
 
+def nombre_pila(s):
+    partes = re.split(r'\s+', s.strip())
+    if len(partes) >= 3: return partes[2].title()
+    if len(partes) >= 2: return partes[1].title()
+    return partes[0].title() if partes else s
+
 def formatear_resumen(extraidos):
-    iconos = {"CONFIRMADO":"✅","SIGUIENTE":"➡️","NO_INTERESADO":"❌",
-              "NO_CONTESTA":"📵","PENDIENTE":"⏳","GESTIONANDO":"🔄",
-              "YA_SE_SENTO":"🎓", "FALLECIO_ENFERMO":"🏥"}
+    iconos = {"CONFIRMADO":"✅","SIGUIENTE":"➡️","NO_INTERESADO":"❌","NO_CONTESTA":"📵","PENDIENTE":"⏳","GESTIONANDO":"🔄","YA_SE_SENTO":"🎓", "FALLECIO_ENFERMO":"🏥"}
     return "\n".join(f"{iconos.get(e['estatus'],'•')} {e['px']} — *{e['estatus']}*" for e in extraidos)
 
 def es_confirmacion(texto):
@@ -373,6 +397,7 @@ COORDINADORAS = """Coordinadoras C1 y C2:\nDiana Moscoso: +51 912 379 744\nJoyce
 STOP_CLAUSULA = "\n\n_Si no deseas recibir mas mensajes de este numero, responde STOP._"
 FIRMA = "\n\n*Comunicaciones Crear Poder Sin Limites Peru*"
 
+# Respuestas Plantillas
 def r_quien_eres(pila=""): return (f"Hola {pila},\n\nTe contactamos de *Crear Poder Sin Limites Peru*.\n\nSomos comunicaciones en seguimiento del *Capitulo 1 — Equipo 27* (1, 2 y 3 de mayo).\n\nComo IMO, tienes participantes con inscripcion activa." + FIRMA)
 def r_cambio(pila): return (f"Hola {pila},\n\nLos cambios de nombre se gestionan directamente con tu coordinadora. El límite es el miércoles previo a las 6:00 pm.\n\n" + COORDINADORAS + FIRMA)
 def r_devolucion(pila): return (f"Hola {pila},\n\nEn Crear no realizamos devoluciones una vez efectuado el pago. Lo que aplica es que la inversión queda activa para el siguiente equipo.\n\n" + COORDINADORAS + FIRMA)
@@ -414,12 +439,13 @@ def procesar_mensaje(telefono, texto):
     if not imo_nombre:
         if intencion == "VOLANTE": enviar_mensaje(telefono, r_volante("")); return
         if intencion == "INFO_C1": enviar_mensaje(telefono, r_info_c1("")); return
-        enviar_mensaje(telefono, r_no_campaña()); return
+        enviar_mensaje(telefono, humanizar_con_gemini(texto, r_no_campaña(), pila)); return
 
     if sesion.get("estado") == "esperando_fecha":
         borrar_sesion(telefono)
         px_confirm = sesion.get("px_confirmados", [])
-        enviar_mensaje(telefono, f"Hola {pila},\n\nConfirmacion registrada.\n\nLos esperamos en el *Hotel Jose Antonio Deluxe*, Mesa de registro a las *9:00 am*." + FIRMA)
+        msg_base = f"Hola {pila},\n\nConfirmacion registrada.\n\nLos esperamos en el *Hotel Jose Antonio Deluxe*, Mesa de registro a las *9:00 am*." + FIRMA
+        enviar_mensaje(telefono, humanizar_con_gemini(texto, msg_base, pila))
         return
 
     if sesion.get("estado") == "esperando_confirmacion":
@@ -433,39 +459,45 @@ def procesar_mensaje(telefono, texto):
                 set_sesion(telefono, {"estado": "esperando_fecha", "px_confirmados": px_nombres})
                 enviar_mensaje(telefono, r_pedir_fecha(pila, px_nombres))
             else:
-                enviar_mensaje(telefono, f"Gracias {pila}, todo quedo registrado. Te hemos quitado estas personas de tu lista de pendientes." + FIRMA)
+                msg_base = f"Gracias {pila}, todo quedo registrado. Te hemos quitado estas personas de tu lista de pendientes." + FIRMA
+                enviar_mensaje(telefono, humanizar_con_gemini(texto, msg_base, pila))
         else:
             borrar_sesion(telefono)
             enviar_mensaje(telefono, "Entendido. Por favor vuelvenos a enviar el estatus de tus personas." + STOP_CLAUSULA)
         return
 
     if not px_list:
-        if intencion in ("INFO_C1", "VOLANTE"): enviar_mensaje(telefono, r_volante(pila)); return
-        enviar_mensaje(telefono, f"Hola {pila},\n\nYa tienes el estatus registrado para todas tus personas pendientes. Si hay algun cambio antes del *1 de mayo*, escribenos." + FIRMA)
+        if intencion in ("INFO_C1", "VOLANTE"): enviar_mensaje(telefono, humanizar_con_gemini(texto, r_volante(pila), pila)); return
+        enviar_mensaje(telefono, humanizar_con_gemini(texto, f"Hola {pila},\n\nYa tienes el estatus registrado para todas tus personas pendientes. Si hay algun cambio antes del *1 de mayo*, escribenos." + FIRMA, pila))
         return
 
-    # Intenciones informativas que no cambian el estatus
-    if intencion == "QUIEN_ERES": enviar_mensaje(telefono, r_quien_eres(pila)); return
-    if intencion == "CAMBIO": enviar_mensaje(telefono, r_cambio(pila)); return
-    if intencion == "DEVOLUCION": enviar_mensaje(telefono, r_devolucion(pila)); return
-    if intencion == "INFO_C1": enviar_mensaje(telefono, r_info_c1(pila)); return
-    if intencion == "NO_RECUERDA": enviar_mensaje(telefono, r_no_recuerda(pila)); return
-    if intencion == "VOLANTE": enviar_mensaje(telefono, r_volante(pila)); return
-    if intencion == "CONSULTA_PX": enviar_mensaje(telefono, r_consulta_px(pila)); return
+    # INTENCIONES QUE PASAN POR LA IA PARA SONAR HUMANAS
+    respuestas_info = {
+        "QUIEN_ERES": r_quien_eres(pila), "CAMBIO": r_cambio(pila), "DEVOLUCION": r_devolucion(pila),
+        "INFO_C1": r_info_c1(pila), "NO_RECUERDA": r_no_recuerda(pila), "VOLANTE": r_volante(pila), "CONSULTA_PX": r_consulta_px(pila)
+    }
+    
+    if intencion in respuestas_info:
+        enviar_mensaje(telefono, humanizar_con_gemini(texto, respuestas_info[intencion], pila))
+        return
 
     extraidos = buscar_px_en_texto(texto, px_list)
 
     if not extraidos:
-        if intencion == "NO_INTERESADO": enviar_mensaje(telefono, r_no_interesado(pila, px_list)); return
-        if intencion == "NO_CONTESTA": enviar_mensaje(telefono, r_no_contesta(pila, px_list)); return
-        if intencion in ("PENDIENTE", "GESTIONANDO"): enviar_mensaje(telefono, r_pendiente(pila, px_list)); return
-        if intencion == "SIGUIENTE": enviar_mensaje(telefono, f"Hola {pila},\n\nRecibido. Las inscripciones siguen activas para el siguiente equipo." + FIRMA); return
-        if intencion == "YA_SE_SENTO": enviar_mensaje(telefono, r_ya_sento(pila)); return
-        if intencion == "FALLECIO_ENFERMO": enviar_mensaje(telefono, r_fallecio_enfermo(pila)); return
+        respuestas_estados = {
+            "NO_INTERESADO": r_no_interesado(pila, px_list), "NO_CONTESTA": r_no_contesta(pila, px_list),
+            "PENDIENTE": r_pendiente(pila, px_list), "GESTIONANDO": r_pendiente(pila, px_list),
+            "SIGUIENTE": f"Hola {pila},\n\nRecibido. Las inscripciones siguen activas para el siguiente equipo." + FIRMA,
+            "YA_SE_SENTO": r_ya_sento(pila), "FALLECIO_ENFERMO": r_fallecio_enfermo(pila)
+        }
+        if intencion in respuestas_estados:
+            enviar_mensaje(telefono, humanizar_con_gemini(texto, respuestas_estados[intencion], pila))
+            return
         
-        enviar_mensaje(telefono, r_no_entendido(pila, px_list))
+        enviar_mensaje(telefono, humanizar_con_gemini(texto, r_no_entendido(pila, px_list), pila))
         return
 
+    # El resumen estricto NO pasa por Gemini para no alterar el formato visual ✅
     set_sesion(telefono, {"estado": "esperando_confirmacion", "extraidos": extraidos})
     no_mencionados = [px for px in px_list if not any(normalizar(px.split()[0]) == normalizar(e["px"].split()[0]) for e in extraidos)]
     
@@ -474,10 +506,35 @@ def procesar_mensaje(telefono, texto):
     msg += "\n\n¿Esta correcto? Responde *SI* para confirmar."
     enviar_mensaje(telefono, msg)
 
+
+# ══════════════════════════════════════════════════════════════════════════
+# RESPUESTAS MANUALES
+# ══════════════════════════════════════════════════════════════════════════
+def enviar_respuestas_manuales():
+    sheet_id = os.environ.get("SHEET_ID", "")
+    if not sheet_id: return
+    try:
+        rows = leer_sheet()
+        for i, row in enumerate(rows[1:], start=2):
+            if len(row) < 7: continue
+            telefono = str(row[1]).strip(); resp_man = str(row[6]).strip(); enviado = str(row[7]).strip() if len(row) > 7 else ""
+            if not telefono or not resp_man or enviado == "ENVIADO": continue
+            if enviar_mensaje(telefono, resp_man): actualizar_celda_sheet(i, 8, "ENVIADO")
+    except: pass
+
+def hilo_respuestas_manuales():
+    import time
+    while True:
+        try: enviar_respuestas_manuales()
+        except: pass
+        time.sleep(120)
+
+_hilo = threading.Thread(target=hilo_respuestas_manuales, daemon=True)
+_hilo.start()
+
 # ══════════════════════════════════════════════════════════════════════════
 # ENDPOINTS WEB Y PANEL DE CHAT PRO
 # ══════════════════════════════════════════════════════════════════════════
-
 HTML_CHAT = """
 <!DOCTYPE html>
 <html lang="es">
@@ -546,11 +603,7 @@ HTML_CHAT = """
     </div>
     <script>
         let chatHistory = {}; let activeContact = null; let isUserScrolling = false;
-        
-        document.getElementById('messagesContainer').addEventListener('scroll', function() {
-            isUserScrolling = (this.scrollHeight - this.scrollTop - this.clientHeight) > 50;
-        });
-
+        document.getElementById('messagesContainer').addEventListener('scroll', function() { isUserScrolling = (this.scrollHeight - this.scrollTop - this.clientHeight) > 50; });
         async function cargarDatos() {
             try {
                 let res = await fetch('/api/historial'); let data = await res.json();
@@ -559,12 +612,9 @@ HTML_CHAT = """
                     if (!newHistory[m.telefono]) newHistory[m.telefono] = [];
                     newHistory[m.telefono].push({ text: m.texto, time: m.hora, sent: m.tipo === 'out' });
                 }
-                chatHistory = newHistory; 
-                renderContacts(); 
-                if (activeContact) renderMessages(false);
-            } catch (e) { console.log("Reconectando..."); }
+                chatHistory = newHistory; renderContacts(); if (activeContact) renderMessages(false);
+            } catch (e) {}
         }
-
         function renderContacts() {
             const list = document.getElementById('contactsList'); list.innerHTML = '';
             const phones = Object.keys(chatHistory).reverse();
@@ -578,33 +628,25 @@ HTML_CHAT = """
                 list.appendChild(div);
             });
         }
-
         function openChat(phone) {
             activeContact = phone;
-            document.getElementById('emptyState').classList.add('hidden'); 
-            document.getElementById('chatHeader').classList.remove('hidden');
-            document.getElementById('messagesContainer').classList.remove('hidden'); 
-            document.getElementById('chatInputArea').classList.remove('hidden');
+            document.getElementById('emptyState').classList.add('hidden'); document.getElementById('chatHeader').classList.remove('hidden');
+            document.getElementById('messagesContainer').classList.remove('hidden'); document.getElementById('chatInputArea').classList.remove('hidden');
             document.getElementById('chatHeaderName').innerText = '+' + phone;
-            isUserScrolling = false; 
-            renderContacts(); renderMessages(true);
+            isUserScrolling = false; renderContacts(); renderMessages(true);
             setTimeout(() => document.getElementById('messageInput').focus(), 100);
         }
-
         function renderMessages(forceBottom) {
             const container = document.getElementById('messagesContainer'); container.innerHTML = '';
             if (!activeContact || !chatHistory[activeContact]) return;
             chatHistory[activeContact].forEach(msg => {
-                const div = document.createElement('div'); 
-                div.className = `message ${msg.sent ? 'sent' : 'received'}`;
+                const div = document.createElement('div'); div.className = `message ${msg.sent ? 'sent' : 'received'}`;
                 div.innerHTML = `${msg.text.replace(/\\n/g, '<br>')}<span class="time">${msg.time}</span>`;
                 container.appendChild(div);
             });
             if (forceBottom || !isUserScrolling) container.scrollTop = container.scrollHeight;
         }
-
         function handleEnter(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
-
         async function sendMessage() {
             const textarea = document.getElementById('messageInput'); const mensaje = textarea.value.trim(); const destino = activeContact;
             if (!mensaje || !destino) return;
@@ -664,7 +706,7 @@ def recibir_mensaje():
     return jsonify({"status":"ok"}), 200
 
 @app.route("/status", methods=["GET"])
-def status(): return jsonify({"status": "activo", "version": "v7_magistral"}), 200
+def status(): return jsonify({"status": "activo", "version": "v8_gemini_ai"}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
