@@ -589,7 +589,10 @@ HTML_CHAT = """
         <div class="sidebar">
             <div class="sidebar-header">
                 <div>💬 Panel de Chats</div>
-                <div style="font-size:12px; color:#555; font-weight:normal;"><span class="status-dot"></span>En línea</div>
+                <div style="font-size:12px; color:#555; font-weight:normal; display: flex; align-items: center; gap: 10px;">
+                    <span title="Iniciar Nuevo Chat" style="cursor:pointer; font-size: 15px; background: #e9edef; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 50%;" onclick="startNewChat()">➕</span>
+                    <div><span class="status-dot"></span>En línea</div>
+                </div>
             </div>
             <div class="search-bar" style="padding: 10px 15px; border-bottom: 1px solid var(--border); background: #f0f2f5;">
                 <input type="text" id="searchInput" placeholder="Buscar contacto o mensaje..." oninput="renderContacts()" style="width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; outline: none;">
@@ -673,6 +676,16 @@ HTML_CHAT = """
             document.getElementById('chatHeaderName').innerText = displayName || '+' + phone;
             isUserScrolling = false; renderContacts(); renderMessages(true);
             setTimeout(() => document.getElementById('messageInput').focus(), 100);
+        }
+        function startNewChat() {
+            let phone = prompt("Ingresa el número de WhatsApp con código de país (ej. 51987654321):");
+            if (!phone) return;
+            phone = phone.replace(/\D/g, ''); 
+            if (!phone) return;
+            if (!chatHistory[phone]) {
+                chatHistory[phone] = [];
+            }
+            openChat(phone, '+' + phone);
         }
         function renderMessages(forceBottom) {
             const container = document.getElementById('messagesContainer'); container.innerHTML = '';
