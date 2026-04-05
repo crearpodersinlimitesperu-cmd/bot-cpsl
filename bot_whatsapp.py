@@ -70,12 +70,13 @@ def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre):
         Por reglas de la empresa, DEBES darle exactamente esta información de respuesta:
         "{plantilla_base}"
         
-        Tu tarea: Reescribe la respuesta de la empresa para que suene como una conversación MUY natural, empática, humana y cálida.
+        Tu tarea: Reescribe la respuesta de la empresa para que suene como una conversación natural, empática y MUY empoderante.
         Reglas estrictas:
-        1. NO inventes fechas, reglas, ni devuelvas dinero si la plantilla dice que no.
-        2. Mantén la información intacta, solo cambia el tono (que no suene a robot).
-        3. Sé breve (máximo 2 o 3 párrafos cortos).
-        4. Despídete siempre como "Comunicaciones Crear Poder Sin Límites Perú".
+        1. Tu tono NO debe ser de 'motivación' superficial. Somos una empresa de **Transformación Cuántica** y usamos el **Empoderamiento**. Habla desde la responsabilidad, el liderazgo y el poder personal.
+        2. Muestra profunda empatía por su situación, validando lo que dice el usuario sin juzgar.
+        3. NO inventes fechas, políticas de devolución, ni reglas si la plantilla base dice que no se puede. Respeta la plantilla.
+        4. Sé breve y contundente (máximo 2 a 3 párrafos cortos).
+        5. Despídete siempre como "Comunicaciones Crear Poder Sin Límites Peru".
         """
         
         respuesta_ia = model.generate_content(prompt)
@@ -135,7 +136,7 @@ def get_historial():
                 if tel:
                     if msg_in: historial.append({"telefono": tel, "nombre": nombre, "texto": msg_in, "tipo": "in", "hora": hora})
                     if msg_out: historial.append({"telefono": tel, "nombre": nombre, "texto": msg_out, "tipo": "out", "hora": hora})
-            with open(HISTORIAL_FILE, "w", encoding="utf-8") as f: json.dump(historial[-1000:], f, ensure_ascii=False, indent=2) 
+            with open(HISTORIAL_FILE, "w", encoding="utf-8") as f: json.dump(historial, f, ensure_ascii=False, indent=2)
     except: pass
     return historial
 
@@ -154,7 +155,7 @@ def append_historial(telefono, texto, tipo):
                 nombre = n
             except: pass
         h.append({"telefono": str(telefono), "nombre": nombre, "texto": texto, "tipo": tipo, "hora": hora_actual})
-        with open(HISTORIAL_FILE, "w", encoding="utf-8") as f: json.dump(h[-1000:], f, ensure_ascii=False, indent=2)
+        with open(HISTORIAL_FILE, "w", encoding="utf-8") as f: json.dump(h, f, ensure_ascii=False, indent=2)
     except: pass
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -312,7 +313,7 @@ def normalizar(texto):
     for a, b in [("á","a"),("é","e"),("í","i"),("ó","o"),("ú","u"),("ñ","n")]: t = t.replace(a, b)
     return t
 
-def detectar_intencion(texto):
+def detectar_intencion_basico(texto):
     t = normalizar(texto)
     orden = ["STOP", "NO_INTERESADO", "NO_CONTESTA", "YA_SE_SENTO", "FALLECIO_ENFERMO", 
              "SIGUIENTE", "CONFIRMADO", "PENDIENTE", "DEVOLUCION", "CAMBIO", 
@@ -321,6 +322,46 @@ def detectar_intencion(texto):
         for kw in KEYWORDS[intent]:
             if re.search(r'(?<![a-z])' + re.escape(normalizar(kw)) + r'(?![a-z])', t): return intent
     return None
+
+def detectar_intencion(texto):
+    cfg = get_config()
+    if not cfg["gemini_key"] or genai is None:
+        return detectar_intencion_basico(texto)
+    
+    try:
+        genai.configure(api_key=cfg["gemini_key"])
+        model = genai.GenerativeModel('gemini-1.5-flash') 
+        prompt = f"""Tu tarea es comprender este mensaje de Whatsapp de un líder en Transformación Cuántica: "{texto}"
+
+Clasifica la intención del usuario usando SOLO UNA de estas etiquetas exactas:
+- STOP: Pide explícitamente dejar de recibir mensajes.
+- NO_INTERESADO: Rechaza la invitación o asistencia.
+- NO_CONTESTA: Afirma que alguien no responde sus llamadas/mensajes.
+- YA_SE_SENTO: Menciona que el participante ya hizo el taller antes.
+- FALLECIO_ENFERMO: Situación de muerte o salud grave inmovilizante.
+- SIGUIENTE: Pide pasarlo para el siguiente mes/nivel.
+- CONFIRMADO: Da confirmación, dice que sí va, asiste, genial, o aprueba.
+- PENDIENTE: Pide esperar, evalúa tiempos, está de viaje, recién preguntará.
+- DEVOLUCION: Solicita la reversión de su pago o reembolso.
+- CAMBIO: Pide traspaso o modificación de un nombre por otro.
+- INFO_C1: Exige que le des las fechas de inicio, finalización, o ubicación del hotel.
+- VOLANTE: Solicita expresamente el PDF, afiche o imagen (volante).
+- CONSULTA_PX: Pregunta si alguien ya pagó o ya confirmó en nuestra base.
+- QUIEN_ERES: Pregunta al bot su identidad "quien me escribe?".
+- NO_RECUERDA: No ubica a los mencionados, equivocado de número.
+- GESTIONANDO: Afirma estar trabajando en comunicarlo, o estar enviándoles audios/mensajes.
+
+Responde ÚNICAMENTE con la etiqueta en MAYÚSCULAS. Si ninguna aplica o habla de confirmaciones específicas por nombre, responde EXTRA."""
+        respuesta = model.generate_content(prompt)
+        r = respuesta.text.strip().upper()
+        
+        validas = ["STOP", "NO_INTERESADO", "NO_CONTESTA", "YA_SE_SENTO", "FALLECIO_ENFERMO", "SIGUIENTE", "CONFIRMADO", "PENDIENTE", "DEVOLUCION", "CAMBIO", "INFO_C1", "VOLANTE", "CONSULTA_PX", "QUIEN_ERES", "NO_RECUERDA", "GESTIONANDO"]
+        for v in validas:
+            if v in r: return v
+            
+        return detectar_intencion_basico(texto)
+    except:
+        return detectar_intencion_basico(texto)
 
 def buscar_px_en_texto(texto, px_list):
     resultados = []
