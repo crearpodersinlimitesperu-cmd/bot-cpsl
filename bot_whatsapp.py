@@ -131,9 +131,10 @@ def get_historial():
                 if len(row) > 3: msg_in  = str(row[3]).strip()
                 if len(row) > 4: msg_out = str(row[4]).strip()
                 if len(row) > 6 and str(row[6]).strip(): msg_out = str(row[6]).strip()
+                nombre = str(row[2]).strip() if len(row) > 2 else ""
                 if tel:
-                    if msg_in: historial.append({"telefono": tel, "texto": msg_in, "tipo": "in", "hora": hora})
-                    if msg_out: historial.append({"telefono": tel, "texto": msg_out, "tipo": "out", "hora": hora})
+                    if msg_in: historial.append({"telefono": tel, "nombre": nombre, "texto": msg_in, "tipo": "in", "hora": hora})
+                    if msg_out: historial.append({"telefono": tel, "nombre": nombre, "texto": msg_out, "tipo": "out", "hora": hora})
             with open(HISTORIAL_FILE, "w", encoding="utf-8") as f: json.dump(historial[-1000:], f, ensure_ascii=False, indent=2) 
     except: pass
     return historial
@@ -142,7 +143,17 @@ def append_historial(telefono, texto, tipo):
     try:
         h = get_historial()
         hora_actual = datetime.now().strftime("%d/%m %H:%M")
-        h.append({"telefono": str(telefono), "texto": texto, "tipo": tipo, "hora": hora_actual})
+        nombre = ""
+        for m in reversed(h):
+            if m.get("telefono") == str(telefono) and m.get("nombre"):
+                nombre = m.get("nombre")
+                break
+        if not nombre:
+            try:
+                n, _ = cargar_px_del_imo(telefono)
+                nombre = n
+            except: pass
+        h.append({"telefono": str(telefono), "nombre": nombre, "texto": texto, "tipo": tipo, "hora": hora_actual})
         with open(HISTORIAL_FILE, "w", encoding="utf-8") as f: json.dump(h[-1000:], f, ensure_ascii=False, indent=2)
     except: pass
 
@@ -415,7 +426,7 @@ def r_pendiente(pila, px_list):
 def r_no_entendido(pila, px_list):
     lista = "\n".join(f"• {px}" for px in px_list)
     return (f"Hola {pila},\n\nDisculpa, no logré comprender tu mensaje. 🤔\n\nPara poder registrarlo bien, por favor dime si asisten o no asisten estas personas:\n\n{lista}\n\n*(Ejemplo: 'Todos asisten', 'Ninguno va', o detalla por nombre)*" + FIRMA)
-def r_no_campaña(): return ("Hola,\n\nTe contactamos de *Crear Poder Sin Limites Peru*.\n\nEste canal es de seguimiento exclusivo para IMOs del *Capitulo 1 — Equipo 27*.\n\nSi deseas informacion de entrenamientos, comunicate aquí:\n\n" + COORDINADORAS + FIRMA)
+def r_no_campana(): return ("Hola,\n\nTe contactamos de *Crear Poder Sin Limites Peru*.\n\nEste canal es de seguimiento exclusivo para IMOs del *Capitulo 1 — Equipo 27*.\n\nSi deseas informacion de entrenamientos, comunicate aquí:\n\n" + COORDINADORAS + FIRMA)
 def r_pedir_fecha(pila, px_confirmados):
     nombres = "\n".join(f"• {px}" for px in px_confirmados)
     return (f"Hola {pila},\n\nConfirmacion registrada para:\n\n{nombres}\n\n¿En que dia estaran presentes?\n*(Viernes 1, Sabado 2, Domingo 3 de mayo — o los tres dias)*" + FIRMA)
@@ -439,7 +450,7 @@ def procesar_mensaje(telefono, texto):
     if not imo_nombre:
         if intencion == "VOLANTE": enviar_mensaje(telefono, r_volante("")); return
         if intencion == "INFO_C1": enviar_mensaje(telefono, r_info_c1("")); return
-        enviar_mensaje(telefono, humanizar_con_gemini(texto, r_no_campaña(), pila)); return
+        enviar_mensaje(telefono, humanizar_con_gemini(texto, r_no_campana(), pila)); return
 
     if sesion.get("estado") == "esperando_fecha":
         borrar_sesion(telefono)
@@ -580,6 +591,9 @@ HTML_CHAT = """
                 <div>💬 Panel de Chats</div>
                 <div style="font-size:12px; color:#555; font-weight:normal;"><span class="status-dot"></span>En línea</div>
             </div>
+            <div class="search-bar" style="padding: 10px 15px; border-bottom: 1px solid var(--border); background: #f0f2f5;">
+                <input type="text" id="searchInput" placeholder="Buscar contacto o mensaje..." oninput="renderContacts()" style="width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; outline: none;">
+            </div>
             <div class="contacts-list" id="contactsList"></div>
         </div>
         <div class="chat-area" id="chatArea">
@@ -602,7 +616,7 @@ HTML_CHAT = """
         </div>
     </div>
     <script>
-        let chatHistory = {}; let activeContact = null; let isUserScrolling = false;
+        let chatHistory = {}; let unreadCounts = {}; let activeContact = null; let isUserScrolling = false;
         document.getElementById('messagesContainer').addEventListener('scroll', function() { isUserScrolling = (this.scrollHeight - this.scrollTop - this.clientHeight) > 50; });
         async function cargarDatos() {
             try {
@@ -610,29 +624,53 @@ HTML_CHAT = """
                 let newHistory = {};
                 for(let m of data) {
                     if (!newHistory[m.telefono]) newHistory[m.telefono] = [];
-                    newHistory[m.telefono].push({ text: m.texto, time: m.hora, sent: m.tipo === 'out' });
+                    newHistory[m.telefono].push({ text: m.texto, time: m.hora, sent: m.tipo === 'out', nombre: m.nombre });
+                }
+                for(let phone in newHistory) {
+                    if(!chatHistory[phone]) chatHistory[phone] = [];
+                    let diff = newHistory[phone].length - chatHistory[phone].length;
+                    if(diff > 0 && phone !== activeContact) {
+                        let hasIncoming = newHistory[phone].slice(-diff).some(m => !m.sent);
+                        if(hasIncoming) unreadCounts[phone] = (unreadCounts[phone] || 0) + diff;
+                    }
                 }
                 chatHistory = newHistory; renderContacts(); if (activeContact) renderMessages(false);
             } catch (e) {}
         }
         function renderContacts() {
             const list = document.getElementById('contactsList'); list.innerHTML = '';
+            const searchTerm = document.getElementById('searchInput') ? document.getElementById('searchInput').value.toLowerCase() : '';
             const phones = Object.keys(chatHistory).reverse();
             if(phones.length === 0) { list.innerHTML = '<div style="padding: 20px; text-align: center; color: #888;">No hay chats recientes.</div>'; return; }
             phones.forEach(phone => {
                 const messages = chatHistory[phone]; const lastMessage = messages[messages.length - 1].text;
+                let contactName = '';
+                for (let i = messages.length - 1; i >= 0; i--) {
+                    if (messages[i].nombre && messages[i].nombre.trim() !== '') { contactName = messages[i].nombre; break; }
+                }
+                const displayName = contactName ? contactName : '+' + phone;
+                
+                if (searchTerm) {
+                    const textContent = (displayName + ' ' + phone + ' ' + messages.map(m=>m.text).join(' ')).toLowerCase();
+                    if (!textContent.includes(searchTerm)) return;
+                }
+                
+                const unread = unreadCounts[phone] || 0;
+                const unreadBadge = unread > 0 ? `<div style="background: #25D366; color: white; border-radius: 50%; min-width: 20px; height: 20px; padding: 0 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: bold;">${unread}</div>` : '';
+
                 const div = document.createElement('div');
                 div.className = `contact-item ${activeContact === phone ? 'active' : ''}`;
-                div.onclick = () => openChat(phone);
-                div.innerHTML = `<div class="avatar">👤</div><div class="contact-info"><h4>+${phone}</h4><p>${lastMessage}</p></div>`;
+                div.onclick = () => openChat(phone, displayName);
+                div.innerHTML = `<div class="avatar">👤</div><div class="contact-info"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;"><h4 style="margin:0; font-weight: 500;">${displayName}</h4>${unreadBadge}</div><p style="margin:0;">${lastMessage}</p></div>`;
                 list.appendChild(div);
             });
         }
-        function openChat(phone) {
+        function openChat(phone, displayName) {
             activeContact = phone;
+            unreadCounts[phone] = 0;
             document.getElementById('emptyState').classList.add('hidden'); document.getElementById('chatHeader').classList.remove('hidden');
             document.getElementById('messagesContainer').classList.remove('hidden'); document.getElementById('chatInputArea').classList.remove('hidden');
-            document.getElementById('chatHeaderName').innerText = '+' + phone;
+            document.getElementById('chatHeaderName').innerText = displayName || '+' + phone;
             isUserScrolling = false; renderContacts(); renderMessages(true);
             setTimeout(() => document.getElementById('messageInput').focus(), 100);
         }
