@@ -1,11 +1,11 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-v9 MAGISTRAL — Nombres en Chat + Fix Sincronización Sheets
+v11 MAGISTRAL — Fix Sheets Síncrono + Embudo IA Gemini
 """
 
-import os, re, json, threading, time
-from flask import Flask, request, jsonify
+import os, re, json, threading, time, csv, io
+from flask import Flask, request, jsonify, Response
 from datetime import datetime
 import requests as req_lib
 from openpyxl import load_workbook
@@ -46,7 +46,7 @@ def norm_tel(tel):
 def ep(): return get_config()["excel_path"]
 
 # ══════════════════════════════════════════════════════════════════════════
-# GOOGLE SHEETS CORE 
+# GOOGLE SHEETS CORE (AHORA SÍNCRONO Y SEGURO)
 # ══════════════════════════════════════════════════════════════════════════
 import base64
 
@@ -83,6 +83,7 @@ def get_sheets_token():
     return None
 
 def registrar_en_sheets(telefono, imo_nombre, mensaje, respuesta_bot, estado=""):
+    # ESTA FUNCIÓN AHORA SE EJECUTA OBLIGATORIAMENTE ANTES DE CORTAR CON WHATSAPP
     sheet_id = os.environ.get("SHEET_ID", "")
     if not sheet_id: return
     try:
@@ -91,7 +92,8 @@ def registrar_en_sheets(telefono, imo_nombre, mensaje, respuesta_bot, estado="")
         ahora = datetime.now().strftime("%d/%m/%Y %H:%M")
         url   = (f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_id}/values/Hoja%201!A:H:append")
         req_lib.post(url, params={"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"}, json={"values": [[ahora, str(telefono), imo_nombre, mensaje, respuesta_bot, estado, "", ""]]}, headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=10)
-    except: pass
+    except Exception as e:
+        print(f"[ERROR SAVE SHEETS] {e}")
 
 def leer_sheet():
     sheet_id = os.environ.get("SHEET_ID", "")
@@ -105,7 +107,7 @@ def leer_sheet():
     return []
 
 # ══════════════════════════════════════════════════════════════════════════
-# HISTORIAL EN SEGUNDO PLANO (AHORA CON NOMBRES)
+# HISTORIAL PARA EL PANEL WEB
 # ══════════════════════════════════════════════════════════════════════════
 HISTORIAL_FILE = "historial_chat.json"
 _syncing = False
@@ -114,37 +116,29 @@ def forzar_sincronizacion_sheets():
     global _syncing
     if _syncing: return
     _syncing = True
-    print("[HISTORIAL] Sincronizando desde Sheets...")
     historial = []
     try:
         rows = leer_sheet()
         if rows:
             for row in rows[1:]:
                 if len(row) < 4: continue
-                hora = str(row[0]).strip()
-                tel = norm_tel(str(row[1]).strip())
+                hora = str(row[0]).strip(); tel = norm_tel(str(row[1]).strip())
                 imo_n = str(row[2]).strip() if len(row) > 2 else ""
                 msg_in, msg_out = "", ""
-                
                 if len(row) > 3: msg_in  = str(row[3]).strip()
                 if len(row) > 4: msg_out = str(row[4]).strip()
                 if len(row) > 6 and str(row[6]).strip(): msg_out = str(row[6]).strip()
-                
                 if tel:
                     if msg_in: historial.append({"telefono": tel, "nombre": imo_n, "texto": msg_in, "tipo": "in", "hora": hora})
                     if msg_out: historial.append({"telefono": tel, "nombre": imo_n, "texto": msg_out, "tipo": "out", "hora": hora})
-                    
             with open(HISTORIAL_FILE, "w", encoding="utf-8") as f: json.dump(historial[-1500:], f, ensure_ascii=False, indent=2) 
-    except Exception as e:
-        print(f"[ERROR SHEETS SYNC] {e}")
-    finally:
-        _syncing = False
+    except: pass
+    finally: _syncing = False
 
 def get_historial():
     try:
         if os.path.exists(HISTORIAL_FILE):
-            with open(HISTORIAL_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+            with open(HISTORIAL_FILE, "r", encoding="utf-8") as f: return json.load(f)
     except: pass
     return []
 
@@ -156,39 +150,54 @@ def append_historial(telefono, nombre, texto, tipo):
         with open(HISTORIAL_FILE, "w", encoding="utf-8") as f: json.dump(h[-1500:], f, ensure_ascii=False, indent=2)
     except: pass
 
-
 # ══════════════════════════════════════════════════════════════════════════
-# MOTOR DE INTELIGENCIA ARTIFICIAL (GEMINI)
+# MOTOR DE INTELIGENCIA ARTIFICIAL (GEMINI) - IMOS Y EMBUDO
 # ══════════════════════════════════════════════════════════════════════════
 
 def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre):
     cfg = get_config()
-    if not cfg["gemini_key"] or genai is None:
-        return plantilla_base 
-    
+    if not cfg["gemini_key"] or genai is None: return plantilla_base 
     try:
         client = genai.Client(api_key=cfg["gemini_key"])
         prompt = f"""
         Eres el asistente de WhatsApp de 'Comunicaciones Crear Poder Sin Límites Perú'.
-        Estás hablando con un líder (IMO) llamado {imo_nombre}.
-        
-        Él/Ella acaba de escribir este mensaje: "{mensaje_usuario}"
-        
-        Por reglas de la empresa, DEBES darle exactamente esta información de respuesta:
-        "{plantilla_base}"
-        
-        Tu tarea: Reescribe la respuesta de la empresa para que suene como una conversación MUY natural, empática, humana y cálida.
-        Reglas estrictas:
-        1. NO inventes fechas, reglas, ni devuelvas dinero si la plantilla dice que no.
-        2. Mantén la información intacta, solo cambia el tono (que no suene a robot).
-        3. Sé breve (máximo 2 o 3 párrafos cortos).
-        4. Despídete siempre como "Comunicaciones Crear Poder Sin Límites Perú".
+        Hablas con un líder (IMO) llamado {imo_nombre}.
+        Él/Ella escribió: "{mensaje_usuario}"
+        Responde EXACTAMENTE con esta información pero natural y empática: "{plantilla_base}"
+        Reglas: No inventes fechas ni devoluciones, sé breve (1-2 párrafos) y despídete como Comunicaciones Crear Poder Sin Límites.
         """
         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         if response.text: return response.text.strip()
         return plantilla_base
+    except: return plantilla_base
+
+def embudo_ventas_gemini(mensaje_usuario):
+    # EL NUEVO CEREBRO DE VENTAS PARA PROSPECTOS (NO IMOS)
+    cfg = get_config()
+    fallback = "¡Hola! Gracias por comunicarte con Crear Poder Sin Límites Perú. ¿Te gustaría recibir información sobre nuestro próximo entrenamiento Capítulo 1 y cómo puede transformar tu vida?"
+    if not cfg["gemini_key"] or genai is None: return fallback 
+    
+    try:
+        client = genai.Client(api_key=cfg["gemini_key"])
+        prompt = f"""
+        Eres un experto Closer de Ventas y Asesor de la empresa de transformación personal 'Crear Poder Sin Límites Perú'.
+        Un prospecto nuevo (que no es líder de la campaña) te acaba de escribir: "{mensaje_usuario}"
+        
+        Tu objetivo: Crear un embudo de conversión irresistible para que se interese en el entrenamiento vivencial 'Capítulo 1'.
+        
+        Reglas estrictas de Ventas:
+        1. SÉ MISTERIOSO sobre qué se hace adentro del salón. Vende los RESULTADOS (sanar heridas, romper límites, liderazgo, éxito financiero, elevar relaciones).
+        2. Sé extremadamente empático, cercano y humano. Usa emojis sin exagerar.
+        3. Sé BREVE (máximo 2 o 3 párrafos cortos). 
+        4. OBLIGATORIO: Termina siempre tu respuesta con una pregunta abierta para obligarlo a responder y engancharlo en la conversación (Ej: ¿Qué aspecto de tu vida te gustaría potenciar hoy?).
+        5. NO pidas pagos todavía. Genera el deseo primero.
+        """
+        response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+        if response.text: return response.text.strip()
+        return fallback
     except Exception as e:
-        return plantilla_base
+        print(f"[FUNNEL ERROR] {e}")
+        return fallback
 
 # ══════════════════════════════════════════════════════════════════════════
 # EXCLUIDOS Y LECTURA DE EXCEL
@@ -267,17 +276,6 @@ def marcar_stop(telefono):
                 if norm_tel(str(row[3].value or "")) == tel_n: row[6].value = "STOP"; row[7].value = hoy
             wb.save(ep()); wb.close()
         except: pass
-
-def actualizar_celda_sheet(fila, columna, valor):
-    sheet_id = os.environ.get("SHEET_ID", "")
-    if not sheet_id: return
-    try:
-        token = get_sheets_token()
-        if not token: return
-        rango = f"Hoja%201!{chr(64+columna)}{fila}"
-        req_lib.put(f"https://sheets.googleapis.com/v4/spreadsheets/{sheet_id}/values/{rango}", params={"valueInputOption": "RAW"}, json={"values": [[valor]]}, headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=10)
-    except: pass
-
 
 # ══════════════════════════════════════════════════════════════════════════
 # KEYWORDS NLP Y PROCESAMIENTO
@@ -443,9 +441,10 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
     pila = nombre_pila(imo_nombre_completo) if imo_nombre_completo else ""
     
     if not imo_nombre_completo:
-        if intencion == "VOLANTE": enviar_mensaje(telefono, r_volante(""), ""); return
-        if intencion == "INFO_C1": enviar_mensaje(telefono, r_info_c1(""), ""); return
-        enviar_mensaje(telefono, humanizar_con_gemini(texto, r_no_campaña(), pila), imo_nombre_completo); return
+        # ES UN PROSPECTO NUEVO O EXTERNO - ACTIVAR EMBUDO IA
+        respuesta_embudo = embudo_ventas_gemini(texto)
+        enviar_mensaje(telefono, respuesta_embudo, "PROSPECTO NUEVO")
+        return
 
     if sesion.get("estado") == "esperando_fecha":
         borrar_sesion(telefono)
@@ -551,6 +550,8 @@ HTML_CHAT = """
         .sync-btn { background: #e9edef; border: 1px solid #ccc; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; transition: 0.2s; }
         .sync-btn:hover { background: #d1d7db; }
         .sync-btn.loading { background: #ffe082; pointer-events: none; }
+        .download-btn { background: #00a884; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; transition: 0.2s; text-decoration: none;}
+        .download-btn:hover { background: #008069; }
     </style>
 </head>
 <body>
@@ -558,9 +559,9 @@ HTML_CHAT = """
         <div class="sidebar">
             <div class="sidebar-header">
                 <div>💬 Panel de Chats</div>
-                <div style="font-size:12px; color:#555; font-weight:normal; display:flex; align-items:center; gap:10px;">
-                    <button class="sync-btn" id="syncBtn" onclick="forceSync()">🔄 Sincronizar</button>
-                    <div><span class="status-dot"></span>En línea</div>
+                <div style="font-size:12px; font-weight:normal; display:flex; align-items:center; gap:8px;">
+                    <a href="/api/descargar_respaldo" class="download-btn">📥 Respaldo</a>
+                    <button class="sync-btn" id="syncBtn" onclick="forceSync()">🔄 Sync</button>
                 </div>
             </div>
             <div class="contacts-list" id="contactsList"></div>
@@ -606,20 +607,20 @@ HTML_CHAT = """
 
         async function forceSync() {
             const btn = document.getElementById('syncBtn');
-            btn.classList.add('loading'); btn.innerText = "⏳ Sincronizando...";
+            btn.classList.add('loading'); btn.innerText = "⏳...";
             try {
                 await fetch('/api/force_sync', {method: 'POST'});
                 setTimeout(async () => {
                     await cargarDatos();
-                    btn.classList.remove('loading'); btn.innerText = "🔄 Sincronizar";
+                    btn.classList.remove('loading'); btn.innerText = "🔄 Sync";
                 }, 4000);
-            } catch(e) { btn.classList.remove('loading'); btn.innerText = "🔄 Sincronizar"; }
+            } catch(e) { btn.classList.remove('loading'); btn.innerText = "🔄 Sync"; }
         }
 
         function renderContacts() {
             const list = document.getElementById('contactsList'); list.innerHTML = '';
             const phones = Object.keys(chatHistory).reverse();
-            if(phones.length === 0) { list.innerHTML = '<div style="padding: 20px; text-align: center; color: #888;">No hay chats recientes. Haz clic en Sincronizar.</div>'; return; }
+            if(phones.length === 0) { list.innerHTML = '<div style="padding: 20px; text-align: center; color: #888;">No hay chats recientes. Haz clic en Sync.</div>'; return; }
             phones.forEach(phone => {
                 const contactData = chatHistory[phone]; 
                 const lastMessage = contactData.messages[contactData.messages.length - 1].text;
@@ -680,7 +681,7 @@ HTML_CHAT = """
 """
 
 # ══════════════════════════════════════════════════════════════════════════
-# ENDPOINTS
+# ENDPOINTS Y RUTAS WEB
 # ══════════════════════════════════════════════════════════════════════════
 
 @app.route("/chat", methods=["GET"])
@@ -694,13 +695,25 @@ def force_sync():
     threading.Thread(target=forzar_sincronizacion_sheets, daemon=True).start()
     return jsonify({"status": "syncing"}), 200
 
+@app.route("/api/descargar_respaldo", methods=["GET"])
+def descargar_respaldo():
+    h = get_historial()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Fecha", "Telefono", "Nombre IMO", "Tipo Mensaje", "Texto"])
+    for m in h:
+        tipo_str = "Bot/Panel envió" if m.get("tipo") == "out" else "IMO/Prospecto respondió"
+        writer.writerow([m.get("hora", ""), m.get("telefono", ""), m.get("nombre", ""), tipo_str, m.get("texto", "")])
+    return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=Respaldo_Chats.csv"})
+
 @app.route("/api/enviar", methods=["POST"])
 def api_enviar():
     data = request.json; tel = data.get("telefono"); msg = data.get("mensaje")
     if tel and msg:
         imo_nombre, _ = cargar_px_del_imo(tel)
+        if not imo_nombre: imo_nombre = "PROSPECTO NUEVO"
         enviar_mensaje(tel, msg, imo_nombre)
-        threading.Thread(target=registrar_en_sheets, args=(tel, imo_nombre, "[ENVIADO DESDE PANEL PRIVADO]", msg, "MANUAL"), daemon=True).start()
+        registrar_en_sheets(tel, imo_nombre, "[ENVIADO DESDE PANEL PRIVADO]", msg, "MANUAL")
         return jsonify({"status": "ok"}), 200
     return jsonify({"error": "Faltan datos"}), 400
 
@@ -722,20 +735,17 @@ def recibir_mensaje():
         tipo     = msg.get("type","")
         if tipo == "text":
             texto = msg["text"]["body"]
-            print(f"[IN] {telefono}: {texto[:50]}")
-            
-            # 1. Cargamos el nombre para el panel web
             imo_nombre_sheet, _ = cargar_px_del_imo(telefono)
             
-            # 2. Guardamos la llegada para el panel web
-            append_historial(telefono, imo_nombre_sheet, texto, "in")
+            # Guardar visualmente en el panel
+            append_historial(telefono, imo_nombre_sheet or "PROSPECTO NUEVO", texto, "in")
             
-            # 3. Procesamos con IA y respondemos
+            # Procesar el mensaje (La IA se ejecuta aquí)
             procesar_mensaje(telefono, texto, imo_nombre_sheet)
             
-            # 4. AHORA SÍ: Lo guardamos en Google Sheets (La línea que faltaba)
+            # ¡CRUCIAL! Guardado Síncrono en Sheets (Garantiza que no se pierda la data)
             respuesta_enviada = _respuestas_enviadas.pop(str(telefono), "")
-            threading.Thread(target=registrar_en_sheets, args=(telefono, imo_nombre_sheet, texto, respuesta_enviada[:500] if respuesta_enviada else "", ""), daemon=True).start()
+            registrar_en_sheets(telefono, imo_nombre_sheet or "PROSPECTO NUEVO", texto, respuesta_enviada[:500] if respuesta_enviada else "", "EMBUDO" if not imo_nombre_sheet else "")
             
         elif tipo in ("audio","image","document","video","sticker"):
             enviar_mensaje(telefono, "Por favor responde con texto para poder registrar tu respuesta en nuestro sistema. No procesamos archivos multimedia.", "")
@@ -743,7 +753,7 @@ def recibir_mensaje():
     return jsonify({"status":"ok"}), 200
 
 @app.route("/status", methods=["GET"])
-def status(): return jsonify({"status": "activo", "version": "v9_final_names"}), 200
+def status(): return jsonify({"status": "activo", "version": "v11_sincrono_embudo"}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
