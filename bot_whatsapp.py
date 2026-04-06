@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-v15 MAGISTRAL — Aviso de "IA Cuántica" en el Primer Contacto
+v16 MAGISTRAL — Ahorro Inteligente de IA (Anti-Límite 429)
 """
 
 import os, re, json, threading, time, csv, io
@@ -46,7 +46,7 @@ def norm_tel(tel):
 def ep(): return get_config()["excel_path"]
 
 # ══════════════════════════════════════════════════════════════════════════
-# GOOGLE SHEETS CORE (SÍNCRONO)
+# GOOGLE SHEETS CORE 
 # ══════════════════════════════════════════════════════════════════════════
 import base64
 
@@ -150,11 +150,16 @@ def append_historial(telefono, nombre, texto, tipo):
     except: pass
 
 # ══════════════════════════════════════════════════════════════════════════
-# MOTOR DE INTELIGENCIA ARTIFICIAL (GEMINI) - FILOSOFÍA CREAR V15
+# MOTOR DE INTELIGENCIA ARTIFICIAL (GEMINI) - FILOSOFÍA CREAR
 # ══════════════════════════════════════════════════════════════════════════
 
-def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre):
+def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre, es_pregunta_compleja=False):
     cfg = get_config()
+    
+    # 🌟 AHORRO INTELIGENTE: Si no es una pregunta compleja (es solo un "Sí", "No asiste", etc.), enviamos la plantilla directa para no agotar la API.
+    if not es_pregunta_compleja:
+        return plantilla_base
+
     if not cfg["gemini_key"] or genai is None: return plantilla_base 
     try:
         client = genai.Client(api_key=cfg["gemini_key"])
@@ -448,7 +453,6 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
 
     if intencion == "STOP":
         marcar_stop(telefono); borrar_sesion(telefono)
-        # Aquí saltamos la protección de primera vez para el STOP directo
         cfg = get_config()
         req_lib.post(api_url(), json={"messaging_product":"whatsapp","to":str(telefono),"type":"text","text":{"body":"Listo. Has sido dado de baja de este canal. No recibiras mas mensajes." + FIRMA,"preview_url":False}}, headers={"Authorization":f"Bearer {cfg['token']}", "Content-Type":"application/json"}, timeout=10)
         return
@@ -465,7 +469,7 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
         borrar_sesion(telefono)
         px_confirm = sesion.get("px_confirmados", [])
         msg_base = f"Hola {pila},\n\nConfirmacion registrada.\n\nLos esperamos en el *Hotel Jose Antonio Deluxe*, Mesa de registro a las *9:00 am*." + FIRMA
-        enviar_mensaje(telefono, humanizar_con_gemini(texto, msg_base, pila), imo_nombre_completo)
+        enviar_mensaje(telefono, humanizar_con_gemini(texto, msg_base, pila, es_pregunta_compleja=False), imo_nombre_completo)
         return
 
     if sesion.get("estado") == "esperando_confirmacion":
@@ -475,20 +479,20 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
             confirmados = [e for e in extraidos if e["estatus"] == "CONFIRMADO"]
             if confirmados:
                 px_nombres = [e["px"] for e in confirmados]
-                set_sesion(telefono, {"estado": "esperando_fecha", "px_confirmados": px_nombres, "primera_vez": False}) # Mantenemos que ya no es primera vez
+                set_sesion(telefono, {"estado": "esperando_fecha", "px_confirmados": px_nombres, "primera_vez": False}) 
                 enviar_mensaje(telefono, r_pedir_fecha(pila, px_nombres), imo_nombre_completo)
             else:
                 borrar_sesion(telefono)
                 msg_base = f"Gracias {pila}, todo quedo registrado. Te hemos quitado estas personas de tu lista de pendientes." + FIRMA
-                enviar_mensaje(telefono, humanizar_con_gemini(texto, msg_base, pila), imo_nombre_completo)
+                enviar_mensaje(telefono, humanizar_con_gemini(texto, msg_base, pila, es_pregunta_compleja=False), imo_nombre_completo)
         else:
             borrar_sesion(telefono)
             enviar_mensaje(telefono, "Comprendido. Por favor vuelvenos a enviar el estatus de tus personas." + STOP_CLAUSULA, imo_nombre_completo)
         return
 
     if not px_list:
-        if intencion in ("INFO_C1", "VOLANTE"): enviar_mensaje(telefono, humanizar_con_gemini(texto, r_volante(pila), pila), imo_nombre_completo); return
-        enviar_mensaje(telefono, humanizar_con_gemini(texto, f"Hola {pila},\n\nYa tienes el estatus registrado para todas tus personas pendientes. Si hay algun cambio antes del *1 de mayo*, escribenos." + FIRMA, pila), imo_nombre_completo)
+        if intencion in ("INFO_C1", "VOLANTE"): enviar_mensaje(telefono, humanizar_con_gemini(texto, r_volante(pila), pila, es_pregunta_compleja=True), imo_nombre_completo); return
+        enviar_mensaje(telefono, humanizar_con_gemini(texto, f"Hola {pila},\n\nYa tienes el estatus registrado para todas tus personas pendientes. Si hay algun cambio antes del *1 de mayo*, escribenos." + FIRMA, pila, es_pregunta_compleja=False), imo_nombre_completo)
         return
 
     respuestas_info = {
@@ -496,7 +500,7 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
         "INFO_C1": r_info_c1(pila), "NO_RECUERDA": r_no_recuerda(pila), "VOLANTE": r_volante(pila), "CONSULTA_PX": r_consulta_px(pila)
     }
     if intencion in respuestas_info:
-        enviar_mensaje(telefono, humanizar_con_gemini(texto, respuestas_info[intencion], pila), imo_nombre_completo)
+        enviar_mensaje(telefono, humanizar_con_gemini(texto, respuestas_info[intencion], pila, es_pregunta_compleja=True), imo_nombre_completo)
         return
 
     extraidos = buscar_px_en_texto(texto, px_list)
@@ -509,13 +513,12 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
             "YA_SE_SENTO": r_ya_sento(pila), "FALLECIO_ENFERMO": r_fallecio_enfermo(pila)
         }
         if intencion in respuestas_estados:
-            enviar_mensaje(telefono, humanizar_con_gemini(texto, respuestas_estados[intencion], pila), imo_nombre_completo)
+            enviar_mensaje(telefono, humanizar_con_gemini(texto, respuestas_estados[intencion], pila, es_pregunta_compleja=False), imo_nombre_completo)
             return
         
-        enviar_mensaje(telefono, humanizar_con_gemini(texto, r_no_entendido(pila, px_list), pila), imo_nombre_completo)
+        enviar_mensaje(telefono, humanizar_con_gemini(texto, r_no_entendido(pila, px_list), pila, es_pregunta_compleja=True), imo_nombre_completo)
         return
 
-    # Aquí también guardamos el flag de primera vez para no perderlo al cambiar de estado
     es_primera = sesion.get("primera_vez", True)
     set_sesion(telefono, {"estado": "esperando_confirmacion", "extraidos": extraidos, "primera_vez": es_primera})
     no_mencionados = [px for px in px_list if not any(normalizar(px.split()[0]) == normalizar(e["px"].split()[0]) for e in extraidos)]
@@ -762,12 +765,12 @@ def recibir_mensaje():
                 registrar_en_sheets(telefono, imo_nombre_sheet or "PROSPECTO NUEVO", texto, respuesta_enviada[:500], "EMBUDO" if not imo_nombre_sheet else "")
             
         elif tipo in ("audio","image","document","video","sticker"):
-            enviar_mensaje(telefono, "Por favor responde con texto para poder registrar tu respuesta en nuestro sistema. No procesamos archivos multimedia.", "")
+            enviar_mensaje(telefono, "Comprendido. Por favor responde con texto para poder registrar tu respuesta en nuestro sistema. No procesamos archivos multimedia.", "")
     except: pass
     return jsonify({"status":"ok"}), 200
 
 @app.route("/status", methods=["GET"])
-def status(): return jsonify({"status": "activo", "version": "v15_ia_cuantica"}), 200
+def status(): return jsonify({"status": "activo", "version": "v15_ia_cuantica_cero_ia"}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
