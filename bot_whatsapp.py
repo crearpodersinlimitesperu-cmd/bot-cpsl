@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-v17 MAGISTRAL — Anti-Bucle de Emergencia y Fallback Inteligente
+v18 MAGISTRAL — Banco de Respuestas (Sin IA) y Etiqueta de Prospecto
 """
 
 import os, re, json, threading, time, csv, io
@@ -150,15 +150,12 @@ def append_historial(telefono, nombre, texto, tipo):
     except: pass
 
 # ══════════════════════════════════════════════════════════════════════════
-# MOTOR DE INTELIGENCIA ARTIFICIAL (GEMINI) - FALLBACK INTELIGENTE
+# MOTOR DE IA + BANCO MAESTRO DE RESPUESTAS (SIN IA)
 # ══════════════════════════════════════════════════════════════════════════
 
 def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre, es_pregunta_compleja=False):
     cfg = get_config()
-    
-    if not es_pregunta_compleja:
-        return plantilla_base
-
+    if not es_pregunta_compleja: return plantilla_base
     if not cfg["gemini_key"] or genai is None: return plantilla_base 
     try:
         client = genai.Client(api_key=cfg["gemini_key"])
@@ -168,11 +165,10 @@ def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre, es_pregunt
         Mensaje recibido: "{mensaje_usuario}"
         Responde basándote en esta información obligatoria: "{plantilla_base}"
         Reglas Estrictas: 
-        1. SÉ EXTREMADAMENTE BREVE Y PROFESIONAL. Cero rodeos, ve al punto.
-        2. NO uses "entender", "entiendo" o "entendemos". Usa SIEMPRE "comprender", "comprendo" o "comprendemos".
+        1. SÉ EXTREMADAMENTE BREVE Y PROFESIONAL.
+        2. NO uses "entender", "entiendo". Usa "comprender", "comprendo".
         3. NO uses "ayudar". Usa "apoyar", "acompañar" o "crear".
-        4. ELIMINA TODO RASTRO DE IA. Suena humano, maduro y cortés.
-        5. No inventes fechas ni prometas cosas fuera de la información base.
+        4. ELIMINA TODO RASTRO DE IA.
         """
         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         if response.text: return response.text.strip()
@@ -182,15 +178,35 @@ def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre, es_pregunt
 def embudo_ventas_gemini(mensaje_usuario, nombre_conocido=None):
     cfg = get_config()
     
-    # 🌟 NUEVO FALLBACK INTELIGENTE (Anti-Bucle)
-    # Si la IA se cae, pero ya sabemos su nombre, le damos la info y cortamos el bucle.
-    if nombre_conocido:
-        fallback = f"¡Hola {nombre_conocido}! Te comparto que el *Capítulo 1* es un entrenamiento vivencial de 3 días diseñado para romper paradigmas, encarar tu realidad y desbloquear tu verdadero potencial.\n\nPara brindarte una atención más humana y personalizada, por favor escríbele directamente a nuestras coordinadoras:\n\n{COORDINADORAS}"
-    else:
-        # Si NO sabemos su nombre, preguntamos.
-        fallback = "Hola, somos Crear Poder Sin Límites Perú. ¿Con quién tengo el gusto de comunicarme para brindarte la información adecuada?"
+    # 🌟 BANCO MAESTRO DE RESPUESTAS (FALLBACK ANTI-FALLOS)
+    # Cubre las intenciones de +100 preguntas comunes si la IA no está disponible.
+    def respuesta_del_banco(mensaje):
+        msg_norm = normalizar(mensaje)
+        banco_preguntas = [
+            (["precio", "costo", "cuanto cuesta", "pagar", "inversion", "cuenta", "banco", "transferencia"], f"Hola. Para brindarte los detalles exactos de inversión y modalidades de pago, comunícate directamente con nuestras coordinadoras:\n\n{COORDINADORAS}"),
+            (["horario", "hora", "cuando empieza", "cuando termina", "dias", "fechas", "cronograma", "agenda"], f"El entrenamiento dura 3 días completos:\n\n{INFO_C1}"),
+            (["donde", "lugar", "direccion", "ubicacion", "hotel", "distrito", "llegar", "mapa"], f"El entrenamiento se realiza en el Hotel José Antonio Deluxe, Calle Bellavista 133, Miraflores, Lima."),
+            (["ropa", "vestimenta", "que llevar", "llevar", "cuaderno", "lapicero", "frio", "calor"], "Te sugerimos llevar ropa muy cómoda y una botella de agua. No necesitas traer materiales adicionales para tomar nota."),
+            (["comida", "almuerzo", "refrigerio", "comer", "desayuno", "cena", "snacks"], "No se permiten alimentos ni bebidas externas al salón. Contaremos con los espacios y tiempos adecuados para que puedas salir a comer por la zona."),
+            (["que es", "de que trata", "que hacen", "para que sirve", "informacion", "info", "detalles", "explicame", "beneficios", "ayuda", "sanacion"], "El Capítulo 1 es la primera fase del viaje. Un entrenamiento vivencial de 3 días diseñado para romper paradigmas, descubrir tus barreras y crear nuevos resultados excepcionales en tu vida."),
+            (["hola", "buenos dias", "buenas tardes", "buenas noches", "saludos", "que tal"], f"¡Hola! Somos Crear Poder Sin Límites Perú. ¿Con quién tengo el gusto y en qué te podemos apoyar hoy?"),
+            (["edad", "niños", "menores", "jovenes", "adolescentes", "hijo", "hija"], "El Capítulo 1 está diseñado para adultos. Para conocer nuestros entrenamientos para niños y adolescentes, por favor contacta a nuestras coordinadoras."),
+            (["coordinadora", "asesor", "humano", "persona", "llamar", "numero", "telefono"], f"Claro, para una atención más personalizada puedes comunicarte con nuestras coordinadoras:\n\n{COORDINADORAS}")
+        ]
+        
+        # Buscar coincidencias en el banco
+        for palabras_clave, respuesta in banco_preguntas:
+            if any(kw in msg_norm for kw in palabras_clave):
+                return respuesta
+        
+        # SI NO ENCUENTRA EN EL BANCO -> REMITIR A COORDINADORAS
+        if nombre_conocido:
+            return f"¡Comprendido, {nombre_conocido}! Para resolver esta duda a detalle y brindarte una atención 100% personalizada, por favor escríbele directamente a nuestras coordinadoras:\n\n{COORDINADORAS}"
+        else:
+            return f"Hola, somos Crear Poder Sin Límites Perú. Para brindarte la información exacta y atención profesional que mereces, por favor comunícate directamente con nuestras coordinadoras:\n\n{COORDINADORAS}"
 
-    if not cfg["gemini_key"] or genai is None: return fallback 
+    # Si no hay llave, usar el banco.
+    if not cfg["gemini_key"] or genai is None: return respuesta_del_banco(mensaje_usuario)
     
     try:
         client = genai.Client(api_key=cfg["gemini_key"])
@@ -201,19 +217,23 @@ def embudo_ventas_gemini(mensaje_usuario, nombre_conocido=None):
         Contexto del Prospecto: Su nombre conocido es: "{nombre_conocido if nombre_conocido else 'Desconocido'}".
         
         Reglas Estrictas de Venta y Comunicación:
-        1. REGLA #1 (EL NOMBRE): Si no sabes su nombre, tu ÚNICO objetivo es saludar, decir que eres de Crear Poder Sin Límites y PREGUNTAR SU NOMBRE. Si YA SABES SU NOMBRE (revisa el contexto o si te lo acaba de decir), úsalo y NO LO VUELVAS A PREGUNTAR.
-        2. PALABRAS PROHIBIDAS: "sanación", "sanar", "curar", "terapia", "paciente", "ayuda", "ayudar", "entender", "entiendo", "entendemos".
+        1. REGLA #1 (EL NOMBRE): Si no sabes su nombre, tu ÚNICO objetivo es saludar, decir que eres de Crear y PREGUNTAR SU NOMBRE. Si YA SABES SU NOMBRE (revisa el contexto o si te lo acaba de decir), úsalo y NO LO VUELVAS A PREGUNTAR.
+        2. PALABRAS PROHIBIDAS: "sanación", "sanar", "curar", "terapia", "paciente", "ayuda", "ayudar", "entender", "entiendo".
         3. PALABRAS DE PODER: Usa "comprender", "apoyar", "acompañar", "transformación", "crear", "liderazgo".
-        4. CERO RASTROS DE IA: Suena como un humano experto y profesional.
-        5. BREVEDAD ABSOLUTA: Tu respuesta debe ser corta y directa (máximo 2 oraciones breves).
-        6. Si ya sabes su nombre, háblale sobre descubrir su potencial en el Capítulo 1 y termina con una pregunta abierta corta.
+        4. CERO RASTROS DE IA: Eres un profesional humano, maduro y experto.
+        5. BREVEDAD ABSOLUTA: Respuesta muy corta (máximo 2 oraciones breves).
+        6. Vende el Capítulo 1 y termina con una pregunta abierta para invitarlo a dar el paso.
         """
         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         if response.text: return response.text.strip()
-        return fallback
     except Exception as e:
-        print(f"[FUNNEL ERROR] {e}")
-        return fallback # Devuelve el fallback inteligente sin bucle
+        error_str = str(e)
+        if "503" in error_str or "429" in error_str:
+            time.sleep(1) # Pequeña pausa de gracia
+        # Si la IA falla o se satura, usamos nuestro Banco de Respuestas Maestro
+        return respuesta_del_banco(mensaje_usuario)
+        
+    return respuesta_del_banco(mensaje_usuario)
 
 # ══════════════════════════════════════════════════════════════════════════
 # EXCLUIDOS Y LECTURA DE EXCEL
@@ -469,16 +489,15 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
     pila = nombre_pila(imo_nombre_completo) if imo_nombre_completo else ""
     
     if not imo_nombre_completo:
-        # AQUI GUARDAMOS EL NOMBRE AUTOMATICAMENTE PARA NO PREGUNTARLO EN BUCLE
         nombre_guardado = sesion.get("nombre_prospecto")
         if not nombre_guardado and len(texto.split()) < 4:
-            # Si el texto es corto (Ej: "Jose Luis"), lo guardamos como nombre.
             sesion["nombre_prospecto"] = nombre_pila(texto)
             set_sesion(telefono, sesion)
             nombre_guardado = sesion["nombre_prospecto"]
             
+        nombre_mostrar = f"NUEVO PROSPECTO: {nombre_guardado}" if nombre_guardado else "NUEVO PROSPECTO"
         respuesta_embudo = embudo_ventas_gemini(texto, nombre_guardado)
-        enviar_mensaje(telefono, respuesta_embudo, "PROSPECTO NUEVO")
+        enviar_mensaje(telefono, respuesta_embudo, nombre_mostrar)
         return
 
     if sesion.get("estado") == "esperando_fecha":
@@ -748,7 +767,11 @@ def api_enviar():
     data = request.json; tel = data.get("telefono"); msg = data.get("mensaje")
     if tel and msg:
         imo_nombre, _ = cargar_px_del_imo(tel)
-        if not imo_nombre: imo_nombre = "PROSPECTO NUEVO"
+        if not imo_nombre: 
+            sesion = get_sesion(tel)
+            nm = sesion.get("nombre_prospecto")
+            imo_nombre = f"NUEVO PROSPECTO: {nm}" if nm else "NUEVO PROSPECTO"
+            
         enviar_mensaje(tel, msg, imo_nombre)
         registrar_en_sheets(tel, imo_nombre, "[ENVIADO DESDE PANEL PRIVADO]", msg, "MANUAL")
         return jsonify({"status": "ok"}), 200
@@ -774,12 +797,25 @@ def recibir_mensaje():
             texto = msg["text"]["body"]
             imo_nombre_sheet, _ = cargar_px_del_imo(telefono)
             
-            append_historial(telefono, imo_nombre_sheet or "PROSPECTO NUEVO", texto, "in")
+            # Nombre para mostrar si es prospecto
+            nombre_mostrar = imo_nombre_sheet
+            if not imo_nombre_sheet:
+                sesion = get_sesion(telefono)
+                nm = sesion.get("nombre_prospecto")
+                nombre_mostrar = f"NUEVO PROSPECTO: {nm}" if nm else "NUEVO PROSPECTO"
+            
+            append_historial(telefono, nombre_mostrar, texto, "in")
             procesar_mensaje(telefono, texto, imo_nombre_sheet)
             
+            # Actualizar nombre por si la IA lo extrajo en este turno
+            sesion_updated = get_sesion(telefono)
+            if not imo_nombre_sheet:
+                nm_updated = sesion_updated.get("nombre_prospecto")
+                nombre_mostrar = f"NUEVO PROSPECTO: {nm_updated}" if nm_updated else "NUEVO PROSPECTO"
+
             respuesta_enviada = _respuestas_enviadas.pop(str(telefono), "")
             if respuesta_enviada:
-                registrar_en_sheets(telefono, imo_nombre_sheet or "PROSPECTO NUEVO", texto, respuesta_enviada[:500], "EMBUDO" if not imo_nombre_sheet else "")
+                registrar_en_sheets(telefono, nombre_mostrar, texto, respuesta_enviada[:500], "EMBUDO" if not imo_nombre_sheet else "")
             
         elif tipo in ("audio","image","document","video","sticker"):
             enviar_mensaje(telefono, "Comprendido. Por favor responde con texto para poder registrar tu respuesta en nuestro sistema. No procesamos archivos multimedia.", "")
@@ -787,7 +823,7 @@ def recibir_mensaje():
     return jsonify({"status":"ok"}), 200
 
 @app.route("/status", methods=["GET"])
-def status(): return jsonify({"status": "activo", "version": "v17_bucle_eliminado"}), 200
+def status(): return jsonify({"status": "activo", "version": "v18_banco_y_nombres"}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
