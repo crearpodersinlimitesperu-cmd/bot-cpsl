@@ -1,10 +1,10 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-v22.1 MAGISTRAL — Menú Empoderador (Código Sintaxis Fix)
+v23 MAGISTRAL — Inteligencia Brochure 100% + Enrutamiento de Leads a Coordinadoras
 """
 
-import os, re, json, threading, time, csv, io
+import os, re, json, threading, time, csv, io, random
 from flask import Flask, request, jsonify, Response
 from datetime import datetime
 import requests as req_lib
@@ -150,7 +150,29 @@ def append_historial(telefono, nombre, texto, tipo):
     except: pass
 
 # ══════════════════════════════════════════════════════════════════════════
-# MOTOR DE IA + BANCO MAESTRO (CON EL POR QUÉ DE SIMON SINEK)
+# DATOS MAESTROS DEL BROCHURE Y COORDINADORAS
+# ══════════════════════════════════════════════════════════════════════════
+
+# Lista de coordinadoras con sus números para el enrutamiento dinámico
+COORDINADORAS_CONTACTOS = {
+    "Diana Moscoso": "51912379744",
+    "Joyce Marín": "51933599903",
+    "Leyla Pasquel": "51919502385",
+    "Zuley Urteaga": "51933599864"
+}
+
+BROCHURE_INFO_MAESTRA = """
+INFORMACIÓN OFICIAL CREAR PODER SIN LÍMITES PERÚ:
+- Misión: Impactar a la máxima cantidad de seres humanos a vivir una vida extraordinaria.
+- ¿Qué es Transformación Cuántica?: Es un modelo de coaching de alto rendimiento. Enseña nuevas formas de pensamiento, gestión emocional y hábitos para cambios sostenibles.
+- El Proceso: No es un evento, dura 100 DÍAS en total. Hay un seguimiento para que integren lo aprendido a su vida diaria.
+- Reglas Importantes: Exclusivo para MAYORES DE 18 AÑOS. Este entrenamiento NO ES PARA SANAR O ARREGLAR. NO sustituye ninguna terapia o proceso de salud mental.
+- Cuentas de Pago: BCP Soles a nombre de CREACIÓN CUÁNTICA E.I.R.L (Cuenta: 1934218307060 / CCI: 00219300421830706018). Se acepta PayPal, Efectivo y tarjetas de crédito.
+- Sedes: Estamos en Perú (Lima), Colombia (Medellín), Ecuador (Quito, Cuenca, Guayaquil) y México.
+"""
+
+# ══════════════════════════════════════════════════════════════════════════
+# MOTOR DE IA + BANCO MAESTRO (CONOCIMIENTO DEL BROCHURE)
 # ══════════════════════════════════════════════════════════════════════════
 
 def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre, es_pregunta_compleja=False):
@@ -178,64 +200,48 @@ def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre, es_pregunt
 def embudo_ventas_gemini(mensaje_usuario, nombre_conocido=None):
     cfg = get_config()
     
-    # BANCO MAESTRO DE RESPUESTAS (Filosofía "Empieza con el Por Qué")
+    # 🌟 BANCO MAESTRO DE RESPUESTAS (BROCHURE Y CIRCULO DORADO)
     def respuesta_del_banco(mensaje):
         msg_norm = normalizar(mensaje)
         banco_preguntas = [
-            (["que es", "de que trata", "que hacen", "para que sirve", "informacion", "info", "detalles", "explicame", "beneficios", "saber", "capitulo 1"], 
-             "Creemos firmemente que tienes un potencial ilimitado esperando ser despertado. A través de metodologías vivenciales, te acompañamos a romper las barreras que te frenan. Todo esto lo vives en el *Capítulo 1*, un entrenamiento intensivo de 3 días para transformar tu realidad. ¿Estás listo para dar ese paso?"),
-            
-            (["precio", "costo", "cuanto cuesta", "pagar", "inversion", "cuenta", "banco", "transferencia"], 
-             f"Creemos que la mejor inversión que puedes hacer es en ti mismo y en tu crecimiento. Para apoyarte con los detalles exactos de inversión y las formas de hacerlo posible, comunícate directamente con nuestras coordinadoras:\n\n{COORDINADORAS}"),
-            
-            (["horario", "hora", "cuando empieza", "cuando termina", "dias", "fechas", "cronograma", "agenda"], 
-             f"Tu transformación requiere de tu máximo nivel de compromiso. Por ello, hemos diseñado un proceso inmersivo de 3 días completos donde te enfocarás 100% en ti:\n\n{INFO_C1}"),
-            
-            (["donde", "lugar", "direccion", "ubicacion", "hotel", "distrito", "llegar", "mapa"], 
-             "Para garantizar un entorno de alto estándar que eleve tu experiencia, el entrenamiento se realiza en el *Hotel José Antonio Deluxe* (Calle Bellavista 133, Miraflores, Lima)."),
-            
-            (["ropa", "vestimenta", "que llevar", "llevar", "cuaderno", "lapicero", "frio", "calor"], 
-             "Queremos que te enfoques en ti, libre y sin restricciones. Te sugerimos llevar ropa muy cómoda y una botella de agua para hidratarte. Todo lo demás lo ponemos nosotros."),
-            
-            (["comida", "almuerzo", "refrigerio", "comer", "desayuno", "cena", "snacks"], 
-             "Para mantener la concentración y la energía en el salón, no se permiten alimentos ni bebidas externas. Contaremos con los tiempos adecuados para que puedas salir a almorzar por la zona y recargar fuerzas."),
-            
-            (["edad", "niños", "menores", "jovenes", "adolescentes", "hijo", "hija"], 
-             f"Creemos en el potencial de todas las edades, pero el *Capítulo 1* está diseñado específicamente para adultos. Si deseas información sobre nuestros programas para niños y adolescentes, contacta a nuestras coordinadoras:\n\n{COORDINADORAS}"),
-            
-            (["coordinadora", "asesor", "humano", "persona", "llamar", "numero", "telefono", "contactar", "hablar"], 
-             f"Creemos en el poder de la conexión humana. Para brindarte un apoyo cálido y 100% personalizado, comunícate directamente con nuestras coordinadoras:\n\n{COORDINADORAS}"),
-            
-            (["hola", "buenos dias", "buenas tardes", "buenas noches", "saludos", "que tal"], 
-             f"¡Hola! En Crear Poder Sin Límites creemos en despertar tu máximo potencial. ¿Con quién tengo el gusto y en qué área de tu vida te gustaría crear nuevos resultados hoy?")
+            (["100 dias", "cuanto dura todo", "el proceso", "duracion total"], "Creemos en transformaciones reales. Por eso el proceso completo dura 100 días, donde con el apoyo de tu equipo integrarás lo aprendido a tu vida cotidiana, creando hábitos inquebrantables."),
+            (["edad", "niños", "menores", "jovenes", "adolescentes", "hijo", "18"], "Creemos en el potencial a toda edad, pero este formato está diseñado exclusivamente para mayores de 18 años. Si buscas espacios para menores, escríbenos la palabra 'Coordinadora' y te apoyaremos."),
+            (["terapia", "psicologo", "depresion", "sanar heridas", "salud mental", "adicciones", "arreglar"], "Es vital que sepas que nuestro enfoque es de alto rendimiento. NO somos un centro de terapia ni sustituimos procesos de salud mental o tratamientos. Nos enfocamos en empoderarte y crear una nueva realidad a partir de hoy."),
+            (["precio", "costo", "cuanto cuesta", "pagar", "inversion", "cuenta", "banco", "transferencia", "bcp"], "Aceptamos BCP a nombre de Creación Cuántica E.I.R.L. (1934218307060), tarjetas y PayPal. Para apoyarte con los detalles de inversión exactos, por favor escribe el número *3* para comunicarte con una coordinadora."),
+            (["que es", "de que trata", "que hacen", "para que sirve", "informacion", "info", "detalles", "explicame", "beneficios", "saber"], "Nuestra misión es impactar vidas para que sean extraordinarias. A través de metodologías vivenciales, te acompañamos a romper barreras. El Capítulo 1 es el primer salto cuántico. ¿Estás listo para dar este paso?"),
+            (["horario", "hora", "cuando empieza", "cuando termina", "dias", "fechas", "cronograma", "agenda"], f"Tu transformación requiere compromiso total. El proceso inmersivo de 3 días en el Hotel José Antonio Deluxe inicia este viernes a las 9:00 am y cierra el domingo por la noche."),
+            (["coordinadora", "asesor", "humano", "persona", "llamar", "numero", "telefono", "contactar", "hablar"], "Para brindarte un apoyo cálido y 100% personalizado, por favor responde con el número *3* y te asignaremos a una coordinadora al instante."),
+            (["hola", "buenos dias", "buenas tardes", "buenas noches", "saludos", "que tal"], f"¡Hola! En Crear Poder Sin Límites creemos en despertar tu máximo potencial. ¿Con quién tengo el gusto y en qué área de tu vida te gustaría crear nuevos resultados hoy?")
         ]
         
         for palabras_clave, respuesta in banco_preguntas:
             if any(kw in msg_norm for kw in palabras_clave):
                 return respuesta
         
+        # Fallback Final
         if nombre_conocido:
-            return f"¡Comprendido, {nombre_conocido}! Nuestro propósito es darte toda la claridad para tu proceso. Para responderte a detalle y de forma personalizada, por favor escríbele a nuestras coordinadoras:\n\n{COORDINADORAS}"
+            return f"¡Comprendido, {nombre_conocido}! Para resolver tu consulta a detalle sobre nuestro entrenamiento, por favor responde con el número *3* y una coordinadora te contactará."
         else:
-            return f"En Crear Poder Sin Límites creemos en acompañarte hacia tu mejor versión. Para brindarte la información exacta y apoyarte mejor, por favor dinos tu nombre o comunícate directamente con nuestras coordinadoras:\n\n{COORDINADORAS}"
+            return f"En Crear Poder Sin Límites creemos en acompañarte hacia tu mejor versión. Para apoyarte de forma humana y precisa, responde con el número *3* para enlazarte con una coordinadora."
 
     if not cfg["gemini_key"] or genai is None: return respuesta_del_banco(mensaje_usuario)
     
     try:
         client = genai.Client(api_key=cfg["gemini_key"])
         prompt = f"""
-        Eres un Asesor Profesional de 'Crear Poder Sin Límites Perú'.
+        Eres un Asesor Experto de 'Crear Poder Sin Límites Perú'.
         Un prospecto acaba de escribir: "{mensaje_usuario}"
+        Contexto del prospecto: Su nombre es: "{nombre_conocido if nombre_conocido else 'Desconocido'}".
         
-        Contexto: Su nombre es: "{nombre_conocido if nombre_conocido else 'Desconocido'}".
+        {BROCHURE_INFO_MAESTRA}
         
-        Reglas Estrictas de Venta y Comunicación:
-        1. REGLA #1 (EL NOMBRE): Si no sabes su nombre, tu ÚNICO objetivo es saludar y PREGUNTAR SU NOMBRE. Si YA SABES SU NOMBRE, úsalo de forma natural y NO LO VUELVAS A PREGUNTAR.
-        2. PALABRAS PROHIBIDAS: "sanación", "sanar", "curar", "terapia", "paciente", "ayuda", "ayudar", "entender", "entiendo".
-        3. PALABRAS DE PODER: Usa "comprender", "apoyar", "acompañar", "transformación", "crear", "liderazgo".
-        4. CERO RASTROS DE IA: Eres un profesional humano y experto.
-        5. BREVEDAD ABSOLUTA: Respuesta muy corta (máximo 2 oraciones).
-        6. Vende el Capítulo 1 enfocado en crear resultados y termina con una pregunta corta para continuar la conversación.
+        Reglas Estrictas:
+        1. EL NOMBRE: Si no sabes su nombre, pregunta por él cortésmente. Si YA LO SABES, úsalo y no lo vuelvas a preguntar.
+        2. PALABRAS PROHIBIDAS: "sanar", "curar", "terapia", "paciente", "ayuda", "ayudar", "entender".
+        3. PALABRAS DE PODER: "comprender", "apoyar", "acompañar", "transformación", "crear", "100 días", "alto rendimiento".
+        4. CERO RASTROS DE IA. Eres un humano experto y empoderador.
+        5. BREVEDAD ABSOLUTA: Respuesta cortísima (1-2 oraciones).
+        6. Usa la información del Brochure proporcionada para responder sus dudas con autoridad. Si hacen preguntas complejas, invítalos a escribir '3' para hablar con una coordinadora.
         """
         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         if response.text: return response.text.strip()
@@ -414,7 +420,8 @@ _respuestas_enviadas = {}
 
 # Textos Base Globales
 INFO_C1 = """Capítulo 1 — Equipo 27\n\nHotel José Antonio Deluxe\nCalle Bellavista 133, Miraflores, Lima\n\n*Viernes 1 de mayo*\n- 09:00 am Mesa de registro (obligatorio)\n- 10:00 am Inicio\n\n*Sábado 2 de mayo*\n- 09:00 am Ingreso\n- 10:00 am Inicio\n\n*Domingo 3 de mayo*\n- 09:00 am Inicio\n- 09:00 pm Cierre y celebración\n\nRopa cómoda, botella de agua."""
-COORDINADORAS = """Coordinadoras C1 y C2:\nDiana Moscoso: +51 912 379 744\nJoyce Marin: +51 933 599 903\nLeyla Pasquel: +51 919 502 385\nZuley Urteaga: +51 933 599 864"""
+COORDINADORAS_LISTA = "\n• Diana Moscoso: +51 912 379 744\n• Joyce Marin: +51 933 599 903\n• Leyla Pasquel: +51 919 502 385\n• Zuley Urteaga: +51 933 599 864"
+COORDINADORAS = f"Coordinadoras C1 y C2:{COORDINADORAS_LISTA}"
 STOP_CLAUSULA = "\n\n_Si no deseas recibir mas mensajes de este numero, responde STOP._"
 FIRMA = "\n\n*Comunicaciones Crear Poder Sin Limites Peru*"
 
@@ -424,7 +431,7 @@ Soy *IA Cuántica*, tu asistente virtual. Nuestra misión es acompañarte a vivi
 
 Para brindarte el mejor apoyo, responde con el *número* de la opción que deseas:
 
-1️⃣ Quiero saber más sobre el entrenamiento (Capítulo 1)
+1️⃣ Quiero saber más sobre los entrenamientos
 2️⃣ Soy líder (IMO) y quiero reportar asistencia
 3️⃣ Deseo hablar directamente con una coordinadora"""
 
@@ -439,6 +446,15 @@ def enviar_mensaje(telefono, texto, nombre_imo=""):
             append_historial(telefono, nombre_imo, texto, "out") 
         return r.status_code == 200
     except: return False
+
+def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre):
+    # Enrutamiento Round-Robin (Aleatorio)
+    coord_nombre, coord_tel = random.choice(list(COORDINADORAS_CONTACTOS.items()))
+    nombre_txt = prospecto_nombre if prospecto_nombre else "No especificado"
+    msg_coord = f"🚨 *NUEVO LEAD PARA CREAR* 🚀\n\n*Nombre:* {nombre_txt}\n*Teléfono:* wa.me/{prospecto_tel}\n\nEl prospecto ha solicitado conversar con una coordinadora en el Bot. ¡Es tu turno de apoyarlo a dar su salto cuántico!"
+    # Enviamos a la coordinadora
+    enviar_mensaje(coord_tel, msg_coord, "SISTEMA INTERNO")
+    return coord_nombre
 
 def nombre_pila(s):
     partes = re.split(r'\s+', s.strip())
@@ -483,7 +499,7 @@ def r_pedir_fecha(pila, px_confirmados):
     return (f"Hola {pila},\n\nConfirmacion registrada para:\n\n{nombres}\n\n¿En que dia estaran presentes?\n*(Viernes 1, Sabado 2, Domingo 3 de mayo — o los tres dias)*" + FIRMA)
 
 # ══════════════════════════════════════════════════════════════════════════
-# LOGICA PRINCIPAL DEL BOT (CON MENÚ DE TRIAJE)
+# LOGICA PRINCIPAL DEL BOT (TRIAJE + BROCHURE + ROUND ROBIN)
 # ══════════════════════════════════════════════════════════════════════════
 
 def procesar_mensaje(telefono, texto, imo_nombre_completo):
@@ -504,7 +520,7 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
     _, px_list = cargar_px_del_imo(telefono)
     pila = nombre_pila(imo_nombre_completo) if imo_nombre_completo else ""
     
-    # 🌟 PASO 1: EL MENÚ DE BIENVENIDA (TRIAJE)
+    # 🌟 PASO 1: EL MENÚ DE BIENVENIDA
     if sesion.get("primera_vez", True):
         sesion["primera_vez"] = False
         sesion["estado"] = "esperando_menu"
@@ -512,13 +528,13 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
         enviar_mensaje(telefono, MENU_TEXT, nombre_mostrar)
         return
 
-    # 🌟 PASO 2: PROCESAR EL MENÚ
+    # 🌟 PASO 2: PROCESAR EL MENÚ DE TRIAJE
     if sesion.get("estado") == "esperando_menu":
         opcion = texto.strip()
         if opcion == "1":
             sesion["estado"] = "embudo_prospecto"
             set_sesion(telefono, sesion)
-            enviar_mensaje(telefono, "¡Excelente decisión! 🚀 Para brindarte una atención mucho más cercana, ¿cuál es tu nombre?", nombre_mostrar)
+            enviar_mensaje(telefono, "¡Excelente decisión! 🚀 Para apoyarte de forma cercana, ¿cuál es tu nombre?", nombre_mostrar)
             return
         elif opcion == "2":
             if px_list:
@@ -526,14 +542,32 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
                 set_sesion(telefono, sesion)
                 enviar_mensaje(telefono, f"¡Hola líder {pila}! 👋\n\nPor favor, envíame el estatus de tus participantes pendientes para registrarlos.", imo_nombre_completo)
             else:
-                enviar_mensaje(telefono, "Actualmente no tienes participantes pendientes vinculados a este número en nuestro sistema.\n\nEscribe *1* si deseas información del entrenamiento o *3* para hablar con una coordinadora.", nombre_mostrar)
+                enviar_mensaje(telefono, "Actualmente no tienes participantes vinculados a este número.\n\nEscribe *1* si deseas información de los entrenamientos o *3* para hablar con una coordinadora.", nombre_mostrar)
             return
         elif opcion == "3":
-            enviar_mensaje(telefono, f"Con gusto. Aquí tienes los contactos directos de nuestras coordinadoras para apoyarte:\n\n{COORDINADORAS}", nombre_mostrar)
+            # ENRUTAMIENTO DIRECTO A COORDINADORA
+            nombre_prosp = sesion.get("nombre_prospecto")
+            coord_asignada = notificar_coordinadora_aleatoria(telefono, nombre_prosp)
+            enviar_mensaje(telefono, f"¡Excelente decisión! Le acabo de notificar internamente a nuestra coordinadora *{coord_asignada}*. Ella se comunicará contigo desde su propio número en breve para apoyarte. 🚀", nombre_mostrar)
+            sesion["estado"] = "atendido_por_humano"
+            set_sesion(telefono, sesion)
             return
         else:
             enviar_mensaje(telefono, "Por favor, responde solamente con el número *1*, *2* o *3*.", nombre_mostrar)
             return
+
+    # Si eligió la opción 3 en cualquier momento después
+    if texto.strip() == "3" and sesion.get("estado") != "atendido_por_humano":
+        nombre_prosp = sesion.get("nombre_prospecto")
+        coord_asignada = notificar_coordinadora_aleatoria(telefono, nombre_prosp)
+        enviar_mensaje(telefono, f"¡Comprendido! He notificado a nuestra coordinadora *{coord_asignada}*. Ella te escribirá en breve para apoyarte personalmente. 🚀", nombre_mostrar)
+        sesion["estado"] = "atendido_por_humano"
+        set_sesion(telefono, sesion)
+        return
+
+    if sesion.get("estado") == "atendido_por_humano":
+        # Ya no interviene el bot
+        return
 
     # 🌟 PASO 3: FLUJO DE PROSPECTO (OPCIÓN 1)
     if sesion.get("estado") == "embudo_prospecto" or not imo_nombre_completo:
@@ -848,7 +882,7 @@ def recibir_mensaje():
             texto = msg["text"]["body"]
             imo_nombre_sheet, _ = cargar_px_del_imo(telefono)
             
-            # Nombre para mostrar
+            # Nombre para mostrar si es prospecto
             nombre_mostrar = imo_nombre_sheet
             if not imo_nombre_sheet:
                 sesion = get_sesion(telefono)
@@ -876,7 +910,7 @@ def recibir_mensaje():
     return jsonify({"status":"ok"}), 200
 
 @app.route("/status", methods=["GET"])
-def status(): return jsonify({"status": "activo", "version": "v20_simon_sinek"}), 200
+def status(): return jsonify({"status": "activo", "version": "v23_brochure_y_round_robin"}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
