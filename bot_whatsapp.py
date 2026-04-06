@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-v11 MAGISTRAL — Fix Sheets Síncrono + Embudo IA Gemini
+v14 MAGISTRAL — Cero IA, Brevedad, "Comprender" y Nombre Primero
 """
 
 import os, re, json, threading, time, csv, io
@@ -46,7 +46,7 @@ def norm_tel(tel):
 def ep(): return get_config()["excel_path"]
 
 # ══════════════════════════════════════════════════════════════════════════
-# GOOGLE SHEETS CORE (AHORA SÍNCRONO Y SEGURO)
+# GOOGLE SHEETS CORE (SÍNCRONO)
 # ══════════════════════════════════════════════════════════════════════════
 import base64
 
@@ -83,7 +83,6 @@ def get_sheets_token():
     return None
 
 def registrar_en_sheets(telefono, imo_nombre, mensaje, respuesta_bot, estado=""):
-    # ESTA FUNCIÓN AHORA SE EJECUTA OBLIGATORIAMENTE ANTES DE CORTAR CON WHATSAPP
     sheet_id = os.environ.get("SHEET_ID", "")
     if not sheet_id: return
     try:
@@ -151,7 +150,7 @@ def append_historial(telefono, nombre, texto, tipo):
     except: pass
 
 # ══════════════════════════════════════════════════════════════════════════
-# MOTOR DE INTELIGENCIA ARTIFICIAL (GEMINI) - IMOS Y EMBUDO
+# MOTOR DE INTELIGENCIA ARTIFICIAL (GEMINI) - FILOSOFÍA CREAR V14
 # ══════════════════════════════════════════════════════════════════════════
 
 def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre):
@@ -160,11 +159,16 @@ def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre):
     try:
         client = genai.Client(api_key=cfg["gemini_key"])
         prompt = f"""
-        Eres el asistente de WhatsApp de 'Comunicaciones Crear Poder Sin Límites Perú'.
-        Hablas con un líder (IMO) llamado {imo_nombre}.
-        Él/Ella escribió: "{mensaje_usuario}"
-        Responde EXACTAMENTE con esta información pero natural y empática: "{plantilla_base}"
-        Reglas: No inventes fechas ni devoluciones, sé breve (1-2 párrafos) y despídete como Comunicaciones Crear Poder Sin Límites.
+        Eres el asistente de WhatsApp de 'Crear Poder Sin Límites Perú'.
+        Hablas con el líder (IMO): {imo_nombre}.
+        Mensaje recibido: "{mensaje_usuario}"
+        Responde basándote en esta información obligatoria: "{plantilla_base}"
+        Reglas Estrictas: 
+        1. SÉ EXTREMADAMENTE BREVE Y PROFESIONAL. Cero rodeos, ve al punto.
+        2. NO uses "entender", "entiendo" o "entendemos". Usa SIEMPRE "comprender", "comprendo" o "comprendemos".
+        3. NO uses "ayudar". Usa "apoyar", "acompañar" o "crear".
+        4. ELIMINA TODO RASTRO DE IA. Suena humano, maduro y cortés.
+        5. No inventes fechas ni prometas cosas fuera de la información base.
         """
         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         if response.text: return response.text.strip()
@@ -172,25 +176,23 @@ def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre):
     except: return plantilla_base
 
 def embudo_ventas_gemini(mensaje_usuario):
-    # EL NUEVO CEREBRO DE VENTAS PARA PROSPECTOS (NO IMOS)
     cfg = get_config()
-    fallback = "¡Hola! Gracias por comunicarte con Crear Poder Sin Límites Perú. ¿Te gustaría recibir información sobre nuestro próximo entrenamiento Capítulo 1 y cómo puede transformar tu vida?"
+    fallback = "Hola, somos Crear Poder Sin Límites Perú. ¿Con quién tengo el gusto de comunicarme para brindarte la información adecuada?"
     if not cfg["gemini_key"] or genai is None: return fallback 
     
     try:
         client = genai.Client(api_key=cfg["gemini_key"])
         prompt = f"""
-        Eres un experto Closer de Ventas y Asesor de la empresa de transformación personal 'Crear Poder Sin Límites Perú'.
-        Un prospecto nuevo (que no es líder de la campaña) te acaba de escribir: "{mensaje_usuario}"
+        Eres un Asesor Profesional de 'Crear Poder Sin Límites Perú'.
+        Un prospecto nuevo acaba de escribir: "{mensaje_usuario}"
         
-        Tu objetivo: Crear un embudo de conversión irresistible para que se interese en el entrenamiento vivencial 'Capítulo 1'.
-        
-        Reglas estrictas de Ventas:
-        1. SÉ MISTERIOSO sobre qué se hace adentro del salón. Vende los RESULTADOS (sanar heridas, romper límites, liderazgo, éxito financiero, elevar relaciones).
-        2. Sé extremadamente empático, cercano y humano. Usa emojis sin exagerar.
-        3. Sé BREVE (máximo 2 o 3 párrafos cortos). 
-        4. OBLIGATORIO: Termina siempre tu respuesta con una pregunta abierta para obligarlo a responder y engancharlo en la conversación (Ej: ¿Qué aspecto de tu vida te gustaría potenciar hoy?).
-        5. NO pidas pagos todavía. Genera el deseo primero.
+        Reglas Estrictas de Venta y Comunicación:
+        1. REGLA #1 (EL NOMBRE): Si en su mensaje no te ha dicho su nombre, tu ÚNICO objetivo es saludar profesionalmente, decir que eres de Crear Poder Sin Límites y PREGUNTAR SU NOMBRE. No des información ni vendas hasta saber con quién hablas.
+        2. PALABRAS PROHIBIDAS: "sanación", "sanar", "curar", "terapia", "paciente", "ayuda", "ayudar", "entender", "entiendo", "entendemos".
+        3. PALABRAS DE PODER: Usa "comprender", "apoyar", "acompañar", "transformación", "crear", "liderazgo".
+        4. CERO RASTROS DE IA: Suena como un humano experto y profesional.
+        5. BREVEDAD ABSOLUTA: Tu respuesta debe ser corta y directa (máximo 2 oraciones breves).
+        6. Si ya sabes su nombre (o te lo acaba de decir), háblale sobre descubrir su potencial en el Capítulo 1 y termina con una pregunta abierta corta.
         """
         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         if response.text: return response.text.strip()
@@ -397,6 +399,7 @@ def es_confirmacion(texto):
     if tokens[0] in ok and len(tokens) <= 3: return True
     return False
 
+# Textos Base
 INFO_C1 = """Capítulo 1 — Equipo 27\n\nHotel José Antonio Deluxe\nCalle Bellavista 133, Miraflores, Lima\n\n*Viernes 1 de mayo*\n- 09:00 am Mesa de registro (obligatorio)\n- 10:00 am Inicio\n\n*Sábado 2 de mayo*\n- 09:00 am Ingreso\n- 10:00 am Inicio\n\n*Domingo 3 de mayo*\n- 09:00 am Inicio\n- 09:00 pm Cierre y celebración\n\nRopa cómoda, botella de agua."""
 COORDINADORAS = """Coordinadoras C1 y C2:\nDiana Moscoso: +51 912 379 744\nJoyce Marin: +51 933 599 903\nLeyla Pasquel: +51 919 502 385\nZuley Urteaga: +51 933 599 864"""
 STOP_CLAUSULA = "\n\n_Si no deseas recibir mas mensajes de este numero, responde STOP._"
@@ -410,7 +413,7 @@ def r_ya_sento(pila): return (f"Hola {pila},\n\nGracias por informarnos. El part
 def r_no_recuerda(pila): return (f"Hola {pila},\n\nSin problema. Si tienes alguna consulta sobre tu equipo, comunicate con tu coordinadora:\n\n" + COORDINADORAS + FIRMA)
 def r_fallecio_enfermo(pila): return (f"Hola {pila},\n\nRecibimos tu mensaje. Lamentamos la situacion. 🙏\n\nQuedará registrado para no incomodar. Por favor comunicate con tu coordinadora:\n\n" + COORDINADORAS + FIRMA)
 def r_no_interesado(pila, px_list): return (f"Hola {pila},\n\nRecibido. Cada persona elige en que momento toma accion. Mientras tanto, su inscripcion sigue activa hasta el *3 de mayo*." + FIRMA)
-def r_no_contesta(pila, px_list): return (f"Hola {pila},\n\nEntendido. Te recomendamos intentar por via telefonica directa. La inscripcion sigue activa hasta el *1 de mayo*." + FIRMA)
+def r_no_contesta(pila, px_list): return (f"Hola {pila},\n\nComprendido. Te recomendamos intentar por via telefonica directa. La inscripcion sigue activa hasta el *1 de mayo*." + FIRMA)
 def r_volante(pila): return (f"Hola {pila},\n\nAqui tienes toda la informacion del entrenamiento:\n\n" + INFO_C1 + "\n\n" + FIRMA)
 def r_consulta_px(pila): return (f"Hola {pila},\n\nEste canal no tiene acceso al sistema de registros. Para confirmar asistencia, comunicate directamente con el participante." + FIRMA)
 def r_pendiente(pila, px_list):
@@ -418,7 +421,7 @@ def r_pendiente(pila, px_list):
     return (f"Hola {pila},\n\nRecibido. El C1 E27 es el *1, 2 y 3 de mayo*.\n\nPersonas pendientes:\n{lista}\n\nCuando tengas una actualizacion, escribenos." + FIRMA) if px_list else (f"Hola {pila}, recibido. Cualquier novedad, escribenos." + FIRMA)
 def r_no_entendido(pila, px_list):
     lista = "\n".join(f"• {px}" for px in px_list)
-    return (f"Hola {pila},\n\nDisculpa, no logré comprender tu mensaje. 🤔\n\nPara poder registrarlo bien, por favor dime si asisten o no asisten estas personas:\n\n{lista}\n\n*(Ejemplo: 'Todos asisten', 'Ninguno va', o detalla por nombre)*" + FIRMA)
+    return (f"Hola {pila},\n\nComprendo tu mensaje. 🤔\n\nPara poder registrarlo bien, por favor dime si asisten o no asisten estas personas:\n\n{lista}\n\n*(Ejemplo: 'Todos asisten', 'Ninguno va', o detalla por nombre)*" + FIRMA)
 def r_no_campaña(): return ("Hola,\n\nTe contactamos de *Crear Poder Sin Limites Peru*.\n\nEste canal es de seguimiento exclusivo para IMOs del *Capitulo 1 — Equipo 27*.\n\nSi deseas informacion de entrenamientos, comunicate aquí:\n\n" + COORDINADORAS + FIRMA)
 def r_pedir_fecha(pila, px_confirmados):
     nombres = "\n".join(f"• {px}" for px in px_confirmados)
@@ -441,7 +444,7 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
     pila = nombre_pila(imo_nombre_completo) if imo_nombre_completo else ""
     
     if not imo_nombre_completo:
-        # ES UN PROSPECTO NUEVO O EXTERNO - ACTIVAR EMBUDO IA
+        # ES UN PROSPECTO NUEVO O EXTERNO - ACTIVAR EMBUDO IA CORREGIDO
         respuesta_embudo = embudo_ventas_gemini(texto)
         enviar_mensaje(telefono, respuesta_embudo, "PROSPECTO NUEVO")
         return
@@ -468,7 +471,7 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
                 enviar_mensaje(telefono, humanizar_con_gemini(texto, msg_base, pila), imo_nombre_completo)
         else:
             borrar_sesion(telefono)
-            enviar_mensaje(telefono, "Entendido. Por favor vuelvenos a enviar el estatus de tus personas." + STOP_CLAUSULA, imo_nombre_completo)
+            enviar_mensaje(telefono, "Comprendido. Por favor vuelvenos a enviar el estatus de tus personas." + STOP_CLAUSULA, imo_nombre_completo)
         return
 
     if not px_list:
@@ -737,13 +740,9 @@ def recibir_mensaje():
             texto = msg["text"]["body"]
             imo_nombre_sheet, _ = cargar_px_del_imo(telefono)
             
-            # Guardar visualmente en el panel
             append_historial(telefono, imo_nombre_sheet or "PROSPECTO NUEVO", texto, "in")
-            
-            # Procesar el mensaje (La IA se ejecuta aquí)
             procesar_mensaje(telefono, texto, imo_nombre_sheet)
             
-            # ¡CRUCIAL! Guardado Síncrono en Sheets (Garantiza que no se pierda la data)
             respuesta_enviada = _respuestas_enviadas.pop(str(telefono), "")
             registrar_en_sheets(telefono, imo_nombre_sheet or "PROSPECTO NUEVO", texto, respuesta_enviada[:500] if respuesta_enviada else "", "EMBUDO" if not imo_nombre_sheet else "")
             
@@ -753,7 +752,7 @@ def recibir_mensaje():
     return jsonify({"status":"ok"}), 200
 
 @app.route("/status", methods=["GET"])
-def status(): return jsonify({"status": "activo", "version": "v11_sincrono_embudo"}), 200
+def status(): return jsonify({"status": "activo", "version": "v14_nombre_primero"}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
