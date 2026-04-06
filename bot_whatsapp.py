@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-v23 MAGISTRAL — Inteligencia Brochure 100% + Enrutamiento de Leads a Coordinadoras
+v26 MAGISTRAL — Registro de Alertas en Sheets/Chat + Anti-Menú Coordinadoras
 """
 
 import os, re, json, threading, time, csv, io, random
@@ -153,7 +153,6 @@ def append_historial(telefono, nombre, texto, tipo):
 # DATOS MAESTROS DEL BROCHURE Y COORDINADORAS
 # ══════════════════════════════════════════════════════════════════════════
 
-# Lista de coordinadoras con sus números para el enrutamiento dinámico
 COORDINADORAS_CONTACTOS = {
     "Diana Moscoso": "51912379744",
     "Joyce Marín": "51933599903",
@@ -164,15 +163,15 @@ COORDINADORAS_CONTACTOS = {
 BROCHURE_INFO_MAESTRA = """
 INFORMACIÓN OFICIAL CREAR PODER SIN LÍMITES PERÚ:
 - Misión: Impactar a la máxima cantidad de seres humanos a vivir una vida extraordinaria.
-- ¿Qué es Transformación Cuántica?: Es un modelo de coaching de alto rendimiento. Enseña nuevas formas de pensamiento, gestión emocional y hábitos para cambios sostenibles.
-- El Proceso: No es un evento, dura 100 DÍAS en total. Hay un seguimiento para que integren lo aprendido a su vida diaria.
-- Reglas Importantes: Exclusivo para MAYORES DE 18 AÑOS. Este entrenamiento NO ES PARA SANAR O ARREGLAR. NO sustituye ninguna terapia o proceso de salud mental.
-- Cuentas de Pago: BCP Soles a nombre de CREACIÓN CUÁNTICA E.I.R.L (Cuenta: 1934218307060 / CCI: 00219300421830706018). Se acepta PayPal, Efectivo y tarjetas de crédito.
+- ¿Qué es Transformación Cuántica?: Es un modelo de coaching de alto rendimiento. Enseña nuevas formas de pensamiento, gestión emocional y hábitos para crear cambios sostenibles.
+- El Proceso: No es un simple evento, es un proceso que dura 100 DÍAS en total. Consiste en integrar lo aprendido a la vida cotidiana con apoyo de un equipo.
+- Reglas Importantes: Es exclusivo para MAYORES DE 18 AÑOS. Este entrenamiento NO ES PARA SANAR O ARREGLAR. NO sustituye ninguna terapia o proceso de salud mental.
+- Opciones de Pago e Inversión: BCP Soles a nombre de CREACIÓN CUÁNTICA E.I.R.L (Cuenta: 1934218307060 / CCI: 00219300421830706018). Se acepta PayPal, Efectivo y tarjetas de crédito.
 - Sedes: Estamos en Perú (Lima), Colombia (Medellín), Ecuador (Quito, Cuenca, Guayaquil) y México.
 """
 
 # ══════════════════════════════════════════════════════════════════════════
-# MOTOR DE IA + BANCO MAESTRO (CONOCIMIENTO DEL BROCHURE)
+# MOTOR DE IA + BANCO MAESTRO 
 # ══════════════════════════════════════════════════════════════════════════
 
 def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre, es_pregunta_compleja=False):
@@ -199,28 +198,33 @@ def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre, es_pregunt
 
 def embudo_ventas_gemini(mensaje_usuario, nombre_conocido=None):
     cfg = get_config()
+    msg_len = len(mensaje_usuario.split())
     
-    # 🌟 BANCO MAESTRO DE RESPUESTAS (BROCHURE Y CIRCULO DORADO)
     def respuesta_del_banco(mensaje):
         msg_norm = normalizar(mensaje)
+        
+        if msg_len <= 3 and nombre_conocido:
+            return f"¡Hola, {nombre_conocido}! Creemos firmemente que tienes un potencial ilimitado esperando ser despertado.\n\nA través de metodologías vivenciales, te acompañamos a romper las barreras que te frenan. Todo esto lo vives en el *Capítulo 1*, un entrenamiento intensivo de 3 días para transformar tu realidad. ¿Te gustaría conocer la fecha de nuestro próximo entrenamiento?"
+            
         banco_preguntas = [
-            (["100 dias", "cuanto dura todo", "el proceso", "duracion total"], "Creemos en transformaciones reales. Por eso el proceso completo dura 100 días, donde con el apoyo de tu equipo integrarás lo aprendido a tu vida cotidiana, creando hábitos inquebrantables."),
-            (["edad", "niños", "menores", "jovenes", "adolescentes", "hijo", "18"], "Creemos en el potencial a toda edad, pero este formato está diseñado exclusivamente para mayores de 18 años. Si buscas espacios para menores, escríbenos la palabra 'Coordinadora' y te apoyaremos."),
-            (["terapia", "psicologo", "depresion", "sanar heridas", "salud mental", "adicciones", "arreglar"], "Es vital que sepas que nuestro enfoque es de alto rendimiento. NO somos un centro de terapia ni sustituimos procesos de salud mental o tratamientos. Nos enfocamos en empoderarte y crear una nueva realidad a partir de hoy."),
-            (["precio", "costo", "cuanto cuesta", "pagar", "inversion", "cuenta", "banco", "transferencia", "bcp"], "Aceptamos BCP a nombre de Creación Cuántica E.I.R.L. (1934218307060), tarjetas y PayPal. Para apoyarte con los detalles de inversión exactos, por favor escribe el número *3* para comunicarte con una coordinadora."),
-            (["que es", "de que trata", "que hacen", "para que sirve", "informacion", "info", "detalles", "explicame", "beneficios", "saber"], "Nuestra misión es impactar vidas para que sean extraordinarias. A través de metodologías vivenciales, te acompañamos a romper barreras. El Capítulo 1 es el primer salto cuántico. ¿Estás listo para dar este paso?"),
-            (["horario", "hora", "cuando empieza", "cuando termina", "dias", "fechas", "cronograma", "agenda"], f"Tu transformación requiere compromiso total. El proceso inmersivo de 3 días en el Hotel José Antonio Deluxe inicia este viernes a las 9:00 am y cierra el domingo por la noche."),
-            (["coordinadora", "asesor", "humano", "persona", "llamar", "numero", "telefono", "contactar", "hablar"], "Para brindarte un apoyo cálido y 100% personalizado, por favor responde con el número *3* y te asignaremos a una coordinadora al instante."),
-            (["hola", "buenos dias", "buenas tardes", "buenas noches", "saludos", "que tal"], f"¡Hola! En Crear Poder Sin Límites creemos en despertar tu máximo potencial. ¿Con quién tengo el gusto y en qué área de tu vida te gustaría crear nuevos resultados hoy?")
+            (["100 dias", "cuanto dura", "duracion", "el proceso"], "Creemos en transformaciones reales. Por eso el proceso completo dura 100 días, donde con el apoyo de tu equipo integrarás lo aprendido a tu vida cotidiana, creando hábitos inquebrantables."),
+            (["edad", "niños", "menores", "jovenes", "adolescentes", "18"], "Creemos en el potencial a toda edad, pero este formato está diseñado exclusivamente para mayores de 18 años. Si buscas espacios para menores, por favor escribe el número *3* y te apoyaremos."),
+            (["terapia", "psicologo", "depresion", "sanar", "salud mental", "arreglar"], "Es vital aclarar que nuestro enfoque es de alto rendimiento. NO somos un centro de terapia ni sustituimos procesos de salud mental. Nos enfocamos en empoderarte para crear una nueva realidad a partir de hoy."),
+            (["precio", "costo", "cuanto cuesta", "pagar", "inversion", "cuenta", "banco", "transferencia", "bcp"], "Aceptamos pagos por transferencia al BCP a nombre de Creación Cuántica E.I.R.L. (Cuenta: 1934218307060 / CCI: 00219300421830706018), tarjetas de crédito y PayPal. ¿Te gustaría realizar la reserva de tu espacio ahora mismo?"),
+            (["que es", "de que trata", "que hacen", "para que sirve", "informacion", "beneficios", "capitulo 1"], "El Capítulo 1 es un modelo de coaching de alto rendimiento. Es un entrenamiento vivencial de 3 días diseñado para desarrollar nuevas formas de pensamiento, gestión emocional y descubrir las barreras que te limitan en tu vida actual. ¿Estás listo para dar este salto?"),
+            (["horario", "hora", "cuando empieza", "cuando termina", "dias", "fechas", "agenda"], f"Tu transformación requiere compromiso total. El proceso inmersivo de 3 días en el Hotel José Antonio Deluxe inicia este viernes a las 9:00 am y cierra el domingo por la noche (9:00 pm aproximadamente)."),
+            (["donde", "lugar", "direccion", "ubicacion", "hotel", "distrito", "sede"], f"Nuestra sede principal en Perú se encuentra en el Hotel José Antonio Deluxe, ubicado en Calle Bellavista 133, Miraflores, Lima. También contamos con sedes en Colombia, Ecuador y México."),
+            (["ropa", "vestimenta", "que llevar", "llevar", "frio", "calor"], "Te sugerimos llevar ropa muy cómoda y una botella de agua para hidratarte. Todo lo demás lo ponemos nosotros en el salón."),
+            (["comida", "almuerzo", "refrigerio", "comer", "desayuno", "cena", "snacks"], "No se permiten alimentos ni bebidas externas al salón. Contaremos con los tiempos adecuados para que puedas salir a almorzar y compartir por la zona."),
+            (["coordinadora", "asesor", "humano", "persona", "llamar", "contactar", "hablar", "queja"], "Para brindarte un apoyo 100% personalizado con una coordinadora humana, por favor responde únicamente con el número *3*.")
         ]
         
         for palabras_clave, respuesta in banco_preguntas:
             if any(kw in msg_norm for kw in palabras_clave):
                 return respuesta
         
-        # Fallback Final
         if nombre_conocido:
-            return f"¡Comprendido, {nombre_conocido}! Para resolver tu consulta a detalle sobre nuestro entrenamiento, por favor responde con el número *3* y una coordinadora te contactará."
+            return f"¡Comprendido, {nombre_conocido}! Para resolver tu consulta a detalle sobre nuestro proceso, por favor responde con el número *3* y una coordinadora se comunicará contigo."
         else:
             return f"En Crear Poder Sin Límites creemos en acompañarte hacia tu mejor versión. Para apoyarte de forma humana y precisa, responde con el número *3* para enlazarte con una coordinadora."
 
@@ -229,19 +233,21 @@ def embudo_ventas_gemini(mensaje_usuario, nombre_conocido=None):
     try:
         client = genai.Client(api_key=cfg["gemini_key"])
         prompt = f"""
-        Eres un Asesor Experto de 'Crear Poder Sin Límites Perú'.
+        Eres un Asesor Experto y Resolutivo de 'Crear Poder Sin Límites Perú'.
         Un prospecto acaba de escribir: "{mensaje_usuario}"
         Contexto del prospecto: Su nombre es: "{nombre_conocido if nombre_conocido else 'Desconocido'}".
         
+        INFORMACIÓN OFICIAL PARA RESPONDER DUDAS:
         {BROCHURE_INFO_MAESTRA}
         
         Reglas Estrictas:
-        1. EL NOMBRE: Si no sabes su nombre, pregunta por él cortésmente. Si YA LO SABES, úsalo y no lo vuelvas a preguntar.
-        2. PALABRAS PROHIBIDAS: "sanar", "curar", "terapia", "paciente", "ayuda", "ayudar", "entender".
-        3. PALABRAS DE PODER: "comprender", "apoyar", "acompañar", "transformación", "crear", "100 días", "alto rendimiento".
-        4. CERO RASTROS DE IA. Eres un humano experto y empoderador.
-        5. BREVEDAD ABSOLUTA: Respuesta cortísima (1-2 oraciones).
-        6. Usa la información del Brochure proporcionada para responder sus dudas con autoridad. Si hacen preguntas complejas, invítalos a escribir '3' para hablar con una coordinadora.
+        1. RESPONDE SUS DUDAS USANDO LA INFORMACIÓN DEL BROCHURE. Si pregunta precios o cuentas, dáselas (BCP Creación Cuántica...). Si pregunta duración, explícale los 100 días.
+        2. NO lo mandes a hablar con la coordinadora a menos que pida explícitamente hablar con un humano o sea un tema muy complejo. ¡Tú eres el asesor, tú resuelves!
+        3. EL NOMBRE: Si no sabes su nombre, pregunta por él cortésmente. Si YA LO SABES, úsalo.
+        4. PALABRAS PROHIBIDAS: "sanar", "curar", "terapia", "paciente", "ayuda", "ayudar", "entender".
+        5. PALABRAS DE PODER: "comprender", "apoyar", "acompañar", "transformación", "crear", "100 días", "alto rendimiento".
+        6. CERO RASTROS DE IA. Eres humano, seguro de ti mismo y experto.
+        7. BREVEDAD: Responde su duda en máximo 2 o 3 oraciones cortas y termina con una pregunta persuasiva de cierre.
         """
         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         if response.text: return response.text.strip()
@@ -436,6 +442,18 @@ Para brindarte el mejor apoyo, responde con el *número* de la opción que desea
 3️⃣ Deseo hablar directamente con una coordinadora"""
 
 def enviar_mensaje(telefono, texto, nombre_imo=""):
+    sesion = get_sesion(telefono)
+    
+    # Solo adjuntamos el mensaje de bienvenida IA si es la primera vez y NO es la alerta a la coordinadora
+    if sesion.get("primera_vez", True) and not str(nombre_imo).startswith("COORDINADORA"):
+        aclaracion = "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*. Mis respuestas pueden ser limitadas. Para más información o si el sistema se satura, comunícate con nuestras coordinadoras:_\n\n" + COORDINADORAS
+        if "Coordinadoras C1 y C2" not in texto:
+            texto += aclaracion
+        else:
+            texto += "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*. Mis respuestas pueden ser limitadas. En caso de saturación, contacta a las coordinadoras mencionadas._"
+        sesion["primera_vez"] = False
+        set_sesion(telefono, sesion)
+
     cfg = get_config()
     try:
         r = req_lib.post(api_url(),
@@ -447,13 +465,24 @@ def enviar_mensaje(telefono, texto, nombre_imo=""):
         return r.status_code == 200
     except: return False
 
-def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre):
-    # Enrutamiento Round-Robin (Aleatorio)
+def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre, ultimo_mensaje):
     coord_nombre, coord_tel = random.choice(list(COORDINADORAS_CONTACTOS.items()))
     nombre_txt = prospecto_nombre if prospecto_nombre else "No especificado"
-    msg_coord = f"🚨 *NUEVO LEAD PARA CREAR* 🚀\n\n*Nombre:* {nombre_txt}\n*Teléfono:* wa.me/{prospecto_tel}\n\nEl prospecto ha solicitado conversar con una coordinadora en el Bot. ¡Es tu turno de apoyarlo a dar su salto cuántico!"
-    # Enviamos a la coordinadora
-    enviar_mensaje(coord_tel, msg_coord, "SISTEMA INTERNO")
+    msg_coord = f"🚨 *NUEVO LEAD PARA CREAR* 🚀\n\n*Nombre:* {nombre_txt}\n*Teléfono:* wa.me/{prospecto_tel}\n*Escribió:* \"{ultimo_mensaje}\"\n\nEl prospecto ha solicitado conversar con una coordinadora. ¡Es tu turno de apoyarlo a dar su salto cuántico!"
+    
+    # Desactivamos el aviso de IA Cuántica para el número de la coordinadora
+    sesion_coord = get_sesion(coord_tel)
+    sesion_coord["primera_vez"] = False 
+    set_sesion(coord_tel, sesion_coord)
+
+    nombre_mostrar_coord = f"COORDINADORA: {coord_nombre}"
+    
+    # Envía a la coordinadora por WhatsApp y lo registra en el Panel Web bajo "COORDINADORA: [Nombre]"
+    enviar_mensaje(coord_tel, msg_coord, nombre_mostrar_coord)
+    
+    # Registra la alerta en Google Sheets para control administrativo
+    registrar_en_sheets(coord_tel, nombre_mostrar_coord, f"Alerta generada por Lead: {prospecto_tel}", msg_coord, "ALERTA LEAD")
+    
     return coord_nombre
 
 def nombre_pila(s):
@@ -545,9 +574,8 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
                 enviar_mensaje(telefono, "Actualmente no tienes participantes vinculados a este número.\n\nEscribe *1* si deseas información de los entrenamientos o *3* para hablar con una coordinadora.", nombre_mostrar)
             return
         elif opcion == "3":
-            # ENRUTAMIENTO DIRECTO A COORDINADORA
             nombre_prosp = sesion.get("nombre_prospecto")
-            coord_asignada = notificar_coordinadora_aleatoria(telefono, nombre_prosp)
+            coord_asignada = notificar_coordinadora_aleatoria(telefono, nombre_prosp, "Opción 3 en el menú")
             enviar_mensaje(telefono, f"¡Excelente decisión! Le acabo de notificar internamente a nuestra coordinadora *{coord_asignada}*. Ella se comunicará contigo desde su propio número en breve para apoyarte. 🚀", nombre_mostrar)
             sesion["estado"] = "atendido_por_humano"
             set_sesion(telefono, sesion)
@@ -556,17 +584,16 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
             enviar_mensaje(telefono, "Por favor, responde solamente con el número *1*, *2* o *3*.", nombre_mostrar)
             return
 
-    # Si eligió la opción 3 en cualquier momento después
+    # Si eligió la opción 3 en cualquier momento posterior
     if texto.strip() == "3" and sesion.get("estado") != "atendido_por_humano":
         nombre_prosp = sesion.get("nombre_prospecto")
-        coord_asignada = notificar_coordinadora_aleatoria(telefono, nombre_prosp)
+        coord_asignada = notificar_coordinadora_aleatoria(telefono, nombre_prosp, texto)
         enviar_mensaje(telefono, f"¡Comprendido! He notificado a nuestra coordinadora *{coord_asignada}*. Ella te escribirá en breve para apoyarte personalmente. 🚀", nombre_mostrar)
         sesion["estado"] = "atendido_por_humano"
         set_sesion(telefono, sesion)
         return
 
     if sesion.get("estado") == "atendido_por_humano":
-        # Ya no interviene el bot
         return
 
     # 🌟 PASO 3: FLUJO DE PROSPECTO (OPCIÓN 1)
@@ -887,6 +914,7 @@ def recibir_mensaje():
             if not imo_nombre_sheet:
                 sesion = get_sesion(telefono)
                 nm = sesion.get("nombre_prospecto")
+                # Atrapamos nombre en este mensaje si el usuario seleccionó menú 1 o está en embudo
                 if not nm and len(texto.split()) <= 3 and len(texto) > 2 and texto.strip() not in ["1","2","3"]:
                     nm = nombre_pila(texto)
                 nombre_mostrar = f"NUEVO PROSPECTO: {nm}" if nm else "NUEVO PROSPECTO"
@@ -910,7 +938,7 @@ def recibir_mensaje():
     return jsonify({"status":"ok"}), 200
 
 @app.route("/status", methods=["GET"])
-def status(): return jsonify({"status": "activo", "version": "v23_brochure_y_round_robin"}), 200
+def status(): return jsonify({"status": "activo", "version": "v26_registro_alertas_y_antimenu"}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
