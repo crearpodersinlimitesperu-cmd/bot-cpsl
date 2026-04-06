@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-v8.2 MAGISTRAL — Carga en Segundo Plano (Anti-Timeout) + Gemini
+v9 MAGISTRAL — Nombres en Chat + Fix Sincronización Sheets
 """
 
 import os, re, json, threading, time
@@ -11,7 +11,6 @@ import requests as req_lib
 from openpyxl import load_workbook
 from filelock import FileLock
 
-# ---- LIBRERÍA OFICIAL NUEVA DE GEMINI ----
 try:
     from google import genai
 except ImportError:
@@ -106,7 +105,7 @@ def leer_sheet():
     return []
 
 # ══════════════════════════════════════════════════════════════════════════
-# HISTORIAL EN SEGUNDO PLANO (ANTI TIMEOUT)
+# HISTORIAL EN SEGUNDO PLANO (AHORA CON NOMBRES)
 # ══════════════════════════════════════════════════════════════════════════
 HISTORIAL_FILE = "historial_chat.json"
 _syncing = False
@@ -115,23 +114,27 @@ def forzar_sincronizacion_sheets():
     global _syncing
     if _syncing: return
     _syncing = True
-    print("[HISTORIAL] Sincronizando desde Sheets en SEGUNDO PLANO...")
+    print("[HISTORIAL] Sincronizando desde Sheets...")
     historial = []
     try:
         rows = leer_sheet()
         if rows:
             for row in rows[1:]:
                 if len(row) < 4: continue
-                hora = str(row[0]).strip(); tel = norm_tel(str(row[1]).strip())
+                hora = str(row[0]).strip()
+                tel = norm_tel(str(row[1]).strip())
+                imo_n = str(row[2]).strip() if len(row) > 2 else ""
                 msg_in, msg_out = "", ""
+                
                 if len(row) > 3: msg_in  = str(row[3]).strip()
                 if len(row) > 4: msg_out = str(row[4]).strip()
                 if len(row) > 6 and str(row[6]).strip(): msg_out = str(row[6]).strip()
+                
                 if tel:
-                    if msg_in: historial.append({"telefono": tel, "texto": msg_in, "tipo": "in", "hora": hora})
-                    if msg_out: historial.append({"telefono": tel, "texto": msg_out, "tipo": "out", "hora": hora})
-            with open(HISTORIAL_FILE, "w", encoding="utf-8") as f: json.dump(historial[-1000:], f, ensure_ascii=False, indent=2) 
-            print("[HISTORIAL] ¡Sincronización Exitosa!")
+                    if msg_in: historial.append({"telefono": tel, "nombre": imo_n, "texto": msg_in, "tipo": "in", "hora": hora})
+                    if msg_out: historial.append({"telefono": tel, "nombre": imo_n, "texto": msg_out, "tipo": "out", "hora": hora})
+                    
+            with open(HISTORIAL_FILE, "w", encoding="utf-8") as f: json.dump(historial[-1500:], f, ensure_ascii=False, indent=2) 
     except Exception as e:
         print(f"[ERROR SHEETS SYNC] {e}")
     finally:
@@ -145,17 +148,17 @@ def get_historial():
     except: pass
     return []
 
-def append_historial(telefono, texto, tipo):
+def append_historial(telefono, nombre, texto, tipo):
     try:
         h = get_historial()
         hora_actual = datetime.now().strftime("%d/%m %H:%M")
-        h.append({"telefono": str(telefono), "texto": texto, "tipo": tipo, "hora": hora_actual})
-        with open(HISTORIAL_FILE, "w", encoding="utf-8") as f: json.dump(h[-1000:], f, ensure_ascii=False, indent=2)
+        h.append({"telefono": str(telefono), "nombre": nombre, "texto": texto, "tipo": tipo, "hora": hora_actual})
+        with open(HISTORIAL_FILE, "w", encoding="utf-8") as f: json.dump(h[-1500:], f, ensure_ascii=False, indent=2)
     except: pass
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# MOTOR DE INTELIGENCIA ARTIFICIAL (GEMINI NUEVA API)
+# MOTOR DE INTELIGENCIA ARTIFICIAL (GEMINI)
 # ══════════════════════════════════════════════════════════════════════════
 
 def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre):
@@ -165,7 +168,6 @@ def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre):
     
     try:
         client = genai.Client(api_key=cfg["gemini_key"])
-        
         prompt = f"""
         Eres el asistente de WhatsApp de 'Comunicaciones Crear Poder Sin Límites Perú'.
         Estás hablando con un líder (IMO) llamado {imo_nombre}.
@@ -182,21 +184,14 @@ def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre):
         3. Sé breve (máximo 2 o 3 párrafos cortos).
         4. Despídete siempre como "Comunicaciones Crear Poder Sin Límites Perú".
         """
-        
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt,
-        )
-        
-        if response.text:
-            return response.text.strip()
+        response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+        if response.text: return response.text.strip()
         return plantilla_base
     except Exception as e:
-        print(f"[GEMINI ERROR] {e}")
         return plantilla_base
 
 # ══════════════════════════════════════════════════════════════════════════
-# RESTO DEL CÓDIGO (INTELIGENCIA Y LECTURA DE EXCEL)
+# EXCLUIDOS Y LECTURA DE EXCEL
 # ══════════════════════════════════════════════════════════════════════════
 
 EXCLUIDOS_CAMPAÑA = [
@@ -371,13 +366,15 @@ def borrar_sesion(tel): s = cargar_sesiones(); s.pop(str(tel), None); guardar_se
 
 _respuestas_enviadas = {}
 
-def enviar_mensaje(telefono, texto):
+def enviar_mensaje(telefono, texto, nombre_imo=""):
     cfg = get_config()
     try:
         r = req_lib.post(api_url(),
             json={"messaging_product":"whatsapp","to":str(telefono),"type":"text","text":{"body":texto,"preview_url":False}},
             headers={"Authorization":f"Bearer {cfg['token']}", "Content-Type":"application/json"}, timeout=10)
-        if r.status_code == 200: append_historial(telefono, texto, "out") 
+        if r.status_code == 200: 
+            _respuestas_enviadas[str(telefono)] = texto
+            append_historial(telefono, nombre_imo, texto, "out") 
         return r.status_code == 200
     except: return False
 
@@ -402,7 +399,6 @@ def es_confirmacion(texto):
     if tokens[0] in ok and len(tokens) <= 3: return True
     return False
 
-# Textos Base
 INFO_C1 = """Capítulo 1 — Equipo 27\n\nHotel José Antonio Deluxe\nCalle Bellavista 133, Miraflores, Lima\n\n*Viernes 1 de mayo*\n- 09:00 am Mesa de registro (obligatorio)\n- 10:00 am Inicio\n\n*Sábado 2 de mayo*\n- 09:00 am Ingreso\n- 10:00 am Inicio\n\n*Domingo 3 de mayo*\n- 09:00 am Inicio\n- 09:00 pm Cierre y celebración\n\nRopa cómoda, botella de agua."""
 COORDINADORAS = """Coordinadoras C1 y C2:\nDiana Moscoso: +51 912 379 744\nJoyce Marin: +51 933 599 903\nLeyla Pasquel: +51 919 502 385\nZuley Urteaga: +51 933 599 864"""
 STOP_CLAUSULA = "\n\n_Si no deseas recibir mas mensajes de este numero, responde STOP._"
@@ -434,28 +430,28 @@ def r_pedir_fecha(pila, px_confirmados):
 # LOGICA PRINCIPAL DEL BOT
 # ══════════════════════════════════════════════════════════════════════════
 
-def procesar_mensaje(telefono, texto):
+def procesar_mensaje(telefono, texto, imo_nombre_completo):
     sesion    = get_sesion(telefono)
     intencion = detectar_intencion(texto)
 
     if intencion == "STOP":
         marcar_stop(telefono); borrar_sesion(telefono)
-        enviar_mensaje(telefono, "Listo. Has sido dado de baja de este canal. No recibiras mas mensajes." + FIRMA)
+        enviar_mensaje(telefono, "Listo. Has sido dado de baja de este canal. No recibiras mas mensajes." + FIRMA, imo_nombre_completo)
         return
 
-    imo_nombre, px_list = cargar_px_del_imo(telefono)
-    pila = nombre_pila(imo_nombre) if imo_nombre else ""
+    _, px_list = cargar_px_del_imo(telefono)
+    pila = nombre_pila(imo_nombre_completo) if imo_nombre_completo else ""
     
-    if not imo_nombre:
-        if intencion == "VOLANTE": enviar_mensaje(telefono, r_volante("")); return
-        if intencion == "INFO_C1": enviar_mensaje(telefono, r_info_c1("")); return
-        enviar_mensaje(telefono, humanizar_con_gemini(texto, r_no_campaña(), pila)); return
+    if not imo_nombre_completo:
+        if intencion == "VOLANTE": enviar_mensaje(telefono, r_volante(""), ""); return
+        if intencion == "INFO_C1": enviar_mensaje(telefono, r_info_c1(""), ""); return
+        enviar_mensaje(telefono, humanizar_con_gemini(texto, r_no_campaña(), pila), imo_nombre_completo); return
 
     if sesion.get("estado") == "esperando_fecha":
         borrar_sesion(telefono)
         px_confirm = sesion.get("px_confirmados", [])
         msg_base = f"Hola {pila},\n\nConfirmacion registrada.\n\nLos esperamos en el *Hotel Jose Antonio Deluxe*, Mesa de registro a las *9:00 am*." + FIRMA
-        enviar_mensaje(telefono, humanizar_con_gemini(texto, msg_base, pila))
+        enviar_mensaje(telefono, humanizar_con_gemini(texto, msg_base, pila), imo_nombre_completo)
         return
 
     if sesion.get("estado") == "esperando_confirmacion":
@@ -467,18 +463,18 @@ def procesar_mensaje(telefono, texto):
             if confirmados:
                 px_nombres = [e["px"] for e in confirmados]
                 set_sesion(telefono, {"estado": "esperando_fecha", "px_confirmados": px_nombres})
-                enviar_mensaje(telefono, r_pedir_fecha(pila, px_nombres))
+                enviar_mensaje(telefono, r_pedir_fecha(pila, px_nombres), imo_nombre_completo)
             else:
                 msg_base = f"Gracias {pila}, todo quedo registrado. Te hemos quitado estas personas de tu lista de pendientes." + FIRMA
-                enviar_mensaje(telefono, humanizar_con_gemini(texto, msg_base, pila))
+                enviar_mensaje(telefono, humanizar_con_gemini(texto, msg_base, pila), imo_nombre_completo)
         else:
             borrar_sesion(telefono)
-            enviar_mensaje(telefono, "Entendido. Por favor vuelvenos a enviar el estatus de tus personas." + STOP_CLAUSULA)
+            enviar_mensaje(telefono, "Entendido. Por favor vuelvenos a enviar el estatus de tus personas." + STOP_CLAUSULA, imo_nombre_completo)
         return
 
     if not px_list:
-        if intencion in ("INFO_C1", "VOLANTE"): enviar_mensaje(telefono, humanizar_con_gemini(texto, r_volante(pila), pila)); return
-        enviar_mensaje(telefono, humanizar_con_gemini(texto, f"Hola {pila},\n\nYa tienes el estatus registrado para todas tus personas pendientes. Si hay algun cambio antes del *1 de mayo*, escribenos." + FIRMA, pila))
+        if intencion in ("INFO_C1", "VOLANTE"): enviar_mensaje(telefono, humanizar_con_gemini(texto, r_volante(pila), pila), imo_nombre_completo); return
+        enviar_mensaje(telefono, humanizar_con_gemini(texto, f"Hola {pila},\n\nYa tienes el estatus registrado para todas tus personas pendientes. Si hay algun cambio antes del *1 de mayo*, escribenos." + FIRMA, pila), imo_nombre_completo)
         return
 
     respuestas_info = {
@@ -486,7 +482,7 @@ def procesar_mensaje(telefono, texto):
         "INFO_C1": r_info_c1(pila), "NO_RECUERDA": r_no_recuerda(pila), "VOLANTE": r_volante(pila), "CONSULTA_PX": r_consulta_px(pila)
     }
     if intencion in respuestas_info:
-        enviar_mensaje(telefono, humanizar_con_gemini(texto, respuestas_info[intencion], pila))
+        enviar_mensaje(telefono, humanizar_con_gemini(texto, respuestas_info[intencion], pila), imo_nombre_completo)
         return
 
     extraidos = buscar_px_en_texto(texto, px_list)
@@ -499,10 +495,10 @@ def procesar_mensaje(telefono, texto):
             "YA_SE_SENTO": r_ya_sento(pila), "FALLECIO_ENFERMO": r_fallecio_enfermo(pila)
         }
         if intencion in respuestas_estados:
-            enviar_mensaje(telefono, humanizar_con_gemini(texto, respuestas_estados[intencion], pila))
+            enviar_mensaje(telefono, humanizar_con_gemini(texto, respuestas_estados[intencion], pila), imo_nombre_completo)
             return
         
-        enviar_mensaje(telefono, humanizar_con_gemini(texto, r_no_entendido(pila, px_list), pila))
+        enviar_mensaje(telefono, humanizar_con_gemini(texto, r_no_entendido(pila, px_list), pila), imo_nombre_completo)
         return
 
     set_sesion(telefono, {"estado": "esperando_confirmacion", "extraidos": extraidos})
@@ -511,7 +507,7 @@ def procesar_mensaje(telefono, texto):
     msg = f"Perfecto {pila}, registre lo siguiente:\n\n{formatear_resumen(extraidos)}"
     if no_mencionados: msg += "\n\n⚠️ Faltaron:\n" + "\n".join(f"• {p}" for p in no_mencionados) + "\nPuedes incluirlas luego."
     msg += "\n\n¿Esta correcto? Responde *SI* para confirmar."
-    enviar_mensaje(telefono, msg)
+    enviar_mensaje(telefono, msg, imo_nombre_completo)
 
 # ══════════════════════════════════════════════════════════════════════════
 # PANEL WEB HTML
@@ -600,8 +596,9 @@ HTML_CHAT = """
                 let res = await fetch('/api/historial'); let data = await res.json();
                 let newHistory = {};
                 for(let m of data) {
-                    if (!newHistory[m.telefono]) newHistory[m.telefono] = [];
-                    newHistory[m.telefono].push({ text: m.texto, time: m.hora, sent: m.tipo === 'out' });
+                    if (!newHistory[m.telefono]) newHistory[m.telefono] = { nombre: "", messages: [] };
+                    if (m.nombre) newHistory[m.telefono].nombre = m.nombre;
+                    newHistory[m.telefono].messages.push({ text: m.texto, time: m.hora, sent: m.tipo === 'out' });
                 }
                 chatHistory = newHistory; renderContacts(); if (activeContact) renderMessages(false);
             } catch (e) { }
@@ -609,20 +606,14 @@ HTML_CHAT = """
 
         async function forceSync() {
             const btn = document.getElementById('syncBtn');
-            btn.classList.add('loading');
-            btn.innerText = "⏳ Sincronizando...";
+            btn.classList.add('loading'); btn.innerText = "⏳ Sincronizando...";
             try {
                 await fetch('/api/force_sync', {method: 'POST'});
-                // Esperar 4 seg a que termine el hilo
                 setTimeout(async () => {
                     await cargarDatos();
-                    btn.classList.remove('loading');
-                    btn.innerText = "🔄 Sincronizar";
+                    btn.classList.remove('loading'); btn.innerText = "🔄 Sincronizar";
                 }, 4000);
-            } catch(e) {
-                btn.classList.remove('loading');
-                btn.innerText = "🔄 Sincronizar";
-            }
+            } catch(e) { btn.classList.remove('loading'); btn.innerText = "🔄 Sincronizar"; }
         }
 
         function renderContacts() {
@@ -630,22 +621,30 @@ HTML_CHAT = """
             const phones = Object.keys(chatHistory).reverse();
             if(phones.length === 0) { list.innerHTML = '<div style="padding: 20px; text-align: center; color: #888;">No hay chats recientes. Haz clic en Sincronizar.</div>'; return; }
             phones.forEach(phone => {
-                const messages = chatHistory[phone]; const lastMessage = messages[messages.length - 1].text;
+                const contactData = chatHistory[phone]; 
+                const lastMessage = contactData.messages[contactData.messages.length - 1].text;
+                const displayName = contactData.nombre ? contactData.nombre : `+${phone}`;
+
                 const div = document.createElement('div');
                 div.className = `contact-item ${activeContact === phone ? 'active' : ''}`;
-                div.onclick = () => openChat(phone);
-                div.innerHTML = `<div class="avatar">👤</div><div class="contact-info"><h4>+${phone}</h4><p>${lastMessage}</p></div>`;
+                div.onclick = () => openChat(phone, displayName);
+                div.innerHTML = `
+                    <div class="avatar">👤</div>
+                    <div class="contact-info">
+                        <h4>${displayName}</h4>
+                        <p>${lastMessage}</p>
+                    </div>`;
                 list.appendChild(div);
             });
         }
 
-        function openChat(phone) {
+        function openChat(phone, displayName) {
             activeContact = phone;
             document.getElementById('emptyState').classList.add('hidden'); 
             document.getElementById('chatHeader').classList.remove('hidden');
             document.getElementById('messagesContainer').classList.remove('hidden'); 
             document.getElementById('chatInputArea').classList.remove('hidden');
-            document.getElementById('chatHeaderName').innerText = '+' + phone;
+            document.getElementById('chatHeaderName').innerHTML = `${displayName} <span style="font-size:12px; color:#888; margin-left:10px;">(+${phone})</span>`;
             isUserScrolling = false; renderContacts(); renderMessages(true);
             setTimeout(() => document.getElementById('messageInput').focus(), 100);
         }
@@ -653,7 +652,7 @@ HTML_CHAT = """
         function renderMessages(forceBottom) {
             const container = document.getElementById('messagesContainer'); container.innerHTML = '';
             if (!activeContact || !chatHistory[activeContact]) return;
-            chatHistory[activeContact].forEach(msg => {
+            chatHistory[activeContact].messages.forEach(msg => {
                 const div = document.createElement('div'); div.className = `message ${msg.sent ? 'sent' : 'received'}`;
                 div.innerHTML = `${msg.text.replace(/\\n/g, '<br>')}<span class="time">${msg.time}</span>`;
                 container.appendChild(div);
@@ -667,7 +666,7 @@ HTML_CHAT = """
             const textarea = document.getElementById('messageInput'); const mensaje = textarea.value.trim(); const destino = activeContact;
             if (!mensaje || !destino) return;
             textarea.value = '';
-            chatHistory[destino].push({ text: mensaje, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), sent: true });
+            chatHistory[destino].messages.push({ text: mensaje, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), sent: true });
             isUserScrolling = false; renderMessages(true); renderContacts();
             try {
                 await fetch('/api/enviar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ telefono: destino, mensaje: mensaje }) });
@@ -699,8 +698,9 @@ def force_sync():
 def api_enviar():
     data = request.json; tel = data.get("telefono"); msg = data.get("mensaje")
     if tel and msg:
-        enviar_mensaje(tel, msg)
-        threading.Thread(target=registrar_en_sheets, args=(tel, "Panel Web", "[ENVIADO DESDE PANEL PRIVADO]", msg, "MANUAL"), daemon=True).start()
+        imo_nombre, _ = cargar_px_del_imo(tel)
+        enviar_mensaje(tel, msg, imo_nombre)
+        threading.Thread(target=registrar_en_sheets, args=(tel, imo_nombre, "[ENVIADO DESDE PANEL PRIVADO]", msg, "MANUAL"), daemon=True).start()
         return jsonify({"status": "ok"}), 200
     return jsonify({"error": "Faltan datos"}), 400
 
@@ -723,18 +723,29 @@ def recibir_mensaje():
         if tipo == "text":
             texto = msg["text"]["body"]
             print(f"[IN] {telefono}: {texto[:50]}")
-            procesar_mensaje(telefono, texto)
-            append_historial(telefono, texto, "in")
+            
+            # 1. Cargamos el nombre para el panel web
+            imo_nombre_sheet, _ = cargar_px_del_imo(telefono)
+            
+            # 2. Guardamos la llegada para el panel web
+            append_historial(telefono, imo_nombre_sheet, texto, "in")
+            
+            # 3. Procesamos con IA y respondemos
+            procesar_mensaje(telefono, texto, imo_nombre_sheet)
+            
+            # 4. AHORA SÍ: Lo guardamos en Google Sheets (La línea que faltaba)
+            respuesta_enviada = _respuestas_enviadas.pop(str(telefono), "")
+            threading.Thread(target=registrar_en_sheets, args=(telefono, imo_nombre_sheet, texto, respuesta_enviada[:500] if respuesta_enviada else "", ""), daemon=True).start()
+            
         elif tipo in ("audio","image","document","video","sticker"):
-            enviar_mensaje(telefono, "Por favor responde con texto para poder registrar tu respuesta en nuestro sistema. No procesamos archivos multimedia.")
+            enviar_mensaje(telefono, "Por favor responde con texto para poder registrar tu respuesta en nuestro sistema. No procesamos archivos multimedia.", "")
     except: pass
     return jsonify({"status":"ok"}), 200
 
 @app.route("/status", methods=["GET"])
-def status(): return jsonify({"status": "activo", "version": "v8.2_gemini_sheets_fixed"}), 200
+def status(): return jsonify({"status": "activo", "version": "v9_final_names"}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    # Sincroniza al iniciar en segundo plano para no bloquear el servidor (Anti-Timeout)
     threading.Thread(target=forzar_sincronizacion_sheets, daemon=True).start()
     app.run(host="0.0.0.0", port=port, debug=False)
