@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-v15 MAGISTRAL — Motor de Auto-Reintento (Anti 503) + Cero IA
+v15 MAGISTRAL — Aviso de "IA Cuántica" en el Primer Contacto
 """
 
 import os, re, json, threading, time, csv, io
@@ -150,73 +150,56 @@ def append_historial(telefono, nombre, texto, tipo):
     except: pass
 
 # ══════════════════════════════════════════════════════════════════════════
-# MOTOR DE INTELIGENCIA ARTIFICIAL (GEMINI) - CON AUTO-REINTENTO
+# MOTOR DE INTELIGENCIA ARTIFICIAL (GEMINI) - FILOSOFÍA CREAR V15
 # ══════════════════════════════════════════════════════════════════════════
 
 def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre):
     cfg = get_config()
     if not cfg["gemini_key"] or genai is None: return plantilla_base 
-    
-    prompt = f"""
-    Eres el asistente de WhatsApp de 'Crear Poder Sin Límites Perú'.
-    Hablas con el líder (IMO): {imo_nombre}.
-    Mensaje recibido: "{mensaje_usuario}"
-    Responde basándote en esta información obligatoria: "{plantilla_base}"
-    Reglas Estrictas: 
-    1. SÉ EXTREMADAMENTE BREVE Y PROFESIONAL. Cero rodeos, ve al punto.
-    2. NO uses "entender", "entiendo" o "entendemos". Usa SIEMPRE "comprender", "comprendo" o "comprendemos".
-    3. NO uses "ayudar". Usa "apoyar", "acompañar" o "crear".
-    4. ELIMINA TODO RASTRO DE IA. Suena humano, maduro y cortés.
-    5. No inventes fechas ni prometas cosas fuera de la información base.
-    """
-    
-    client = genai.Client(api_key=cfg["gemini_key"])
-    for intento in range(3):
-        try:
-            response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
-            if response.text: return response.text.strip()
-        except Exception as e:
-            error_str = str(e)
-            if "503" in error_str or "429" in error_str:
-                if intento < 2:
-                    time.sleep(2) # Espera 2 segundos y reintenta
-                    continue
-            print(f"[GEMINI IMO ERROR] {e}")
-            return plantilla_base
-    return plantilla_base
+    try:
+        client = genai.Client(api_key=cfg["gemini_key"])
+        prompt = f"""
+        Eres el asistente de WhatsApp de 'Crear Poder Sin Límites Perú'.
+        Hablas con el líder (IMO): {imo_nombre}.
+        Mensaje recibido: "{mensaje_usuario}"
+        Responde basándote en esta información obligatoria: "{plantilla_base}"
+        Reglas Estrictas: 
+        1. SÉ EXTREMADAMENTE BREVE Y PROFESIONAL. Cero rodeos, ve al punto.
+        2. NO uses "entender", "entiendo" o "entendemos". Usa SIEMPRE "comprender", "comprendo" o "comprendemos".
+        3. NO uses "ayudar". Usa "apoyar", "acompañar" o "crear".
+        4. ELIMINA TODO RASTRO DE IA. Suena humano, maduro y cortés.
+        5. No inventes fechas ni prometas cosas fuera de la información base.
+        """
+        response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+        if response.text: return response.text.strip()
+        return plantilla_base
+    except: return plantilla_base
 
 def embudo_ventas_gemini(mensaje_usuario):
     cfg = get_config()
     fallback = "Hola, somos Crear Poder Sin Límites Perú. ¿Con quién tengo el gusto de comunicarme para brindarte la información adecuada?"
     if not cfg["gemini_key"] or genai is None: return fallback 
     
-    prompt = f"""
-    Eres un Asesor Profesional de 'Crear Poder Sin Límites Perú'.
-    Un prospecto nuevo acaba de escribir: "{mensaje_usuario}"
-    
-    Reglas Estrictas de Venta y Comunicación:
-    1. REGLA #1 (EL NOMBRE): Si en su mensaje no te ha dicho su nombre, tu ÚNICO objetivo es saludar profesionalmente, decir que eres de Crear Poder Sin Límites y PREGUNTAR SU NOMBRE. No des información ni vendas hasta saber con quién hablas.
-    2. PALABRAS PROHIBIDAS: "sanación", "sanar", "curar", "terapia", "paciente", "ayuda", "ayudar", "entender", "entiendo", "entendemos".
-    3. PALABRAS DE PODER: Usa "comprender", "apoyar", "acompañar", "transformación", "crear", "liderazgo".
-    4. CERO RASTROS DE IA: Suena como un humano experto y profesional.
-    5. BREVEDAD ABSOLUTA: Tu respuesta debe ser corta y directa (máximo 2 oraciones breves).
-    6. Si ya sabes su nombre (o te lo acaba de decir), háblale sobre descubrir su potencial en el Capítulo 1 y termina con una pregunta abierta corta.
-    """
-    
-    client = genai.Client(api_key=cfg["gemini_key"])
-    for intento in range(3):
-        try:
-            response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
-            if response.text: return response.text.strip()
-        except Exception as e:
-            error_str = str(e)
-            if "503" in error_str or "429" in error_str:
-                if intento < 2:
-                    time.sleep(2) # Espera 2 segundos y reintenta
-                    continue
-            print(f"[FUNNEL ERROR] {e}")
-            return fallback
-    return fallback
+    try:
+        client = genai.Client(api_key=cfg["gemini_key"])
+        prompt = f"""
+        Eres un Asesor Profesional de 'Crear Poder Sin Límites Perú'.
+        Un prospecto nuevo acaba de escribir: "{mensaje_usuario}"
+        
+        Reglas Estrictas de Venta y Comunicación:
+        1. REGLA #1 (EL NOMBRE): Si en su mensaje no te ha dicho su nombre, tu ÚNICO objetivo es saludar profesionalmente, decir que eres de Crear Poder Sin Límites y PREGUNTAR SU NOMBRE. No des información ni vendas hasta saber con quién hablas.
+        2. PALABRAS PROHIBIDAS: "sanación", "sanar", "curar", "terapia", "paciente", "ayuda", "ayudar", "entender", "entiendo", "entendemos".
+        3. PALABRAS DE PODER: Usa "comprender", "apoyar", "acompañar", "transformación", "crear", "liderazgo".
+        4. CERO RASTROS DE IA: Suena como un humano experto y profesional.
+        5. BREVEDAD ABSOLUTA: Tu respuesta debe ser corta y directa (máximo 2 oraciones breves).
+        6. Si ya sabes su nombre (o te lo acaba de decir), háblale sobre descubrir su potencial en el Capítulo 1 y termina con una pregunta abierta corta.
+        """
+        response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+        if response.text: return response.text.strip()
+        return fallback
+    except Exception as e:
+        print(f"[FUNNEL ERROR] {e}")
+        return fallback
 
 # ══════════════════════════════════════════════════════════════════════════
 # EXCLUIDOS Y LECTURA DE EXCEL
@@ -383,7 +366,25 @@ def borrar_sesion(tel): s = cargar_sesiones(); s.pop(str(tel), None); guardar_se
 
 _respuestas_enviadas = {}
 
+# Textos Base Globales
+INFO_C1 = """Capítulo 1 — Equipo 27\n\nHotel José Antonio Deluxe\nCalle Bellavista 133, Miraflores, Lima\n\n*Viernes 1 de mayo*\n- 09:00 am Mesa de registro (obligatorio)\n- 10:00 am Inicio\n\n*Sábado 2 de mayo*\n- 09:00 am Ingreso\n- 10:00 am Inicio\n\n*Domingo 3 de mayo*\n- 09:00 am Inicio\n- 09:00 pm Cierre y celebración\n\nRopa cómoda, botella de agua."""
+COORDINADORAS = """Coordinadoras C1 y C2:\nDiana Moscoso: +51 912 379 744\nJoyce Marin: +51 933 599 903\nLeyla Pasquel: +51 919 502 385\nZuley Urteaga: +51 933 599 864"""
+STOP_CLAUSULA = "\n\n_Si no deseas recibir mas mensajes de este numero, responde STOP._"
+FIRMA = "\n\n*Comunicaciones Crear Poder Sin Limites Peru*"
+
 def enviar_mensaje(telefono, texto, nombre_imo=""):
+    sesion = get_sesion(telefono)
+    
+    # 🚀 AVISO DE IA CUÁNTICA EN EL PRIMER CONTACTO
+    if sesion.get("primera_vez", True):
+        aclaracion = "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*. Mis respuestas pueden ser limitadas. Para más información o si el sistema se satura, comunícate con nuestras coordinadoras:_\n\n" + COORDINADORAS
+        if "Coordinadoras C1 y C2" not in texto:
+            texto += aclaracion
+        else:
+            texto += "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*. Mis respuestas pueden ser limitadas. En caso de saturación, contacta a las coordinadoras mencionadas._"
+        sesion["primera_vez"] = False
+        set_sesion(telefono, sesion)
+
     cfg = get_config()
     try:
         r = req_lib.post(api_url(),
@@ -416,12 +417,6 @@ def es_confirmacion(texto):
     if tokens[0] in ok and len(tokens) <= 3: return True
     return False
 
-# Textos Base
-INFO_C1 = """Capítulo 1 — Equipo 27\n\nHotel José Antonio Deluxe\nCalle Bellavista 133, Miraflores, Lima\n\n*Viernes 1 de mayo*\n- 09:00 am Mesa de registro (obligatorio)\n- 10:00 am Inicio\n\n*Sábado 2 de mayo*\n- 09:00 am Ingreso\n- 10:00 am Inicio\n\n*Domingo 3 de mayo*\n- 09:00 am Inicio\n- 09:00 pm Cierre y celebración\n\nRopa cómoda, botella de agua."""
-COORDINADORAS = """Coordinadoras C1 y C2:\nDiana Moscoso: +51 912 379 744\nJoyce Marin: +51 933 599 903\nLeyla Pasquel: +51 919 502 385\nZuley Urteaga: +51 933 599 864"""
-STOP_CLAUSULA = "\n\n_Si no deseas recibir mas mensajes de este numero, responde STOP._"
-FIRMA = "\n\n*Comunicaciones Crear Poder Sin Limites Peru*"
-
 def r_quien_eres(pila=""): return (f"Hola {pila},\n\nTe contactamos de *Crear Poder Sin Limites Peru*.\n\nSomos comunicaciones en seguimiento del *Capitulo 1 — Equipo 27* (1, 2 y 3 de mayo).\n\nComo IMO, tienes participantes con inscripcion activa." + FIRMA)
 def r_cambio(pila): return (f"Hola {pila},\n\nLos cambios de nombre se gestionan directamente con tu coordinadora. El límite es el miércoles previo a las 6:00 pm.\n\n" + COORDINADORAS + FIRMA)
 def r_devolucion(pila): return (f"Hola {pila},\n\nEn Crear no realizamos devoluciones una vez efectuado el pago. Lo que aplica es que la inversión queda activa para el siguiente equipo.\n\n" + COORDINADORAS + FIRMA)
@@ -453,7 +448,9 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
 
     if intencion == "STOP":
         marcar_stop(telefono); borrar_sesion(telefono)
-        enviar_mensaje(telefono, "Listo. Has sido dado de baja de este canal. No recibiras mas mensajes." + FIRMA, imo_nombre_completo)
+        # Aquí saltamos la protección de primera vez para el STOP directo
+        cfg = get_config()
+        req_lib.post(api_url(), json={"messaging_product":"whatsapp","to":str(telefono),"type":"text","text":{"body":"Listo. Has sido dado de baja de este canal. No recibiras mas mensajes." + FIRMA,"preview_url":False}}, headers={"Authorization":f"Bearer {cfg['token']}", "Content-Type":"application/json"}, timeout=10)
         return
 
     _, px_list = cargar_px_del_imo(telefono)
@@ -476,12 +473,12 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
             extraidos = sesion.get("extraidos", [])
             actualizar_excel(extraidos, telefono)
             confirmados = [e for e in extraidos if e["estatus"] == "CONFIRMADO"]
-            borrar_sesion(telefono)
             if confirmados:
                 px_nombres = [e["px"] for e in confirmados]
-                set_sesion(telefono, {"estado": "esperando_fecha", "px_confirmados": px_nombres})
+                set_sesion(telefono, {"estado": "esperando_fecha", "px_confirmados": px_nombres, "primera_vez": False}) # Mantenemos que ya no es primera vez
                 enviar_mensaje(telefono, r_pedir_fecha(pila, px_nombres), imo_nombre_completo)
             else:
+                borrar_sesion(telefono)
                 msg_base = f"Gracias {pila}, todo quedo registrado. Te hemos quitado estas personas de tu lista de pendientes." + FIRMA
                 enviar_mensaje(telefono, humanizar_con_gemini(texto, msg_base, pila), imo_nombre_completo)
         else:
@@ -518,7 +515,9 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
         enviar_mensaje(telefono, humanizar_con_gemini(texto, r_no_entendido(pila, px_list), pila), imo_nombre_completo)
         return
 
-    set_sesion(telefono, {"estado": "esperando_confirmacion", "extraidos": extraidos})
+    # Aquí también guardamos el flag de primera vez para no perderlo al cambiar de estado
+    es_primera = sesion.get("primera_vez", True)
+    set_sesion(telefono, {"estado": "esperando_confirmacion", "extraidos": extraidos, "primera_vez": es_primera})
     no_mencionados = [px for px in px_list if not any(normalizar(px.split()[0]) == normalizar(e["px"].split()[0]) for e in extraidos)]
     
     msg = f"Perfecto {pila}, registre lo siguiente:\n\n{formatear_resumen(extraidos)}"
@@ -759,7 +758,8 @@ def recibir_mensaje():
             procesar_mensaje(telefono, texto, imo_nombre_sheet)
             
             respuesta_enviada = _respuestas_enviadas.pop(str(telefono), "")
-            registrar_en_sheets(telefono, imo_nombre_sheet or "PROSPECTO NUEVO", texto, respuesta_enviada[:500] if respuesta_enviada else "", "EMBUDO" if not imo_nombre_sheet else "")
+            if respuesta_enviada:
+                registrar_en_sheets(telefono, imo_nombre_sheet or "PROSPECTO NUEVO", texto, respuesta_enviada[:500], "EMBUDO" if not imo_nombre_sheet else "")
             
         elif tipo in ("audio","image","document","video","sticker"):
             enviar_mensaje(telefono, "Por favor responde con texto para poder registrar tu respuesta en nuestro sistema. No procesamos archivos multimedia.", "")
@@ -767,7 +767,7 @@ def recibir_mensaje():
     return jsonify({"status":"ok"}), 200
 
 @app.route("/status", methods=["GET"])
-def status(): return jsonify({"status": "activo", "version": "v14_cero_ia_y_nombre"}), 200
+def status(): return jsonify({"status": "activo", "version": "v15_ia_cuantica"}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
