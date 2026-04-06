@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-v18 MAGISTRAL — Banco de Respuestas (Sin IA) y Etiqueta de Prospecto
+v19 MAGISTRAL — Memoria Prospectos Fix y Etiquetado en Chat
 """
 
 import os, re, json, threading, time, csv, io
@@ -179,58 +179,53 @@ def embudo_ventas_gemini(mensaje_usuario, nombre_conocido=None):
     cfg = get_config()
     
     # 🌟 BANCO MAESTRO DE RESPUESTAS (FALLBACK ANTI-FALLOS)
-    # Cubre las intenciones de +100 preguntas comunes si la IA no está disponible.
     def respuesta_del_banco(mensaje):
         msg_norm = normalizar(mensaje)
         banco_preguntas = [
-            (["precio", "costo", "cuanto cuesta", "pagar", "inversion", "cuenta", "banco", "transferencia"], f"Hola. Para brindarte los detalles exactos de inversión y modalidades de pago, comunícate directamente con nuestras coordinadoras:\n\n{COORDINADORAS}"),
-            (["horario", "hora", "cuando empieza", "cuando termina", "dias", "fechas", "cronograma", "agenda"], f"El entrenamiento dura 3 días completos:\n\n{INFO_C1}"),
+            (["precio", "costo", "cuanto cuesta", "pagar", "inversion", "cuenta", "banco", "transferencia"], f"Para brindarte los detalles de inversión y formas de pago, por favor comunícate directamente con nuestras coordinadoras:\n\n{COORDINADORAS}"),
+            (["horario", "hora", "cuando empieza", "cuando termina", "dias", "fechas", "cronograma", "agenda"], f"El entrenamiento dura 3 días:\n\n{INFO_C1}"),
             (["donde", "lugar", "direccion", "ubicacion", "hotel", "distrito", "llegar", "mapa"], f"El entrenamiento se realiza en el Hotel José Antonio Deluxe, Calle Bellavista 133, Miraflores, Lima."),
-            (["ropa", "vestimenta", "que llevar", "llevar", "cuaderno", "lapicero", "frio", "calor"], "Te sugerimos llevar ropa muy cómoda y una botella de agua. No necesitas traer materiales adicionales para tomar nota."),
-            (["comida", "almuerzo", "refrigerio", "comer", "desayuno", "cena", "snacks"], "No se permiten alimentos ni bebidas externas al salón. Contaremos con los espacios y tiempos adecuados para que puedas salir a comer por la zona."),
-            (["que es", "de que trata", "que hacen", "para que sirve", "informacion", "info", "detalles", "explicame", "beneficios", "ayuda", "sanacion"], "El Capítulo 1 es la primera fase del viaje. Un entrenamiento vivencial de 3 días diseñado para romper paradigmas, descubrir tus barreras y crear nuevos resultados excepcionales en tu vida."),
-            (["hola", "buenos dias", "buenas tardes", "buenas noches", "saludos", "que tal"], f"¡Hola! Somos Crear Poder Sin Límites Perú. ¿Con quién tengo el gusto y en qué te podemos apoyar hoy?"),
-            (["edad", "niños", "menores", "jovenes", "adolescentes", "hijo", "hija"], "El Capítulo 1 está diseñado para adultos. Para conocer nuestros entrenamientos para niños y adolescentes, por favor contacta a nuestras coordinadoras."),
-            (["coordinadora", "asesor", "humano", "persona", "llamar", "numero", "telefono"], f"Claro, para una atención más personalizada puedes comunicarte con nuestras coordinadoras:\n\n{COORDINADORAS}")
+            (["ropa", "vestimenta", "que llevar", "llevar", "cuaderno", "lapicero", "frio", "calor"], "Te sugerimos llevar ropa muy cómoda y una botella de agua. No necesitas materiales para tomar nota."),
+            (["comida", "almuerzo", "refrigerio", "comer", "desayuno", "cena", "snacks"], "No se permiten alimentos ni bebidas externas al salón. Habrá espacios y tiempos adecuados para salir a comer por la zona."),
+            (["que es", "de que trata", "que hacen", "para que sirve", "informacion", "info", "detalles", "explicame", "beneficios", "ayuda", "sanacion", "saber"], "El Capítulo 1 es un entrenamiento vivencial de 3 días diseñado para romper paradigmas, descubrir tus barreras y apoyarte a crear nuevos resultados excepcionales en tu vida."),
+            (["hola", "buenos dias", "buenas tardes", "buenas noches", "saludos", "que tal"], f"¡Hola! Somos Crear Poder Sin Límites Perú. ¿Con quién tengo el gusto y cómo podemos apoyarte hoy?"),
+            (["edad", "niños", "menores", "jovenes", "adolescentes", "hijo", "hija"], "El Capítulo 1 está diseñado para adultos. Para conocer nuestros programas para niños y adolescentes, contacta a nuestras coordinadoras."),
+            (["coordinadora", "asesor", "humano", "persona", "llamar", "numero", "telefono", "contactar"], f"Claro, para una atención más personalizada comunícate con nuestras coordinadoras:\n\n{COORDINADORAS}")
         ]
         
-        # Buscar coincidencias en el banco
         for palabras_clave, respuesta in banco_preguntas:
             if any(kw in msg_norm for kw in palabras_clave):
                 return respuesta
         
-        # SI NO ENCUENTRA EN EL BANCO -> REMITIR A COORDINADORAS
         if nombre_conocido:
-            return f"¡Comprendido, {nombre_conocido}! Para resolver esta duda a detalle y brindarte una atención 100% personalizada, por favor escríbele directamente a nuestras coordinadoras:\n\n{COORDINADORAS}"
+            return f"¡Comprendido, {nombre_conocido}! Para resolver tu consulta a detalle y brindarte atención personalizada, por favor escríbele a nuestras coordinadoras:\n\n{COORDINADORAS}"
         else:
-            return f"Hola, somos Crear Poder Sin Límites Perú. Para brindarte la información exacta y atención profesional que mereces, por favor comunícate directamente con nuestras coordinadoras:\n\n{COORDINADORAS}"
+            return f"Hola, somos Crear Poder Sin Límites Perú. Para brindarte la información exacta y apoyarte mejor, por favor dinos tu nombre o comunícate directamente con nuestras coordinadoras:\n\n{COORDINADORAS}"
 
-    # Si no hay llave, usar el banco.
     if not cfg["gemini_key"] or genai is None: return respuesta_del_banco(mensaje_usuario)
     
     try:
         client = genai.Client(api_key=cfg["gemini_key"])
         prompt = f"""
         Eres un Asesor Profesional de 'Crear Poder Sin Límites Perú'.
-        Un prospecto nuevo acaba de escribir: "{mensaje_usuario}"
+        Un prospecto acaba de escribir: "{mensaje_usuario}"
         
-        Contexto del Prospecto: Su nombre conocido es: "{nombre_conocido if nombre_conocido else 'Desconocido'}".
+        Contexto: Su nombre es: "{nombre_conocido if nombre_conocido else 'Desconocido'}".
         
         Reglas Estrictas de Venta y Comunicación:
-        1. REGLA #1 (EL NOMBRE): Si no sabes su nombre, tu ÚNICO objetivo es saludar, decir que eres de Crear y PREGUNTAR SU NOMBRE. Si YA SABES SU NOMBRE (revisa el contexto o si te lo acaba de decir), úsalo y NO LO VUELVAS A PREGUNTAR.
+        1. REGLA #1 (EL NOMBRE): Si no sabes su nombre, tu ÚNICO objetivo es saludar y PREGUNTAR SU NOMBRE. Si YA SABES SU NOMBRE, úsalo de forma natural y NO LO VUELVAS A PREGUNTAR.
         2. PALABRAS PROHIBIDAS: "sanación", "sanar", "curar", "terapia", "paciente", "ayuda", "ayudar", "entender", "entiendo".
         3. PALABRAS DE PODER: Usa "comprender", "apoyar", "acompañar", "transformación", "crear", "liderazgo".
-        4. CERO RASTROS DE IA: Eres un profesional humano, maduro y experto.
-        5. BREVEDAD ABSOLUTA: Respuesta muy corta (máximo 2 oraciones breves).
-        6. Vende el Capítulo 1 y termina con una pregunta abierta para invitarlo a dar el paso.
+        4. CERO RASTROS DE IA: Eres un profesional humano y experto.
+        5. BREVEDAD ABSOLUTA: Respuesta muy corta (máximo 2 oraciones).
+        6. Vende el Capítulo 1 enfocado en crear resultados y termina con una pregunta corta para continuar la conversación.
         """
         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         if response.text: return response.text.strip()
     except Exception as e:
         error_str = str(e)
         if "503" in error_str or "429" in error_str:
-            time.sleep(1) # Pequeña pausa de gracia
-        # Si la IA falla o se satura, usamos nuestro Banco de Respuestas Maestro
+            time.sleep(1) 
         return respuesta_del_banco(mensaje_usuario)
         
     return respuesta_del_banco(mensaje_usuario)
@@ -490,7 +485,9 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
     
     if not imo_nombre_completo:
         nombre_guardado = sesion.get("nombre_prospecto")
-        if not nombre_guardado and len(texto.split()) < 4:
+        
+        # 🧠 INTELIGENCIA DE NOMBRES: Si es un mensaje corto y no teníamos el nombre, lo guardamos.
+        if not nombre_guardado and len(texto.split()) <= 3 and len(texto) > 2:
             sesion["nombre_prospecto"] = nombre_pila(texto)
             set_sesion(telefono, sesion)
             nombre_guardado = sesion["nombre_prospecto"]
@@ -802,6 +799,9 @@ def recibir_mensaje():
             if not imo_nombre_sheet:
                 sesion = get_sesion(telefono)
                 nm = sesion.get("nombre_prospecto")
+                # Si no tenía nombre y nos lo dio recién en este mensaje, lo atrapamos
+                if not nm and len(texto.split()) <= 3 and len(texto) > 2:
+                    nm = nombre_pila(texto)
                 nombre_mostrar = f"NUEVO PROSPECTO: {nm}" if nm else "NUEVO PROSPECTO"
             
             append_historial(telefono, nombre_mostrar, texto, "in")
@@ -823,7 +823,7 @@ def recibir_mensaje():
     return jsonify({"status":"ok"}), 200
 
 @app.route("/status", methods=["GET"])
-def status(): return jsonify({"status": "activo", "version": "v18_banco_y_nombres"}), 200
+def status(): return jsonify({"status": "activo", "version": "v19_memoria_arreglada"}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
