@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-v16 MAGISTRAL — Contexto Perfeccionado, Nombres y Cambios
+v17 MAGISTRAL — Anti-Bucle de Emergencia y Fallback Inteligente
 """
 
 import os, re, json, threading, time, csv, io
@@ -150,7 +150,7 @@ def append_historial(telefono, nombre, texto, tipo):
     except: pass
 
 # ══════════════════════════════════════════════════════════════════════════
-# MOTOR DE INTELIGENCIA ARTIFICIAL (GEMINI)
+# MOTOR DE INTELIGENCIA ARTIFICIAL (GEMINI) - FALLBACK INTELIGENTE
 # ══════════════════════════════════════════════════════════════════════════
 
 def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre, es_pregunta_compleja=False):
@@ -181,7 +181,15 @@ def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre, es_pregunt
 
 def embudo_ventas_gemini(mensaje_usuario, nombre_conocido=None):
     cfg = get_config()
-    fallback = "Hola, somos Crear Poder Sin Límites Perú. ¿Con quién tengo el gusto de comunicarme para brindarte la información adecuada?"
+    
+    # 🌟 NUEVO FALLBACK INTELIGENTE (Anti-Bucle)
+    # Si la IA se cae, pero ya sabemos su nombre, le damos la info y cortamos el bucle.
+    if nombre_conocido:
+        fallback = f"¡Hola {nombre_conocido}! Te comparto que el *Capítulo 1* es un entrenamiento vivencial de 3 días diseñado para romper paradigmas, encarar tu realidad y desbloquear tu verdadero potencial.\n\nPara brindarte una atención más humana y personalizada, por favor escríbele directamente a nuestras coordinadoras:\n\n{COORDINADORAS}"
+    else:
+        # Si NO sabemos su nombre, preguntamos.
+        fallback = "Hola, somos Crear Poder Sin Límites Perú. ¿Con quién tengo el gusto de comunicarme para brindarte la información adecuada?"
+
     if not cfg["gemini_key"] or genai is None: return fallback 
     
     try:
@@ -193,7 +201,7 @@ def embudo_ventas_gemini(mensaje_usuario, nombre_conocido=None):
         Contexto del Prospecto: Su nombre conocido es: "{nombre_conocido if nombre_conocido else 'Desconocido'}".
         
         Reglas Estrictas de Venta y Comunicación:
-        1. REGLA #1 (EL NOMBRE): Si no sabes su nombre, tu ÚNICO objetivo es saludar, decir que eres de Crear Poder Sin Límites y PREGUNTAR SU NOMBRE. Si YA SABES SU NOMBRE (revisa el contexto del prospecto o si te lo acaba de decir), úsalo y NO LO VUELVAS A PREGUNTAR.
+        1. REGLA #1 (EL NOMBRE): Si no sabes su nombre, tu ÚNICO objetivo es saludar, decir que eres de Crear Poder Sin Límites y PREGUNTAR SU NOMBRE. Si YA SABES SU NOMBRE (revisa el contexto o si te lo acaba de decir), úsalo y NO LO VUELVAS A PREGUNTAR.
         2. PALABRAS PROHIBIDAS: "sanación", "sanar", "curar", "terapia", "paciente", "ayuda", "ayudar", "entender", "entiendo", "entendemos".
         3. PALABRAS DE PODER: Usa "comprender", "apoyar", "acompañar", "transformación", "crear", "liderazgo".
         4. CERO RASTROS DE IA: Suena como un humano experto y profesional.
@@ -205,7 +213,7 @@ def embudo_ventas_gemini(mensaje_usuario, nombre_conocido=None):
         return fallback
     except Exception as e:
         print(f"[FUNNEL ERROR] {e}")
-        return fallback
+        return fallback # Devuelve el fallback inteligente sin bucle
 
 # ══════════════════════════════════════════════════════════════════════════
 # EXCLUIDOS Y LECTURA DE EXCEL
@@ -381,7 +389,6 @@ FIRMA = "\n\n*Comunicaciones Crear Poder Sin Limites Peru*"
 def enviar_mensaje(telefono, texto, nombre_imo=""):
     sesion = get_sesion(telefono)
     
-    # 🚀 AVISO DE IA CUÁNTICA EN EL PRIMER CONTACTO
     if sesion.get("primera_vez", True):
         aclaracion = "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*. Mis respuestas pueden ser limitadas. Para más información o si el sistema se satura, comunícate con nuestras coordinadoras:_\n\n" + COORDINADORAS
         if "Coordinadoras C1 y C2" not in texto:
@@ -462,11 +469,11 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
     pila = nombre_pila(imo_nombre_completo) if imo_nombre_completo else ""
     
     if not imo_nombre_completo:
-        # Guardar nombre si lo da el prospecto
+        # AQUI GUARDAMOS EL NOMBRE AUTOMATICAMENTE PARA NO PREGUNTARLO EN BUCLE
         nombre_guardado = sesion.get("nombre_prospecto")
         if not nombre_guardado and len(texto.split()) < 4:
-            # Posiblemente está dando su nombre
-            sesion["nombre_prospecto"] = texto.strip()
+            # Si el texto es corto (Ej: "Jose Luis"), lo guardamos como nombre.
+            sesion["nombre_prospecto"] = nombre_pila(texto)
             set_sesion(telefono, sesion)
             nombre_guardado = sesion["nombre_prospecto"]
             
@@ -780,7 +787,7 @@ def recibir_mensaje():
     return jsonify({"status":"ok"}), 200
 
 @app.route("/status", methods=["GET"])
-def status(): return jsonify({"status": "activo", "version": "v16_perfeccionamiento_total"}), 200
+def status(): return jsonify({"status": "activo", "version": "v17_bucle_eliminado"}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
