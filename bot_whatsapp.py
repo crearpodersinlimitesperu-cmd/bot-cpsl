@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-v14 MAGISTRAL — Cero IA, Brevedad, "Comprender" y Nombre Primero
+v15 MAGISTRAL — Motor de Auto-Reintento (Anti 503) + Cero IA
 """
 
 import os, re, json, threading, time, csv, io
@@ -150,56 +150,73 @@ def append_historial(telefono, nombre, texto, tipo):
     except: pass
 
 # ══════════════════════════════════════════════════════════════════════════
-# MOTOR DE INTELIGENCIA ARTIFICIAL (GEMINI) - FILOSOFÍA CREAR V14
+# MOTOR DE INTELIGENCIA ARTIFICIAL (GEMINI) - CON AUTO-REINTENTO
 # ══════════════════════════════════════════════════════════════════════════
 
 def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre):
     cfg = get_config()
     if not cfg["gemini_key"] or genai is None: return plantilla_base 
-    try:
-        client = genai.Client(api_key=cfg["gemini_key"])
-        prompt = f"""
-        Eres el asistente de WhatsApp de 'Crear Poder Sin Límites Perú'.
-        Hablas con el líder (IMO): {imo_nombre}.
-        Mensaje recibido: "{mensaje_usuario}"
-        Responde basándote en esta información obligatoria: "{plantilla_base}"
-        Reglas Estrictas: 
-        1. SÉ EXTREMADAMENTE BREVE Y PROFESIONAL. Cero rodeos, ve al punto.
-        2. NO uses "entender", "entiendo" o "entendemos". Usa SIEMPRE "comprender", "comprendo" o "comprendemos".
-        3. NO uses "ayudar". Usa "apoyar", "acompañar" o "crear".
-        4. ELIMINA TODO RASTRO DE IA. Suena humano, maduro y cortés.
-        5. No inventes fechas ni prometas cosas fuera de la información base.
-        """
-        response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
-        if response.text: return response.text.strip()
-        return plantilla_base
-    except: return plantilla_base
+    
+    prompt = f"""
+    Eres el asistente de WhatsApp de 'Crear Poder Sin Límites Perú'.
+    Hablas con el líder (IMO): {imo_nombre}.
+    Mensaje recibido: "{mensaje_usuario}"
+    Responde basándote en esta información obligatoria: "{plantilla_base}"
+    Reglas Estrictas: 
+    1. SÉ EXTREMADAMENTE BREVE Y PROFESIONAL. Cero rodeos, ve al punto.
+    2. NO uses "entender", "entiendo" o "entendemos". Usa SIEMPRE "comprender", "comprendo" o "comprendemos".
+    3. NO uses "ayudar". Usa "apoyar", "acompañar" o "crear".
+    4. ELIMINA TODO RASTRO DE IA. Suena humano, maduro y cortés.
+    5. No inventes fechas ni prometas cosas fuera de la información base.
+    """
+    
+    client = genai.Client(api_key=cfg["gemini_key"])
+    for intento in range(3):
+        try:
+            response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+            if response.text: return response.text.strip()
+        except Exception as e:
+            error_str = str(e)
+            if "503" in error_str or "429" in error_str:
+                if intento < 2:
+                    time.sleep(2) # Espera 2 segundos y reintenta
+                    continue
+            print(f"[GEMINI IMO ERROR] {e}")
+            return plantilla_base
+    return plantilla_base
 
 def embudo_ventas_gemini(mensaje_usuario):
     cfg = get_config()
     fallback = "Hola, somos Crear Poder Sin Límites Perú. ¿Con quién tengo el gusto de comunicarme para brindarte la información adecuada?"
     if not cfg["gemini_key"] or genai is None: return fallback 
     
-    try:
-        client = genai.Client(api_key=cfg["gemini_key"])
-        prompt = f"""
-        Eres un Asesor Profesional de 'Crear Poder Sin Límites Perú'.
-        Un prospecto nuevo acaba de escribir: "{mensaje_usuario}"
-        
-        Reglas Estrictas de Venta y Comunicación:
-        1. REGLA #1 (EL NOMBRE): Si en su mensaje no te ha dicho su nombre, tu ÚNICO objetivo es saludar profesionalmente, decir que eres de Crear Poder Sin Límites y PREGUNTAR SU NOMBRE. No des información ni vendas hasta saber con quién hablas.
-        2. PALABRAS PROHIBIDAS: "sanación", "sanar", "curar", "terapia", "paciente", "ayuda", "ayudar", "entender", "entiendo", "entendemos".
-        3. PALABRAS DE PODER: Usa "comprender", "apoyar", "acompañar", "transformación", "crear", "liderazgo".
-        4. CERO RASTROS DE IA: Suena como un humano experto y profesional.
-        5. BREVEDAD ABSOLUTA: Tu respuesta debe ser corta y directa (máximo 2 oraciones breves).
-        6. Si ya sabes su nombre (o te lo acaba de decir), háblale sobre descubrir su potencial en el Capítulo 1 y termina con una pregunta abierta corta.
-        """
-        response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
-        if response.text: return response.text.strip()
-        return fallback
-    except Exception as e:
-        print(f"[FUNNEL ERROR] {e}")
-        return fallback
+    prompt = f"""
+    Eres un Asesor Profesional de 'Crear Poder Sin Límites Perú'.
+    Un prospecto nuevo acaba de escribir: "{mensaje_usuario}"
+    
+    Reglas Estrictas de Venta y Comunicación:
+    1. REGLA #1 (EL NOMBRE): Si en su mensaje no te ha dicho su nombre, tu ÚNICO objetivo es saludar profesionalmente, decir que eres de Crear Poder Sin Límites y PREGUNTAR SU NOMBRE. No des información ni vendas hasta saber con quién hablas.
+    2. PALABRAS PROHIBIDAS: "sanación", "sanar", "curar", "terapia", "paciente", "ayuda", "ayudar", "entender", "entiendo", "entendemos".
+    3. PALABRAS DE PODER: Usa "comprender", "apoyar", "acompañar", "transformación", "crear", "liderazgo".
+    4. CERO RASTROS DE IA: Suena como un humano experto y profesional.
+    5. BREVEDAD ABSOLUTA: Tu respuesta debe ser corta y directa (máximo 2 oraciones breves).
+    6. Si ya sabes su nombre (o te lo acaba de decir), háblale sobre descubrir su potencial en el Capítulo 1 y termina con una pregunta abierta corta.
+    """
+    
+    client = genai.Client(api_key=cfg["gemini_key"])
+    for intento in range(3):
+        try:
+            response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+            if response.text: return response.text.strip()
+        except Exception as e:
+            error_str = str(e)
+            if "503" in error_str or "429" in error_str:
+                if intento < 2:
+                    time.sleep(2) # Espera 2 segundos y reintenta
+                    continue
+            print(f"[FUNNEL ERROR] {e}")
+            return fallback
+    return fallback
 
 # ══════════════════════════════════════════════════════════════════════════
 # EXCLUIDOS Y LECTURA DE EXCEL
@@ -422,7 +439,6 @@ def r_pendiente(pila, px_list):
 def r_no_entendido(pila, px_list):
     lista = "\n".join(f"• {px}" for px in px_list)
     return (f"Hola {pila},\n\nComprendo tu mensaje. 🤔\n\nPara poder registrarlo bien, por favor dime si asisten o no asisten estas personas:\n\n{lista}\n\n*(Ejemplo: 'Todos asisten', 'Ninguno va', o detalla por nombre)*" + FIRMA)
-def r_no_campaña(): return ("Hola,\n\nTe contactamos de *Crear Poder Sin Limites Peru*.\n\nEste canal es de seguimiento exclusivo para IMOs del *Capitulo 1 — Equipo 27*.\n\nSi deseas informacion de entrenamientos, comunicate aquí:\n\n" + COORDINADORAS + FIRMA)
 def r_pedir_fecha(pila, px_confirmados):
     nombres = "\n".join(f"• {px}" for px in px_confirmados)
     return (f"Hola {pila},\n\nConfirmacion registrada para:\n\n{nombres}\n\n¿En que dia estaran presentes?\n*(Viernes 1, Sabado 2, Domingo 3 de mayo — o los tres dias)*" + FIRMA)
@@ -444,7 +460,6 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
     pila = nombre_pila(imo_nombre_completo) if imo_nombre_completo else ""
     
     if not imo_nombre_completo:
-        # ES UN PROSPECTO NUEVO O EXTERNO - ACTIVAR EMBUDO IA CORREGIDO
         respuesta_embudo = embudo_ventas_gemini(texto)
         enviar_mensaje(telefono, respuesta_embudo, "PROSPECTO NUEVO")
         return
@@ -752,7 +767,7 @@ def recibir_mensaje():
     return jsonify({"status":"ok"}), 200
 
 @app.route("/status", methods=["GET"])
-def status(): return jsonify({"status": "activo", "version": "v14_nombre_primero"}), 200
+def status(): return jsonify({"status": "activo", "version": "v14_cero_ia_y_nombre"}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
