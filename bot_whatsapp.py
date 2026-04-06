@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-v26 MAGISTRAL — Registro de Alertas en Sheets/Chat + Anti-Menú Coordinadoras
+v27 MAGISTRAL — Fix Sync, C1/C2/MJ Integrados y Etiqueta 'Contacto'
 """
 
 import os, re, json, threading, time, csv, io, random
@@ -106,7 +106,7 @@ def leer_sheet():
     return []
 
 # ══════════════════════════════════════════════════════════════════════════
-# HISTORIAL PARA EL PANEL WEB
+# HISTORIAL PARA EL PANEL WEB (FUSIÓN INTELIGENTE - NO BORRA CHATS)
 # ══════════════════════════════════════════════════════════════════════════
 HISTORIAL_FILE = "historial_chat.json"
 _syncing = False
@@ -115,8 +115,11 @@ def forzar_sincronizacion_sheets():
     global _syncing
     if _syncing: return
     _syncing = True
-    historial = []
     try:
+        local_hist = get_historial()
+        # Creamos un registro de mensajes existentes para no duplicarlos
+        existing = set(f"{m.get('telefono','')}_{m.get('texto','')}" for m in local_hist)
+        
         rows = leer_sheet()
         if rows:
             for row in rows[1:]:
@@ -127,10 +130,17 @@ def forzar_sincronizacion_sheets():
                 if len(row) > 3: msg_in  = str(row[3]).strip()
                 if len(row) > 4: msg_out = str(row[4]).strip()
                 if len(row) > 6 and str(row[6]).strip(): msg_out = str(row[6]).strip()
+                
                 if tel:
-                    if msg_in: historial.append({"telefono": tel, "nombre": imo_n, "texto": msg_in, "tipo": "in", "hora": hora})
-                    if msg_out: historial.append({"telefono": tel, "nombre": imo_n, "texto": msg_out, "tipo": "out", "hora": hora})
-            with open(HISTORIAL_FILE, "w", encoding="utf-8") as f: json.dump(historial[-1500:], f, ensure_ascii=False, indent=2) 
+                    if msg_in and f"{tel}_{msg_in}" not in existing:
+                        local_hist.append({"telefono": tel, "nombre": imo_n, "texto": msg_in, "tipo": "in", "hora": hora})
+                        existing.add(f"{tel}_{msg_in}")
+                    if msg_out and f"{tel}_{msg_out}" not in existing:
+                        local_hist.append({"telefono": tel, "nombre": imo_n, "texto": msg_out, "tipo": "out", "hora": hora})
+                        existing.add(f"{tel}_{msg_out}")
+            
+            with open(HISTORIAL_FILE, "w", encoding="utf-8") as f: 
+                json.dump(local_hist[-2000:], f, ensure_ascii=False, indent=2) 
     except: pass
     finally: _syncing = False
 
@@ -146,11 +156,11 @@ def append_historial(telefono, nombre, texto, tipo):
         h = get_historial()
         hora_actual = datetime.now().strftime("%d/%m %H:%M")
         h.append({"telefono": str(telefono), "nombre": nombre, "texto": texto, "tipo": tipo, "hora": hora_actual})
-        with open(HISTORIAL_FILE, "w", encoding="utf-8") as f: json.dump(h[-1500:], f, ensure_ascii=False, indent=2)
+        with open(HISTORIAL_FILE, "w", encoding="utf-8") as f: json.dump(h[-2000:], f, ensure_ascii=False, indent=2)
     except: pass
 
 # ══════════════════════════════════════════════════════════════════════════
-# DATOS MAESTROS DEL BROCHURE Y COORDINADORAS
+# DATOS MAESTROS DEL BROCHURE Y COORDINADORAS (ACTUALIZADO C1/C2/MJ)
 # ══════════════════════════════════════════════════════════════════════════
 
 COORDINADORAS_CONTACTOS = {
@@ -163,11 +173,12 @@ COORDINADORAS_CONTACTOS = {
 BROCHURE_INFO_MAESTRA = """
 INFORMACIÓN OFICIAL CREAR PODER SIN LÍMITES PERÚ:
 - Misión: Impactar a la máxima cantidad de seres humanos a vivir una vida extraordinaria.
-- ¿Qué es Transformación Cuántica?: Es un modelo de coaching de alto rendimiento. Enseña nuevas formas de pensamiento, gestión emocional y hábitos para crear cambios sostenibles.
-- El Proceso: No es un simple evento, es un proceso que dura 100 DÍAS en total. Consiste en integrar lo aprendido a la vida cotidiana con apoyo de un equipo.
-- Reglas Importantes: Es exclusivo para MAYORES DE 18 AÑOS. Este entrenamiento NO ES PARA SANAR O ARREGLAR. NO sustituye ninguna terapia o proceso de salud mental.
+- Los 3 Niveles del Proceso (100 Días):
+  1. Capítulo 1 (C1): Descubrimiento. 3 días para romper paradigmas y darte cuenta de tus barreras.
+  2. Capítulo 2 (C2): Experiencia y Transformación profunda (Usualmente 4 días).
+  3. Maestría (MJ - Master Journey): Programa de liderazgo y resultados sostenibles de 100 días para integrar lo aprendido.
+- Reglas Importantes: Exclusivo para MAYORES DE 18 AÑOS. Este entrenamiento NO ES PARA SANAR O ARREGLAR. NO sustituye ninguna terapia o proceso de salud mental.
 - Opciones de Pago e Inversión: BCP Soles a nombre de CREACIÓN CUÁNTICA E.I.R.L (Cuenta: 1934218307060 / CCI: 00219300421830706018). Se acepta PayPal, Efectivo y tarjetas de crédito.
-- Sedes: Estamos en Perú (Lima), Colombia (Medellín), Ecuador (Quito, Cuenca, Guayaquil) y México.
 """
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -200,22 +211,23 @@ def embudo_ventas_gemini(mensaje_usuario, nombre_conocido=None):
     cfg = get_config()
     msg_len = len(mensaje_usuario.split())
     
+    # 🌟 BANCO MAESTRO DE RESPUESTAS (Sin IA)
     def respuesta_del_banco(mensaje):
         msg_norm = normalizar(mensaje)
         
         if msg_len <= 3 and nombre_conocido:
-            return f"¡Hola, {nombre_conocido}! Creemos firmemente que tienes un potencial ilimitado esperando ser despertado.\n\nA través de metodologías vivenciales, te acompañamos a romper las barreras que te frenan. Todo esto lo vives en el *Capítulo 1*, un entrenamiento intensivo de 3 días para transformar tu realidad. ¿Te gustaría conocer la fecha de nuestro próximo entrenamiento?"
+            return f"¡Hola, {nombre_conocido}! Ya seas que estés por iniciar el Capítulo 1, estés en tu C2 o cursando tu Maestría (MJ), estamos aquí para apoyarte. ¿Sobre qué nivel del entrenamiento deseas información?"
             
         banco_preguntas = [
-            (["100 dias", "cuanto dura", "duracion", "el proceso"], "Creemos en transformaciones reales. Por eso el proceso completo dura 100 días, donde con el apoyo de tu equipo integrarás lo aprendido a tu vida cotidiana, creando hábitos inquebrantables."),
+            (["c2", "capitulo 2", "segundo"], "El Capítulo 2 (C2) es la fase de transformación profunda. Es una experiencia inmersiva diseñada para rediseñar tu forma de relacionarte con el mundo. Si tienes dudas de tu fecha de C2, responde con el número *3*."),
+            (["mj", "maestria", "master journey", "100 dias"], "La Maestría (MJ) es el nivel donde el liderazgo se lleva a la acción. Son 100 días de entrenamiento para integrar todo a tu vida diaria y crear hábitos inquebrantables."),
+            (["c1", "capitulo 1", "primero", "que es", "de que trata", "informacion", "beneficios"], "El Capítulo 1 es el inicio de tu viaje. Un entrenamiento de 3 días diseñado para desarrollar nuevas formas de pensamiento, gestión emocional y descubrir tus barreras. ¿Estás listo para dar este salto?"),
             (["edad", "niños", "menores", "jovenes", "adolescentes", "18"], "Creemos en el potencial a toda edad, pero este formato está diseñado exclusivamente para mayores de 18 años. Si buscas espacios para menores, por favor escribe el número *3* y te apoyaremos."),
             (["terapia", "psicologo", "depresion", "sanar", "salud mental", "arreglar"], "Es vital aclarar que nuestro enfoque es de alto rendimiento. NO somos un centro de terapia ni sustituimos procesos de salud mental. Nos enfocamos en empoderarte para crear una nueva realidad a partir de hoy."),
-            (["precio", "costo", "cuanto cuesta", "pagar", "inversion", "cuenta", "banco", "transferencia", "bcp"], "Aceptamos pagos por transferencia al BCP a nombre de Creación Cuántica E.I.R.L. (Cuenta: 1934218307060 / CCI: 00219300421830706018), tarjetas de crédito y PayPal. ¿Te gustaría realizar la reserva de tu espacio ahora mismo?"),
-            (["que es", "de que trata", "que hacen", "para que sirve", "informacion", "beneficios", "capitulo 1"], "El Capítulo 1 es un modelo de coaching de alto rendimiento. Es un entrenamiento vivencial de 3 días diseñado para desarrollar nuevas formas de pensamiento, gestión emocional y descubrir las barreras que te limitan en tu vida actual. ¿Estás listo para dar este salto?"),
-            (["horario", "hora", "cuando empieza", "cuando termina", "dias", "fechas", "agenda"], f"Tu transformación requiere compromiso total. El proceso inmersivo de 3 días en el Hotel José Antonio Deluxe inicia este viernes a las 9:00 am y cierra el domingo por la noche (9:00 pm aproximadamente)."),
+            (["precio", "costo", "cuanto cuesta", "pagar", "inversion", "cuenta", "banco", "transferencia", "bcp"], "Aceptamos pagos por transferencia al BCP a nombre de Creación Cuántica E.I.R.L. (Cuenta: 1934218307060), tarjetas de crédito y PayPal. ¿Te gustaría realizar tu reserva ahora mismo?"),
+            (["horario", "hora", "cuando empieza", "cuando termina", "dias", "fechas", "agenda"], f"Nuestros procesos requieren compromiso. El Capítulo 1 inicia los viernes a las 9:00 am y cierra el domingo por la noche (9:00 pm aproximadamente)."),
             (["donde", "lugar", "direccion", "ubicacion", "hotel", "distrito", "sede"], f"Nuestra sede principal en Perú se encuentra en el Hotel José Antonio Deluxe, ubicado en Calle Bellavista 133, Miraflores, Lima. También contamos con sedes en Colombia, Ecuador y México."),
             (["ropa", "vestimenta", "que llevar", "llevar", "frio", "calor"], "Te sugerimos llevar ropa muy cómoda y una botella de agua para hidratarte. Todo lo demás lo ponemos nosotros en el salón."),
-            (["comida", "almuerzo", "refrigerio", "comer", "desayuno", "cena", "snacks"], "No se permiten alimentos ni bebidas externas al salón. Contaremos con los tiempos adecuados para que puedas salir a almorzar y compartir por la zona."),
             (["coordinadora", "asesor", "humano", "persona", "llamar", "contactar", "hablar", "queja"], "Para brindarte un apoyo 100% personalizado con una coordinadora humana, por favor responde únicamente con el número *3*.")
         ]
         
@@ -224,7 +236,7 @@ def embudo_ventas_gemini(mensaje_usuario, nombre_conocido=None):
                 return respuesta
         
         if nombre_conocido:
-            return f"¡Comprendido, {nombre_conocido}! Para resolver tu consulta a detalle sobre nuestro proceso, por favor responde con el número *3* y una coordinadora se comunicará contigo."
+            return f"¡Comprendido, {nombre_conocido}! Para resolver tu consulta a detalle y revisar tu proceso, por favor responde con el número *3* y una coordinadora se comunicará contigo."
         else:
             return f"En Crear Poder Sin Límites creemos en acompañarte hacia tu mejor versión. Para apoyarte de forma humana y precisa, responde con el número *3* para enlazarte con una coordinadora."
 
@@ -234,20 +246,21 @@ def embudo_ventas_gemini(mensaje_usuario, nombre_conocido=None):
         client = genai.Client(api_key=cfg["gemini_key"])
         prompt = f"""
         Eres un Asesor Experto y Resolutivo de 'Crear Poder Sin Límites Perú'.
-        Un prospecto acaba de escribir: "{mensaje_usuario}"
-        Contexto del prospecto: Su nombre es: "{nombre_conocido if nombre_conocido else 'Desconocido'}".
+        La persona que escribe puede ser un NUEVO PROSPECTO o un PARTICIPANTE ACTUAL (de C1, C2 o Maestría/MJ).
+        Acaba de escribir: "{mensaje_usuario}"
+        Contexto del contacto: Su nombre es: "{nombre_conocido if nombre_conocido else 'Desconocido'}".
         
         INFORMACIÓN OFICIAL PARA RESPONDER DUDAS:
         {BROCHURE_INFO_MAESTRA}
         
         Reglas Estrictas:
-        1. RESPONDE SUS DUDAS USANDO LA INFORMACIÓN DEL BROCHURE. Si pregunta precios o cuentas, dáselas (BCP Creación Cuántica...). Si pregunta duración, explícale los 100 días.
-        2. NO lo mandes a hablar con la coordinadora a menos que pida explícitamente hablar con un humano o sea un tema muy complejo. ¡Tú eres el asesor, tú resuelves!
-        3. EL NOMBRE: Si no sabes su nombre, pregunta por él cortésmente. Si YA LO SABES, úsalo.
+        1. RESPONDE SUS DUDAS USANDO LA INFORMACIÓN DEL BROCHURE (C1, C2, Maestría, Cuentas, etc).
+        2. NO lo mandes a hablar con la coordinadora a menos que pida explícitamente hablar con un humano o sea un tema complejo (como pedir cambio de fechas, devoluciones).
+        3. EL NOMBRE: Si no sabes su nombre, pregunta por él cortésmente. Si YA LO SABES, úsalo de forma natural.
         4. PALABRAS PROHIBIDAS: "sanar", "curar", "terapia", "paciente", "ayuda", "ayudar", "entender".
         5. PALABRAS DE PODER: "comprender", "apoyar", "acompañar", "transformación", "crear", "100 días", "alto rendimiento".
-        6. CERO RASTROS DE IA. Eres humano, seguro de ti mismo y experto.
-        7. BREVEDAD: Responde su duda en máximo 2 o 3 oraciones cortas y termina con una pregunta persuasiva de cierre.
+        6. CERO RASTROS DE IA. Eres humano, seguro de ti mismo y experto en el proceso.
+        7. BREVEDAD: Responde su duda en máximo 2 o 3 oraciones cortas.
         """
         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         if response.text: return response.text.strip()
@@ -437,14 +450,13 @@ Soy *IA Cuántica*, tu asistente virtual. Nuestra misión es acompañarte a vivi
 
 Para brindarte el mejor apoyo, responde con el *número* de la opción que deseas:
 
-1️⃣ Quiero saber más sobre los entrenamientos
+1️⃣ Información sobre entrenamientos (C1, C2, Maestría)
 2️⃣ Soy líder (IMO) y quiero reportar asistencia
 3️⃣ Deseo hablar directamente con una coordinadora"""
 
 def enviar_mensaje(telefono, texto, nombre_imo=""):
     sesion = get_sesion(telefono)
     
-    # Solo adjuntamos el mensaje de bienvenida IA si es la primera vez y NO es la alerta a la coordinadora
     if sesion.get("primera_vez", True) and not str(nombre_imo).startswith("COORDINADORA"):
         aclaracion = "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*. Mis respuestas pueden ser limitadas. Para más información o si el sistema se satura, comunícate con nuestras coordinadoras:_\n\n" + COORDINADORAS
         if "Coordinadoras C1 y C2" not in texto:
@@ -468,20 +480,15 @@ def enviar_mensaje(telefono, texto, nombre_imo=""):
 def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre, ultimo_mensaje):
     coord_nombre, coord_tel = random.choice(list(COORDINADORAS_CONTACTOS.items()))
     nombre_txt = prospecto_nombre if prospecto_nombre else "No especificado"
-    msg_coord = f"🚨 *NUEVO LEAD PARA CREAR* 🚀\n\n*Nombre:* {nombre_txt}\n*Teléfono:* wa.me/{prospecto_tel}\n*Escribió:* \"{ultimo_mensaje}\"\n\nEl prospecto ha solicitado conversar con una coordinadora. ¡Es tu turno de apoyarlo a dar su salto cuántico!"
+    msg_coord = f"🚨 *NUEVO CONTACTO PARA CREAR* 🚀\n\n*Nombre:* {nombre_txt}\n*Teléfono:* wa.me/{prospecto_tel}\n*Escribió:* \"{ultimo_mensaje}\"\n\nEl contacto ha solicitado conversar con una coordinadora. ¡Es tu turno de apoyarlo a dar su salto cuántico!"
     
-    # Desactivamos el aviso de IA Cuántica para el número de la coordinadora
     sesion_coord = get_sesion(coord_tel)
     sesion_coord["primera_vez"] = False 
     set_sesion(coord_tel, sesion_coord)
 
     nombre_mostrar_coord = f"COORDINADORA: {coord_nombre}"
-    
-    # Envía a la coordinadora por WhatsApp y lo registra en el Panel Web bajo "COORDINADORA: [Nombre]"
     enviar_mensaje(coord_tel, msg_coord, nombre_mostrar_coord)
-    
-    # Registra la alerta en Google Sheets para control administrativo
-    registrar_en_sheets(coord_tel, nombre_mostrar_coord, f"Alerta generada por Lead: {prospecto_tel}", msg_coord, "ALERTA LEAD")
+    registrar_en_sheets(coord_tel, nombre_mostrar_coord, f"Alerta generada por Contacto: {prospecto_tel}", msg_coord, "ALERTA LEAD")
     
     return coord_nombre
 
@@ -528,17 +535,18 @@ def r_pedir_fecha(pila, px_confirmados):
     return (f"Hola {pila},\n\nConfirmacion registrada para:\n\n{nombres}\n\n¿En que dia estaran presentes?\n*(Viernes 1, Sabado 2, Domingo 3 de mayo — o los tres dias)*" + FIRMA)
 
 # ══════════════════════════════════════════════════════════════════════════
-# LOGICA PRINCIPAL DEL BOT (TRIAJE + BROCHURE + ROUND ROBIN)
+# LOGICA PRINCIPAL DEL BOT (TRIAJE + BROCHURE + ETIQUETA 'CONTACTO')
 # ══════════════════════════════════════════════════════════════════════════
 
 def procesar_mensaje(telefono, texto, imo_nombre_completo):
     sesion    = get_sesion(telefono)
     intencion = detectar_intencion(texto)
     
+    # 🌟 ETIQUETA UNIVERSAL: "CONTACTO" EN LUGAR DE "PROSPECTO"
     nombre_mostrar = imo_nombre_completo
     if not imo_nombre_completo:
         nm = sesion.get("nombre_prospecto")
-        nombre_mostrar = f"NUEVO PROSPECTO: {nm}" if nm else "NUEVO PROSPECTO"
+        nombre_mostrar = f"CONTACTO: {nm}" if nm else "NUEVO CONTACTO"
 
     if intencion == "STOP":
         marcar_stop(telefono); borrar_sesion(telefono)
@@ -596,14 +604,14 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
     if sesion.get("estado") == "atendido_por_humano":
         return
 
-    # 🌟 PASO 3: FLUJO DE PROSPECTO (OPCIÓN 1)
+    # 🌟 PASO 3: FLUJO GENERAL DE CONTACTO (C1, C2, MJ, PROSPECTO)
     if sesion.get("estado") == "embudo_prospecto" or not imo_nombre_completo:
         nombre_guardado = sesion.get("nombre_prospecto")
         if not nombre_guardado and len(texto.split()) <= 3 and len(texto) > 2:
             sesion["nombre_prospecto"] = nombre_pila(texto)
             set_sesion(telefono, sesion)
             nombre_guardado = sesion["nombre_prospecto"]
-            nombre_mostrar = f"NUEVO PROSPECTO: {nombre_guardado}"
+            nombre_mostrar = f"CONTACTO: {nombre_guardado}"
             
         respuesta_embudo = embudo_ventas_gemini(texto, nombre_guardado)
         enviar_mensaje(telefono, respuesta_embudo, nombre_mostrar)
@@ -870,7 +878,7 @@ def descargar_respaldo():
     writer = csv.writer(output)
     writer.writerow(["Fecha", "Telefono", "Nombre IMO", "Tipo Mensaje", "Texto"])
     for m in h:
-        tipo_str = "Bot/Panel envió" if m.get("tipo") == "out" else "IMO/Prospecto respondió"
+        tipo_str = "Bot/Panel envió" if m.get("tipo") == "out" else "IMO/Contacto respondió"
         writer.writerow([m.get("hora", ""), m.get("telefono", ""), m.get("nombre", ""), tipo_str, m.get("texto", "")])
     return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=Respaldo_Chats.csv"})
 
@@ -882,7 +890,7 @@ def api_enviar():
         if not imo_nombre: 
             sesion = get_sesion(tel)
             nm = sesion.get("nombre_prospecto")
-            imo_nombre = f"NUEVO PROSPECTO: {nm}" if nm else "NUEVO PROSPECTO"
+            imo_nombre = f"CONTACTO: {nm}" if nm else "NUEVO CONTACTO"
             
         enviar_mensaje(tel, msg, imo_nombre)
         registrar_en_sheets(tel, imo_nombre, "[ENVIADO DESDE PANEL PRIVADO]", msg, "MANUAL")
@@ -909,15 +917,14 @@ def recibir_mensaje():
             texto = msg["text"]["body"]
             imo_nombre_sheet, _ = cargar_px_del_imo(telefono)
             
-            # Nombre para mostrar si es prospecto
+            # Nombre para mostrar si es prospecto/contacto
             nombre_mostrar = imo_nombre_sheet
             if not imo_nombre_sheet:
                 sesion = get_sesion(telefono)
                 nm = sesion.get("nombre_prospecto")
-                # Atrapamos nombre en este mensaje si el usuario seleccionó menú 1 o está en embudo
                 if not nm and len(texto.split()) <= 3 and len(texto) > 2 and texto.strip() not in ["1","2","3"]:
                     nm = nombre_pila(texto)
-                nombre_mostrar = f"NUEVO PROSPECTO: {nm}" if nm else "NUEVO PROSPECTO"
+                nombre_mostrar = f"CONTACTO: {nm}" if nm else "NUEVO CONTACTO"
             
             append_historial(telefono, nombre_mostrar, texto, "in")
             procesar_mensaje(telefono, texto, imo_nombre_sheet)
@@ -926,7 +933,7 @@ def recibir_mensaje():
             sesion_updated = get_sesion(telefono)
             if not imo_nombre_sheet:
                 nm_updated = sesion_updated.get("nombre_prospecto")
-                nombre_mostrar = f"NUEVO PROSPECTO: {nm_updated}" if nm_updated else "NUEVO PROSPECTO"
+                nombre_mostrar = f"CONTACTO: {nm_updated}" if nm_updated else "NUEVO CONTACTO"
 
             respuesta_enviada = _respuestas_enviadas.pop(str(telefono), "")
             if respuesta_enviada:
@@ -938,7 +945,7 @@ def recibir_mensaje():
     return jsonify({"status":"ok"}), 200
 
 @app.route("/status", methods=["GET"])
-def status(): return jsonify({"status": "activo", "version": "v26_registro_alertas_y_antimenu"}), 200
+def status(): return jsonify({"status": "activo", "version": "v27_sync_fusion_y_contacto"}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
