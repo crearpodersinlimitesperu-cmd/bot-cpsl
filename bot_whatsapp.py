@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-v8.1 MAGISTRAL — Sincronización Forzada Sheets + Nueva IA Gemini
+v8.2 MAGISTRAL — Carga en Segundo Plano (Anti-Timeout) + Gemini
 """
 
 import os, re, json, threading, time
@@ -11,10 +11,9 @@ import requests as req_lib
 from openpyxl import load_workbook
 from filelock import FileLock
 
-# ---- NUEVA LIBRERÍA DE GEMINI ----
+# ---- LIBRERÍA OFICIAL NUEVA DE GEMINI ----
 try:
     from google import genai
-    from google.genai import types
 except ImportError:
     genai = None
 
@@ -48,7 +47,7 @@ def norm_tel(tel):
 def ep(): return get_config()["excel_path"]
 
 # ══════════════════════════════════════════════════════════════════════════
-# GOOGLE SHEETS CORE (CON REINTENTOS)
+# GOOGLE SHEETS CORE 
 # ══════════════════════════════════════════════════════════════════════════
 import base64
 
@@ -107,12 +106,16 @@ def leer_sheet():
     return []
 
 # ══════════════════════════════════════════════════════════════════════════
-# HISTORIAL SÍNCRONO PARA EL PANEL WEB
+# HISTORIAL EN SEGUNDO PLANO (ANTI TIMEOUT)
 # ══════════════════════════════════════════════════════════════════════════
 HISTORIAL_FILE = "historial_chat.json"
+_syncing = False
 
 def forzar_sincronizacion_sheets():
-    print("[HISTORIAL] Forzando sincronización desde Google Sheets...")
+    global _syncing
+    if _syncing: return
+    _syncing = True
+    print("[HISTORIAL] Sincronizando desde Sheets en SEGUNDO PLANO...")
     historial = []
     try:
         rows = leer_sheet()
@@ -128,20 +131,17 @@ def forzar_sincronizacion_sheets():
                     if msg_in: historial.append({"telefono": tel, "texto": msg_in, "tipo": "in", "hora": hora})
                     if msg_out: historial.append({"telefono": tel, "texto": msg_out, "tipo": "out", "hora": hora})
             with open(HISTORIAL_FILE, "w", encoding="utf-8") as f: json.dump(historial[-1000:], f, ensure_ascii=False, indent=2) 
-            return True
+            print("[HISTORIAL] ¡Sincronización Exitosa!")
     except Exception as e:
         print(f"[ERROR SHEETS SYNC] {e}")
-        return False
+    finally:
+        _syncing = False
 
 def get_historial():
-    # Siempre intentar recargar de Sheets si el archivo local está vacío
     try:
-        if not os.path.exists(HISTORIAL_FILE) or os.path.getsize(HISTORIAL_FILE) < 5:
-            forzar_sincronizacion_sheets()
-            
-        with open(HISTORIAL_FILE, "r", encoding="utf-8") as f:
-            hist = json.load(f)
-            if hist: return hist
+        if os.path.exists(HISTORIAL_FILE):
+            with open(HISTORIAL_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
     except: pass
     return []
 
@@ -552,8 +552,9 @@ HTML_CHAT = """
         .send-btn:hover { background: #005c4b; }
         .hidden { display: none !important; }
         .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; z-index: 1; color: var(--text-muted); text-align: center; padding: 20px;}
-        .sync-btn { background: #e9edef; border: 1px solid #ccc; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; }
+        .sync-btn { background: #e9edef; border: 1px solid #ccc; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; transition: 0.2s; }
         .sync-btn:hover { background: #d1d7db; }
+        .sync-btn.loading { background: #ffe082; pointer-events: none; }
     </style>
 </head>
 <body>
@@ -562,7 +563,7 @@ HTML_CHAT = """
             <div class="sidebar-header">
                 <div>💬 Panel de Chats</div>
                 <div style="font-size:12px; color:#555; font-weight:normal; display:flex; align-items:center; gap:10px;">
-                    <button class="sync-btn" onclick="forceSync()">🔄 Sincronizar</button>
+                    <button class="sync-btn" id="syncBtn" onclick="forceSync()">🔄 Sincronizar</button>
                     <div><span class="status-dot"></span>En línea</div>
                 </div>
             </div>
@@ -607,16 +608,27 @@ HTML_CHAT = """
         }
 
         async function forceSync() {
-            document.querySelector('.sync-btn').innerText = "⏳...";
-            await fetch('/api/force_sync', {method: 'POST'});
-            await cargarDatos();
-            document.querySelector('.sync-btn').innerText = "🔄 Sincronizar";
+            const btn = document.getElementById('syncBtn');
+            btn.classList.add('loading');
+            btn.innerText = "⏳ Sincronizando...";
+            try {
+                await fetch('/api/force_sync', {method: 'POST'});
+                // Esperar 4 seg a que termine el hilo
+                setTimeout(async () => {
+                    await cargarDatos();
+                    btn.classList.remove('loading');
+                    btn.innerText = "🔄 Sincronizar";
+                }, 4000);
+            } catch(e) {
+                btn.classList.remove('loading');
+                btn.innerText = "🔄 Sincronizar";
+            }
         }
 
         function renderContacts() {
             const list = document.getElementById('contactsList'); list.innerHTML = '';
             const phones = Object.keys(chatHistory).reverse();
-            if(phones.length === 0) { list.innerHTML = '<div style="padding: 20px; text-align: center; color: #888;">No hay chats recientes.</div>'; return; }
+            if(phones.length === 0) { list.innerHTML = '<div style="padding: 20px; text-align: center; color: #888;">No hay chats recientes. Haz clic en Sincronizar.</div>'; return; }
             phones.forEach(phone => {
                 const messages = chatHistory[phone]; const lastMessage = messages[messages.length - 1].text;
                 const div = document.createElement('div');
@@ -680,8 +692,8 @@ def api_historial(): return jsonify(get_historial()), 200
 
 @app.route("/api/force_sync", methods=["POST"])
 def force_sync():
-    forzar_sincronizacion_sheets()
-    return jsonify({"status": "ok"}), 200
+    threading.Thread(target=forzar_sincronizacion_sheets, daemon=True).start()
+    return jsonify({"status": "syncing"}), 200
 
 @app.route("/api/enviar", methods=["POST"])
 def api_enviar():
@@ -710,6 +722,7 @@ def recibir_mensaje():
         tipo     = msg.get("type","")
         if tipo == "text":
             texto = msg["text"]["body"]
+            print(f"[IN] {telefono}: {texto[:50]}")
             procesar_mensaje(telefono, texto)
             append_historial(telefono, texto, "in")
         elif tipo in ("audio","image","document","video","sticker"):
@@ -718,10 +731,10 @@ def recibir_mensaje():
     return jsonify({"status":"ok"}), 200
 
 @app.route("/status", methods=["GET"])
-def status(): return jsonify({"status": "activo", "version": "v8.1_gemini_sheets"}), 200
+def status(): return jsonify({"status": "activo", "version": "v8.2_gemini_sheets_fixed"}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    # Al arrancar, intentamos sincronizar una vez para que el panel web nazca lleno
+    # Sincroniza al iniciar en segundo plano para no bloquear el servidor (Anti-Timeout)
     threading.Thread(target=forzar_sincronizacion_sheets, daemon=True).start()
     app.run(host="0.0.0.0", port=port, debug=False)
