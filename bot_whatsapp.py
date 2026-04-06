@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-v16 MAGISTRAL — Ahorro Inteligente de IA (Anti-Límite 429)
+v16 MAGISTRAL — Contexto Perfeccionado, Nombres y Cambios
 """
 
 import os, re, json, threading, time, csv, io
@@ -46,7 +46,7 @@ def norm_tel(tel):
 def ep(): return get_config()["excel_path"]
 
 # ══════════════════════════════════════════════════════════════════════════
-# GOOGLE SHEETS CORE 
+# GOOGLE SHEETS CORE (SÍNCRONO)
 # ══════════════════════════════════════════════════════════════════════════
 import base64
 
@@ -150,13 +150,12 @@ def append_historial(telefono, nombre, texto, tipo):
     except: pass
 
 # ══════════════════════════════════════════════════════════════════════════
-# MOTOR DE INTELIGENCIA ARTIFICIAL (GEMINI) - FILOSOFÍA CREAR
+# MOTOR DE INTELIGENCIA ARTIFICIAL (GEMINI)
 # ══════════════════════════════════════════════════════════════════════════
 
 def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre, es_pregunta_compleja=False):
     cfg = get_config()
     
-    # 🌟 AHORRO INTELIGENTE: Si no es una pregunta compleja (es solo un "Sí", "No asiste", etc.), enviamos la plantilla directa para no agotar la API.
     if not es_pregunta_compleja:
         return plantilla_base
 
@@ -180,7 +179,7 @@ def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre, es_pregunt
         return plantilla_base
     except: return plantilla_base
 
-def embudo_ventas_gemini(mensaje_usuario):
+def embudo_ventas_gemini(mensaje_usuario, nombre_conocido=None):
     cfg = get_config()
     fallback = "Hola, somos Crear Poder Sin Límites Perú. ¿Con quién tengo el gusto de comunicarme para brindarte la información adecuada?"
     if not cfg["gemini_key"] or genai is None: return fallback 
@@ -191,13 +190,15 @@ def embudo_ventas_gemini(mensaje_usuario):
         Eres un Asesor Profesional de 'Crear Poder Sin Límites Perú'.
         Un prospecto nuevo acaba de escribir: "{mensaje_usuario}"
         
+        Contexto del Prospecto: Su nombre conocido es: "{nombre_conocido if nombre_conocido else 'Desconocido'}".
+        
         Reglas Estrictas de Venta y Comunicación:
-        1. REGLA #1 (EL NOMBRE): Si en su mensaje no te ha dicho su nombre, tu ÚNICO objetivo es saludar profesionalmente, decir que eres de Crear Poder Sin Límites y PREGUNTAR SU NOMBRE. No des información ni vendas hasta saber con quién hablas.
+        1. REGLA #1 (EL NOMBRE): Si no sabes su nombre, tu ÚNICO objetivo es saludar, decir que eres de Crear Poder Sin Límites y PREGUNTAR SU NOMBRE. Si YA SABES SU NOMBRE (revisa el contexto del prospecto o si te lo acaba de decir), úsalo y NO LO VUELVAS A PREGUNTAR.
         2. PALABRAS PROHIBIDAS: "sanación", "sanar", "curar", "terapia", "paciente", "ayuda", "ayudar", "entender", "entiendo", "entendemos".
         3. PALABRAS DE PODER: Usa "comprender", "apoyar", "acompañar", "transformación", "crear", "liderazgo".
         4. CERO RASTROS DE IA: Suena como un humano experto y profesional.
         5. BREVEDAD ABSOLUTA: Tu respuesta debe ser corta y directa (máximo 2 oraciones breves).
-        6. Si ya sabes su nombre (o te lo acaba de decir), háblale sobre descubrir su potencial en el Capítulo 1 y termina con una pregunta abierta corta.
+        6. Si ya sabes su nombre, háblale sobre descubrir su potencial en el Capítulo 1 y termina con una pregunta abierta corta.
         """
         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         if response.text: return response.text.strip()
@@ -461,7 +462,15 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
     pila = nombre_pila(imo_nombre_completo) if imo_nombre_completo else ""
     
     if not imo_nombre_completo:
-        respuesta_embudo = embudo_ventas_gemini(texto)
+        # Guardar nombre si lo da el prospecto
+        nombre_guardado = sesion.get("nombre_prospecto")
+        if not nombre_guardado and len(texto.split()) < 4:
+            # Posiblemente está dando su nombre
+            sesion["nombre_prospecto"] = texto.strip()
+            set_sesion(telefono, sesion)
+            nombre_guardado = sesion["nombre_prospecto"]
+            
+        respuesta_embudo = embudo_ventas_gemini(texto, nombre_guardado)
         enviar_mensaje(telefono, respuesta_embudo, "PROSPECTO NUEVO")
         return
 
@@ -492,6 +501,7 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
 
     if not px_list:
         if intencion in ("INFO_C1", "VOLANTE"): enviar_mensaje(telefono, humanizar_con_gemini(texto, r_volante(pila), pila, es_pregunta_compleja=True), imo_nombre_completo); return
+        if intencion == "CAMBIO": enviar_mensaje(telefono, humanizar_con_gemini(texto, r_cambio(pila), pila, es_pregunta_compleja=False), imo_nombre_completo); return
         enviar_mensaje(telefono, humanizar_con_gemini(texto, f"Hola {pila},\n\nYa tienes el estatus registrado para todas tus personas pendientes. Si hay algun cambio antes del *1 de mayo*, escribenos." + FIRMA, pila, es_pregunta_compleja=False), imo_nombre_completo)
         return
 
@@ -770,7 +780,7 @@ def recibir_mensaje():
     return jsonify({"status":"ok"}), 200
 
 @app.route("/status", methods=["GET"])
-def status(): return jsonify({"status": "activo", "version": "v15_ia_cuantica_cero_ia"}), 200
+def status(): return jsonify({"status": "activo", "version": "v16_perfeccionamiento_total"}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
