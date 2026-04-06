@@ -59,7 +59,7 @@ def humanizar_con_gemini(mensaje_usuario, plantilla_base, imo_nombre):
     try:
         genai.configure(api_key=cfg["gemini_key"])
         # Usamos el modelo flash que es rapidísimo para chats
-        model = genai.GenerativeModel('gemini-1.5-flash') 
+        model = genai.GenerativeModel('gemini-pro')
         
         prompt = f"""
         Eres el asistente de WhatsApp de 'Comunicaciones Crear Poder Sin Límites Perú'.
