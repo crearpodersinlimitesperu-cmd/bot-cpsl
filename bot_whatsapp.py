@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V44: CRM Omnicanal Perfecto (Detección PX, IMO y Auto-Update de Sheets)
+✅ Versión V45: CRM Perfecto + Buscador de Rezagados por IMO
 """
 
 import os, re, json, time, csv, io, random, logging
@@ -321,9 +321,10 @@ MENU_STRUCTURE = {
             "1️⃣ *Reportar Asistencia* de mis participantes\n"
             "2️⃣ *Explorar Entrenamientos* e información oficial\n"
             "3️⃣ *Hablar con una Coordinadora* para apoyo especial\n"
+            "4️⃣ *Ver mis participantes pendientes* (C1/C2)\n"
             "0️⃣ *Finalizar sesión*"
         ),
-        "options": {"1": "action_imo", "2": "info_entrenamientos", "3": "action_humano", "0": "action_salir"}
+        "options": {"1": "action_imo", "2": "info_entrenamientos", "3": "action_humano", "4": "ver_pendientes_imo", "0": "action_salir"}
     },
     "main_px": {
         "text": (
@@ -383,7 +384,7 @@ def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre, necesidad_
     return coord_nombre
 
 # ══════════════════════════════════════════════════════════════════════════
-# 6. UTILIDADES, RECONOCIMIENTO CRM Y EXCEL
+# 6. UTILIDADES, RECONOCIMIENTO CRM Y BUSCADOR DE REZAGADOS
 # ══════════════════════════════════════════════════════════════════════════
 def norm_tel(tel):
     t = str(tel).strip().replace("+","").replace(" ","").replace("-","")
@@ -423,11 +424,8 @@ def cargar_px_del_imo(telefono):
         except: return "", []
 
 def obtener_perfil_crm(telefono):
-    """Cerebro del CRM Omnicanal: Detecta si es IMO, PX o Prospecto"""
     tel_n = norm_tel(telefono)
     perfil = {"rol": "PROSPECTO", "nombre": None, "pendiente": None, "imo_nombre": None, "imo_tel": None}
-    
-    # 1. Es IMO?
     imo_nom, px_list = cargar_px_del_imo(tel_n)
     if imo_nom:
         perfil["rol"] = "IMO"
@@ -435,7 +433,6 @@ def obtener_perfil_crm(telefono):
         perfil["pendientes"] = px_list
         return perfil
         
-    # 2. Buscar en CSV para ver si es PX
     try:
         if os.path.exists(Config.CSV_BD_PATH):
             with open(Config.CSV_BD_PATH, "r", encoding="utf-8-sig") as f:
@@ -480,8 +477,51 @@ def obtener_perfil_crm(telefono):
     except Exception as e: logger.error(f"Error en CRM CSV: {e}")
     return perfil
 
+def buscar_pendientes_imo_csv(telefono):
+    """Busca en el CSV todos los participantes de un IMO que tengan C1='NO' o C2='NO'"""
+    try:
+        if not os.path.exists(Config.CSV_BD_PATH): return []
+        pendientes = []
+        with open(Config.CSV_BD_PATH, "r", encoding="utf-8-sig") as f:
+            primera_linea = f.readline()
+            delimitador = ';' if ';' in primera_linea else ','
+            f.seek(0)
+            reader = csv.DictReader(f, delimiter=delimitador)
+            
+            imo_tel_key = next((c for c in reader.fieldnames if c and ("tel" in c.lower() and "imo" in c.lower())), None)
+            nom_key = next((c for c in reader.fieldnames if c and ("nombre" in c.lower())), None)
+            ape_key = next((c for c in reader.fieldnames if c and ("apellido" in c.lower())), None)
+            c1_key = next((c for c in reader.fieldnames if c and ("c1" == c.strip().lower())), None)
+            c2_key = next((c for c in reader.fieldnames if c and ("c2" == c.strip().lower())), None)
+
+            if not imo_tel_key: return []
+
+            tel_buscado = norm_tel(telefono)
+            for row in reader:
+                if not row or not row.get(imo_tel_key): continue
+                if norm_tel(str(row.get(imo_tel_key, ""))) == tel_buscado:
+                    c1_stat = str(row.get(c1_key, "NO")).strip().upper() if c1_key else "NO"
+                    c2_stat = str(row.get(c2_key, "NO")).strip().upper() if c2_key else "NO"
+
+                    falta = ""
+                    if c1_stat != "SI": falta = "C1"
+                    elif c2_stat != "SI": falta = "C2"
+
+                    if falta:
+                        nombre_base = str(row.get(nom_key, "")).strip()
+                        apellido_base = str(row.get(ape_key, "")).strip() if ape_key else ""
+                        if nombre_base and apellido_base:
+                            nombre_completo = f"{nombre_base.split()[0]} {apellido_base.split()[0]}".title()
+                        elif nombre_base:
+                            nombre_completo = nombre_pila(nombre_base)
+                        else:
+                            continue
+                        pendientes.append(f"• {nombre_completo} (Falta {falta})")
+        return pendientes
+    except Exception as e: logger.error(f"Error buscando pendientes en CSV: {e}")
+    return []
+
 def actualizar_excel(resultados, telefono_imo):
-    """Actualiza el excel del IMO cuando el PX confirma directamente"""
     hoy = datetime.now().strftime("%d/%m/%Y %H:%M")
     tel_n = norm_tel(telefono_imo)
     if not tel_n: return
@@ -495,7 +535,6 @@ def actualizar_excel(resultados, telefono_imo):
                 px_c = str(row[4].value or "").strip()
                 if imo_t != tel_n: continue
                 for r in resultados:
-                    # Coincidencia flexible de nombres
                     if r["px"].split()[0].lower() in px_c.lower():
                         row[6].value = r["estatus"]; row[7].value = hoy; break
             wb.save(Config.EXCEL_PATH); wb.close()
@@ -533,7 +572,7 @@ def embudo_ventas_ia(mensaje_usuario, nombre_conocido=None, nombre_ya_saludado=F
     return "Para apoyarte de forma humana y precisa, responde con el número de la opción para enlazarte con una coordinadora."
 
 # ══════════════════════════════════════════════════════════════════════════
-# 8. MÁQUINA DE ESTADOS CRM (NÚCLEO OMNICANAL)
+# 8. MÁQUINA DE ESTADOS CRM (NÚCLEO OMNICANAL Y BUSCADOR)
 # ══════════════════════════════════════════════════════════════════════════
 def procesar_mensaje(telefono, texto):
     sesion = get_sesion(telefono)
@@ -543,7 +582,6 @@ def procesar_mensaje(telefono, texto):
     perfil = sesion.get("perfil")
     if not perfil:
         perfil = obtener_perfil_crm(telefono)
-        # Solo pedir nombre a los desconocidos
         if perfil["rol"] == "PROSPECTO" and len(texto.split()) <= 3 and len(texto) > 2 and not texto_limpio.isnumeric():
             perfil["nombre"] = nombre_pila(texto)
         sesion["perfil"] = perfil
@@ -573,7 +611,6 @@ def procesar_mensaje(telefono, texto):
         enviar_mensaje(telefono, "Listo. Has sido dado de baja. No recibirás más mensajes.\n\n*Crear Poder Sin Límites*", nombre_mostrar)
         return
 
-    # Determinar qué menú principal usar según el ROL
     def get_main_key(rol):
         if rol == "IMO": return "main_imo"
         if rol == "PX": return "main_px"
@@ -581,7 +618,6 @@ def procesar_mensaje(telefono, texto):
         
     main_key = get_main_key(perfil["rol"])
 
-    # Función para renderizar menús con variables
     def render_menu(m_key):
         txt = MENU_STRUCTURE[m_key]["text"]
         if "{" in txt:
@@ -592,7 +628,6 @@ def procesar_mensaje(telefono, texto):
             )
         return txt
 
-    # Si se venció la sesión o es "MENU"
     if minutos_inactividad > 30 or "menu_state" not in sesion or texto_limpio in ["0", "MENU", "MENÚ", "INICIO"]:
         sesion["menu_state"] = main_key
         sesion["menu_history"] = []
@@ -627,15 +662,32 @@ def procesar_mensaje(telefono, texto):
             
             # --- ACCIONES CRM ESPECIALES ---
             if siguiente_estado == "px_confirma":
-                # AUTO-UPDATE AL EXCEL DEL IMO!!!
                 px_nombre = perfil["nombre"]
                 imo_tel = perfil["imo_tel"]
-                if imo_tel:
-                    threading.Thread(target=actualizar_excel, args=([{"px": px_nombre, "estatus": "CONFIRMADO"}], imo_tel), daemon=True).start()
+                if imo_tel: threading.Thread(target=actualizar_excel, args=([{"px": px_nombre, "estatus": "CONFIRMADO"}], imo_tel), daemon=True).start()
                 
                 msg_exito = f"¡Extraordinario, {px_nombre}! 🎉\n\nHemos registrado tu asistencia para tu próximo {perfil['pendiente']}. Le avisaremos automáticamente a tu líder {perfil['imo_nombre']} para que esté al tanto.\n\n_Escribe 0 para volver al menú._"
                 enviar_mensaje(telefono, msg_exito, nombre_mostrar)
-                sesion["menu_state"] = "esperando_fecha" # Estado neutro
+                sesion["menu_state"] = "esperando_fecha" 
+                set_sesion(telefono, sesion)
+                return
+
+            elif siguiente_estado == "ver_pendientes_imo":
+                lista_pendientes = buscar_pendientes_imo_csv(telefono)
+                if lista_pendientes:
+                    msg_lista = "\n".join(lista_pendientes)
+                    msg = f"📊 *Reporte de tu Equipo*\n\nEstos son tus participantes de la base de datos que aún NO se han sentado:\n\n{msg_lista}\n\n_Escribe *0* para volver al menú._"
+                else:
+                    msg = "¡Felicidades! 🎉 Al parecer todos tus participantes registrados ya se han sentado o no tienes pendientes en la base de datos actual.\n\n_Escribe *0* para volver al menú._"
+                
+                enviar_mensaje(telefono, msg, nombre_mostrar)
+                
+                hist = sesion.get("menu_history", [])
+                if estado_actual != main_key and (not hist or hist[-1] != estado_actual):
+                    hist.append(estado_actual)
+                
+                sesion["menu_state"] = "ver_pendientes_imo"
+                sesion["menu_history"] = hist
                 set_sesion(telefono, sesion)
                 return
 
@@ -653,10 +705,8 @@ def procesar_mensaje(telefono, texto):
                 return
                 
             elif siguiente_estado == "main":
-                # Redirige a su main correcto
                 siguiente_estado = main_key
                 
-            # Transición normal
             hist = sesion.get("menu_history", [])
             if estado_actual != main_key and (not hist or hist[-1] != estado_actual):
                 hist.append(estado_actual)
@@ -667,10 +717,8 @@ def procesar_mensaje(telefono, texto):
             
             if siguiente_estado in MENU_STRUCTURE:
                 enviar_mensaje(telefono, render_menu(siguiente_estado), nombre_mostrar)
-            
             elif siguiente_estado == "chat_libre_ia":
                 enviar_mensaje(telefono, "Has ingresado a nuestro *Chat Inteligente*. 🧠\nPuedes preguntarme lo que desees sobre nuestros entrenamientos, precios o metodologías.\n\n_Escribe *0* para salir del chat._", nombre_mostrar)
-            
             elif siguiente_estado == "action_imo":
                 enviar_mensaje(telefono, f"¡Hola líder! 👋\n\nHas ingresado al *Portal IMO*. Por favor, envíame un mensaje con el estatus de tus participantes pendientes para registrarlos en el Excel.\n\n_Escribe *0* para volver al menú._", nombre_mostrar)
 
@@ -697,7 +745,7 @@ def procesar_mensaje(telefono, texto):
         enviar_mensaje(telefono, f"Excelente líder. Has enviado tu estatus. Estamos procesándolo.\n\n_Escribe *0* para volver al menú._", nombre_mostrar)
         return
         
-    elif estado_actual == "esperando_humano" or estado_actual == "esperando_fecha":
+    elif estado_actual == "esperando_humano" or estado_actual == "esperando_fecha" or estado_actual == "ver_pendientes_imo":
         set_sesion(telefono, sesion)
         return
 
@@ -754,7 +802,7 @@ HTML_CHAT = """
         <div class="sidebar">
             <div class="sidebar-header">
                 <div class="header-top">
-                    <div>💬 Panel V44 (CRM Master)</div>
+                    <div>💬 Panel V45 (IMO Search)</div>
                     <div class="header-actions">
                         <a href="/api/descargar_respaldo" class="download-btn">📥 Backup</a>
                         <button class="sync-btn" id="syncBtn" onclick="forceSync()">🔄 Excel</button>
@@ -935,14 +983,13 @@ def recibir_mensaje():
             texto = msg["text"]["body"]
             texto = str(texto).replace("=", "").replace("+", "").replace("@", "")
             
-            # Guardado y envío al procesador
-            procesar_mensaje(telefono, texto, None)
+            # Recuperamos el perfil y procesamos
+            procesar_mensaje(telefono, texto)
             
-            # Recuperamos el perfil ya procesado para guardarlo en el historial
+            # Guardamos historial
             sesion = get_sesion(telefono)
             perfil = sesion.get("perfil", {})
             nombre_mostrar = f"({perfil.get('rol', 'PROSPECTO')}) {perfil.get('nombre', 'Nuevo')}" if perfil.get('nombre') else "NUEVO CONTACTO"
-            
             append_historial(telefono, nombre_mostrar, texto, "in")
 
         elif tipo in ("audio","image","document","video","sticker"):
@@ -954,7 +1001,7 @@ def recibir_mensaje():
 @app.route("/status", methods=["GET"])
 def status(): 
     return jsonify({
-        "status": "activo", "version": "v44_crm_omnicanal",
+        "status": "activo", "version": "v45_buscador_rezagados_imo",
         "gemini": "disponible" if GEMINI_DISPONIBLE else "no instalado",
         "qwen": "disponible" if QWEN_DISPONIBLE else "no instalado"
     }), 200
