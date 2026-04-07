@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V37: Buscador Omnisciente en Panel Web, Carga Masiva (10k) y Sync Total
+✅ Versión V40: CRM Exacto para "participantes_2026-04-04.csv" (Nombre + Apellido)
 """
 
 import os, re, json, threading, time, csv, io, random, logging
@@ -44,19 +44,24 @@ class Config:
     TOKEN = os.environ.get("WA_TOKEN", "")
     PHONE_ID = os.environ.get("WA_PHONE_ID", "")
     VERIFY_TOKEN = os.environ.get("WA_VERIFY_TOKEN", "cpsl2026")
+    
     EXCEL_PATH = os.environ.get("EXCEL_PATH", "campana_imos_c1_e27.xlsx")
+    # Busca el archivo que subiste, si no está busca "base_datos.csv"
+    CSV_BD_PATH = os.environ.get("CSV_BD_PATH", "participantes_2026-04-04.csv" if os.path.exists("participantes_2026-04-04.csv") else "base_datos.csv") 
     SESSIONS_PATH = os.environ.get("SESSIONS_PATH", "sesiones.json")
     HISTORIAL_PATH = "historial_chat.json"
+    
     GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
     DASHSCOPE_KEY = os.environ.get("DASHSCOPE_API_KEY", "")
     MODO_IA = os.environ.get("MODO_IA", "fallback").lower() 
     IA_PRIMARIA = os.environ.get("IA_PRIMARIA", "qwen").lower() 
     IA_FALLBACK = os.environ.get("IA_FALLBACK", "gemini").lower()
+    
     SHEET_ID = os.environ.get("SHEET_ID", "")
     CREDS_JSON = os.environ.get("GOOGLE_CREDENTIALS", "")
 
 # ══════════════════════════════════════════════════════════════════════════
-# 2. GESTOR DE ESTADO CONCURRENTE (SISTEMA DE BACKUP MASIVO)
+# 2. GESTOR DE ESTADO CONCURRENTE
 # ══════════════════════════════════════════════════════════════════════════
 class SessionManager:
     _session_lock = threading.Lock()
@@ -86,7 +91,7 @@ class SessionManager:
                 with open(Config.SESSIONS_PATH, "w", encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False, indent=2)
             except Exception as e:
-                logger.error(f"Error guardando sesión: {e}")
+                logger.error(f"Error guardando sesión para {telefono}: {e}")
 
     @staticmethod
     def borrar_sesion(telefono):
@@ -101,7 +106,7 @@ class SessionManager:
                         with open(Config.SESSIONS_PATH, "w", encoding="utf-8") as f:
                             json.dump(data, f, ensure_ascii=False, indent=2)
             except Exception as e:
-                logger.error(f"Error borrando sesión: {e}")
+                logger.error(f"Error borrando sesión {telefono}: {e}")
 
     @staticmethod
     def append_historial(telefono, nombre, texto, tipo):
@@ -118,7 +123,6 @@ class SessionManager:
                     "tipo": tipo, 
                     "hora": datetime.now().strftime("%d/%m %H:%M")
                 })
-                # Carga Masiva: Guarda hasta 10,000 mensajes
                 with open(Config.HISTORIAL_PATH, "w", encoding="utf-8") as f:
                     json.dump(h[-10000:], f, ensure_ascii=False, indent=2)
             except Exception as e:
@@ -126,7 +130,6 @@ class SessionManager:
 
     @staticmethod
     def forzar_sincronizacion(leer_sheet_func, norm_tel_func):
-        """Restaura el historial completo desde Google Sheets"""
         with SessionManager._history_lock:
             try:
                 local_hist = []
@@ -154,7 +157,6 @@ class SessionManager:
                                 local_hist.append({"telefono": tel, "nombre": imo_n, "texto": msg_out, "tipo": "out", "hora": hora})
                                 existing.add(f"{tel}_{msg_out}")
                     
-                    # Ordenar cronológicamente y guardar
                     with open(Config.HISTORIAL_PATH, "w", encoding="utf-8") as f: 
                         json.dump(local_hist[-10000:], f, ensure_ascii=False, indent=2) 
             except Exception as e:
@@ -174,7 +176,7 @@ def get_historial():
     return []
 
 # ══════════════════════════════════════════════════════════════════════════
-# 3. CONECTORES DE API (WhatsApp y Google Sheets Anti-Pérdida)
+# 3. CONECTORES DE API (WhatsApp y Google Sheets)
 # ══════════════════════════════════════════════════════════════════════════
 class WhatsAppAPI:
     @staticmethod
@@ -189,12 +191,10 @@ class WhatsAppAPI:
             r = req_lib.post(url, json=payload, headers=headers, timeout=10)
             if r.status_code == 200:
                 SessionManager.append_historial(telefono, nombre_mostrar, texto, "out")
-                
                 if registrar_sheets:
                     sesion = get_sesion(telefono)
                     ultimo_msg = sesion.get("ultimo_mensaje_usuario", mensaje_usuario or "[Bot Autónomo]")
                     estado_actual = sesion.get("menu_state", "BOT")
-                    
                     threading.Thread(
                         target=registrar_en_sheets, 
                         args=(telefono, nombre_mostrar, ultimo_msg, texto[:500], estado_actual),
@@ -389,7 +389,7 @@ MENU_STRUCTURE = {
     },
     "pagos": {
         "text": (
-            "💳 *Inversión y Pagos*\nAceptamos pagos por transferencia al BCP a nombre de Creación Cuántica E.I.R.L. (Cuenta Soles: 1934218307060), tarjetas de crédito y PayPal.\n\n"
+            "💳 *Inversión y Pagos*\nAceptamos pagos por transferencia al BCP a nombre de Creación Cuántica E.I.R.L. (Cuenta Soles: 1934218307060 / CCI: 00219300421830706018), tarjetas de crédito y PayPal.\n\n"
             "1️⃣ Enviar voucher de pago a Coordinadora\n"
             "2️⃣ Necesito ayuda con mi factura/boleta\n\n"
             "9️⃣ Regresar\n0️⃣ Menú principal"
@@ -425,10 +425,11 @@ def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre, necesidad_
     set_sesion(coord_tel, sesion_coord)
     nombre_mostrar_coord = f"COORDINADORA: {coord_nombre}"
     enviar_mensaje(coord_tel, msg_coord, nombre_mostrar_coord)
+    registrar_en_sheets(coord_tel, nombre_mostrar_coord, f"Alerta generada por Contacto: {prospecto_tel}", msg_coord, "ALERTA LEAD")
     return coord_nombre
 
 # ══════════════════════════════════════════════════════════════════════════
-# 5. UTILIDADES Y CARGA DE EXCEL
+# 5. UTILIDADES, RECONOCIMIENTO CSV Y EXCEL IMO
 # ══════════════════════════════════════════════════════════════════════════
 def norm_tel(tel):
     t = str(tel).strip().replace("+","").replace(" ","").replace("-","")
@@ -445,6 +446,40 @@ def normalizar(texto):
 def nombre_pila(s):
     partes = [p.strip() for p in re.split(r'\s+', s.strip()) if len(p.strip()) > 2]
     return partes[0].title() if partes else s.strip().title()
+
+def identificar_contacto_csv(telefono):
+    """Busca al usuario en el CSV participantes_2026-04-04.csv por su número"""
+    try:
+        if not os.path.exists(Config.CSV_BD_PATH): return None
+        with open(Config.CSV_BD_PATH, "r", encoding="utf-8-sig") as f:
+            primera_linea = f.readline()
+            delimitador = ';' if ';' in primera_linea else ','
+            f.seek(0)
+            
+            reader = csv.DictReader(f, delimiter=delimitador)
+            if not reader.fieldnames: return None
+            
+            tel_key = next((c for c in reader.fieldnames if "tel" in c.lower()), None)
+            nom_key = next((c for c in reader.fieldnames if "nombre" in c.lower()), None)
+            ape_key = next((c for c in reader.fieldnames if "apellido" in c.lower()), None)
+
+            if not tel_key or not nom_key: return None
+
+            tel_buscado = norm_tel(telefono)
+            for row in reader:
+                tel_csv = norm_tel(row.get(tel_key, ""))
+                if tel_csv == tel_buscado:
+                    nombre_base = row.get(nom_key, "").strip()
+                    apellido_base = row.get(ape_key, "").strip() if ape_key else ""
+                    
+                    if nombre_base and apellido_base:
+                        nombre_completo = f"{nombre_base.split()[0]} {apellido_base.split()[0]}"
+                        return nombre_completo.title()
+                    elif nombre_base:
+                        return nombre_pila(nombre_base)
+    except Exception as e:
+        logger.error(f"Error leyendo CSV de BD: {e}")
+    return None
 
 def cargar_px_del_imo(telefono):
     lock = FileLock(Config.EXCEL_PATH + ".lock")
@@ -499,7 +534,7 @@ def embudo_ventas_ia(mensaje_usuario, nombre_conocido=None, nombre_ya_saludado=F
             (["100 dias", "cuanto dura", "duracion", "el proceso"], "Creemos en transformaciones reales. Por eso el proceso completo dura 100 días, donde con el apoyo de tu equipo integrarás lo aprendido a tu vida cotidiana, creando hábitos inquebrantables."),
             (["edad", "niños", "menores", "jovenes", "adolescentes", "18"], "Creemos en el potencial a toda edad, pero este formato está diseñado exclusivamente para mayores de 18 años. Si buscas espacios para menores, por favor escribe el número *3* y te apoyaremos."),
             (["terapia", "psicologo", "depresion", "sanar", "salud mental", "arreglar"], "Es vital aclarar que nuestro enfoque es de alto rendimiento. NO somos un centro de terapia ni sustituimos procesos de salud mental. Nos enfocamos en empoderarte para crear una nueva realidad a partir de hoy."),
-            (["precio", "costo", "cuanto cuesta", "pagar", "inversion", "cuenta", "banco", "transferencia", "bcp"], "Aceptamos pagos por transferencia al BCP a nombre de Creación Cuántica E.I.R.L. (Cuenta: 1934218307060), tarjetas de crédito y PayPal. ¿Te gustaría realizar la reserva de tu espacio ahora mismo?"),
+            (["precio", "costo", "cuanto cuesta", "pagar", "inversion", "cuenta", "banco", "transferencia", "bcp"], "Aceptamos pagos por transferencia al BCP a nombre de Creación Cuántica E.I.R.L. (Cuenta: 1934218307060 / CCI: 00219300421830706018), tarjetas de crédito y PayPal. ¿Te gustaría realizar la reserva de tu espacio ahora mismo?"),
             (["que es", "de que trata", "que hacen", "para que sirve", "informacion", "beneficios", "capitulo 1", "crear"], "El Capítulo 1 es un modelo de coaching de alto rendimiento. Es un entrenamiento vivencial de 3 días diseñado para desarrollar nuevas formas de pensamiento, gestión emocional y descubrir las barreras que te limitan en tu vida actual. ¿Estás listo para dar este salto?"),
             (["horario", "hora", "cuando empieza", "cuando termina", "dias", "fechas", "agenda"], f"Tu transformación requiere compromiso total. El proceso inmersivo de 3 días en el Hotel José Antonio Deluxe inicia este viernes a las 9:00 am y cierra el domingo por la noche (9:00 pm aproximadamente)."),
             (["donde", "lugar", "direccion", "ubicacion", "hotel", "distrito", "sede"], f"Nuestra sede principal en Perú se encuentra en el Hotel José Antonio Deluxe, ubicado en Calle Bellavista 133, Miraflores, Lima. También contamos con sedes en Colombia, Ecuador y México."),
@@ -615,7 +650,14 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
         sesion["menu_errors"] = 0
         sesion["nombre_saludado"] = False
         set_sesion(telefono, sesion)
-        enviar_mensaje(telefono, MENU_STRUCTURE["main"]["text"], nombre_mostrar)
+        
+        # SI es un usuario reconocido del CSV, añadimos un saludo ultra-personalizado
+        nm_csv = sesion.get("nombre_prospecto")
+        if nm_csv:
+            saludo_vip = f"¡Qué gusto tenerte de vuelta por aquí, {nm_csv}! ✨\n\n"
+            enviar_mensaje(telefono, saludo_vip + MENU_STRUCTURE["main"]["text"].replace("🌟 *Bienvenido a Crear Poder Sin Límites Perú* 🌟\n\n", ""), nombre_mostrar)
+        else:
+            enviar_mensaje(telefono, MENU_STRUCTURE["main"]["text"], nombre_mostrar)
         return
 
     if texto_limpio in ["0", "MENU", "MENÚ", "INICIO"]:
@@ -698,7 +740,6 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
                         enviar_mensaje(telefono, MENU_STRUCTURE["main"]["text"], nombre_mostrar)
 
         else:
-            # SMART ROUTING: Entiende que quiere chatear libremente si escribe frases largas
             if not texto_limpio.isnumeric() and len(texto.split()) > 1:
                 sesion["menu_state"] = "chat_libre_ia"
                 set_sesion(telefono, sesion)
@@ -763,7 +804,7 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
         return
 
 # ══════════════════════════════════════════════════════════════════════════
-# 8. PANEL WEB (BUSCADOR INTELIGENTE) Y ENDPOINTS
+# 8. PANEL WEB (Buscador Efectivo) Y ENDPOINTS
 # ══════════════════════════════════════════════════════════════════════════
 HTML_CHAT = """
 <!DOCTYPE html>
@@ -810,7 +851,7 @@ HTML_CHAT = """
         <div class="sidebar">
             <div class="sidebar-header">
                 <div class="header-top">
-                    <div>💬 Panel V37</div>
+                    <div>💬 Panel V40 (CRM)</div>
                     <div class="header-actions">
                         <a href="/api/descargar_respaldo" class="download-btn">📥 Backup</a>
                         <button class="sync-btn" id="syncBtn" onclick="forceSync()">🔄 Excel</button>
@@ -882,7 +923,6 @@ HTML_CHAT = """
                 const lastMessage = contactData.messages[contactData.messages.length - 1].text;
                 const displayName = contactData.nombre ? contactData.nombre : `+${phone}`;
                 
-                // DATA PARA EL BUSCADOR OMNISCIENTE
                 const allMessages = contactData.messages.map(m => m.text.toLowerCase()).join(" ");
                 const searchStr = `${displayName.toLowerCase()} ${phone} ${allMessages}`.replace(/"/g, '');
 
@@ -965,6 +1005,9 @@ def api_enviar():
         if not imo_nombre: 
             sesion = get_sesion(tel)
             nm = sesion.get("nombre_prospecto")
+            if not nm:
+                nm_csv = identificar_contacto_csv(tel)
+                if nm_csv: nm = nm_csv
             imo_nombre = f"CONTACTO: {nm}" if nm else "NUEVO CONTACTO"
         WhatsAppAPI.enviar_mensaje(tel, msg, imo_nombre, registrar_sheets=True, mensaje_usuario="[ENVIADO DESDE PANEL PRIVADO]")
         return jsonify({"status": "ok"}), 200
@@ -994,13 +1037,21 @@ def recibir_mensaje():
             
             sesion_pre = get_sesion(telefono)
             sesion_pre["ultimo_mensaje_usuario"] = texto
-            set_sesion(telefono, sesion_pre)
             
             imo_nombre_sheet, _ = cargar_px_del_imo(telefono)
             nombre_mostrar = imo_nombre_sheet
             
             if not imo_nombre_sheet:
                 nm = sesion_pre.get("nombre_prospecto")
+                
+                # --- RECONOCIMIENTO FACIAL DIGITAL VÍA CSV ---
+                if not nm:
+                    nm_csv = identificar_contacto_csv(telefono)
+                    if nm_csv:
+                        nm = nm_csv
+                        sesion_pre["nombre_prospecto"] = nm
+                        
+                set_sesion(telefono, sesion_pre)
                 nombre_mostrar = f"CONTACTO: {nm}" if nm else "NUEVO CONTACTO"
             
             append_historial(telefono, nombre_mostrar, texto, "in")
@@ -1016,7 +1067,7 @@ def recibir_mensaje():
 def status(): 
     return jsonify({
         "status": "activo", 
-        "version": "v37_buscador_omnisciente_10k",
+        "version": "v40_crm_csv_exacto",
         "gemini": "disponible" if GEMINI_DISPONIBLE else "no instalado",
         "qwen": "disponible" if QWEN_DISPONIBLE else "no instalado"
     }), 200
