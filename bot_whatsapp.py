@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V50 ENTERPRISE: Cola Asíncrona, Dataset de Entrenamiento (Fine-Tuning), CRM Anti-Caídas
+✅ Versión V51 MASTER CRM: Filtro MJ (Graduado/Proceso/Deserto) + Queue System para Sheets
 """
 
 import os, re, json, time, csv, io, random, logging, queue, threading
@@ -22,15 +22,13 @@ try:
     import google.generativeai as genai_module
     genai = genai_module
     GEMINI_DISPONIBLE = True
-except ImportError:
-    pass
+except ImportError: pass
 
 try:
     from dashscope import Generation as DashGeneration
     Generation = DashGeneration
     QWEN_DISPONIBLE = True
-except ImportError:
-    pass
+except ImportError: pass
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("BotCrear")
@@ -55,7 +53,7 @@ class Config:
     CSV_BD_PATH = os.environ.get("CSV_BD_PATH", get_csv_bd_path())
     SESSIONS_PATH = os.environ.get("SESSIONS_PATH", "sesiones.json")
     HISTORIAL_PATH = "historial_chat.json"
-    DATASET_PATH = "dataset_entrenamiento.csv" # 🧠 NUEVO: Base de datos para entrenar a la IA
+    DATASET_PATH = "dataset_entrenamiento.csv"
     
     GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
     DASHSCOPE_KEY = os.environ.get("DASHSCOPE_API_KEY", "")
@@ -67,12 +65,11 @@ class Config:
     CREDS_JSON = os.environ.get("GOOGLE_CREDENTIALS", "")
 
 # ══════════════════════════════════════════════════════════════════════════
-# 2. GESTOR DE ESTADO Y DATASET DE ENTRENAMIENTO
+# 2. GESTOR DE ESTADO
 # ══════════════════════════════════════════════════════════════════════════
 class SessionManager:
     _session_lock = threading.Lock()
     _history_lock = threading.Lock()
-    _dataset_lock = threading.Lock()
 
     @staticmethod
     def get_sesion(telefono):
@@ -113,26 +110,9 @@ class SessionManager:
                 h = []
                 if os.path.exists(Config.HISTORIAL_PATH):
                     with open(Config.HISTORIAL_PATH, "r", encoding="utf-8") as f: h = json.load(f)
-                h.append({
-                    "telefono": str(telefono), "nombre": nombre or "Desconocido", 
-                    "texto": texto, "tipo": tipo, "hora": datetime.now().strftime("%d/%m %H:%M")
-                })
+                h.append({"telefono": str(telefono), "nombre": nombre or "Desconocido", "texto": texto, "tipo": tipo, "hora": datetime.now().strftime("%d/%m %H:%M")})
                 with open(Config.HISTORIAL_PATH, "w", encoding="utf-8") as f: json.dump(h[-10000:], f, ensure_ascii=False, indent=2)
             except: pass
-
-    @staticmethod
-    def guardar_dataset(telefono, mensaje_usuario, respuesta_ia, modelo_usado):
-        """🧠 Guarda cada interacción para hacer Fine-Tuning (Entrenamiento) en el futuro"""
-        with FileLock(Config.DATASET_PATH + ".lock"):
-            try:
-                archivo_existe = os.path.exists(Config.DATASET_PATH)
-                with open(Config.DATASET_PATH, "a", encoding="utf-8-sig", newline="") as f:
-                    writer = csv.writer(f)
-                    if not archivo_existe:
-                        writer.writerow(["Fecha", "Telefono", "Mensaje Usuario", "Respuesta IA", "Modelo"])
-                    writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), telefono, mensaje_usuario, respuesta_ia, modelo_usado])
-            except Exception as e:
-                logger.error(f"Error guardando dataset: {e}")
 
 def get_sesion(tel): return SessionManager.get_sesion(tel)
 def set_sesion(tel, d): SessionManager.set_sesion(tel, d)
@@ -146,72 +126,60 @@ def get_historial():
     return []
 
 # ══════════════════════════════════════════════════════════════════════════
-# 3. SISTEMAS ANTI-CAÍDAS (Cola Asíncrona y Watchdog)
+# 3. SISTEMA DE COLAS (QUEUE) PARA EVITAR PÉRDIDA EN GOOGLE SHEETS
 # ══════════════════════════════════════════════════════════════════════════
 cola_mensajes = queue.Queue()
+cola_sheets = queue.Queue()
 
-def worker_procesar_mensajes():
-    """🚀 Hilo de procesamiento: Extrae los mensajes de la cola para no bloquear el Webhook"""
+class GoogleSheetsAPI:
+    @classmethod
+    def registrar_accion(cls, telefono, imo_nombre, mensaje, respuesta_bot, estado=""):
+        if not Config.SHEET_ID or not Config.CREDS_JSON: return
+        try:
+            import base64
+            now = int(time.time())
+            creds = json.loads(Config.CREDS_JSON)
+            header = base64.urlsafe_b64encode(json.dumps({"alg":"RS256","typ":"JWT"}).encode()).rstrip(b"=")
+            payload = base64.urlsafe_b64encode(json.dumps({
+                "iss": creds["client_email"], "scope": "https://www.googleapis.com/auth/spreadsheets",
+                "aud": "https://oauth2.googleapis.com/token", "iat": now, "exp": now + 3600
+            }).encode()).rstrip(b"=")
+            msg_jwt = header + b"." + payload
+            from cryptography.hazmat.primitives import hashes, serialization
+            from cryptography.hazmat.primitives.asymmetric import padding
+            pk = serialization.load_pem_private_key(creds["private_key"].encode(), password=None)
+            sig = pk.sign(msg_jwt, padding.PKCS1v15(), hashes.SHA256())
+            jwt = (msg_jwt + b"." + base64.urlsafe_b64encode(sig).rstrip(b"=")).decode()
+            r = req_lib.post("https://oauth2.googleapis.com/token", data={"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": jwt}, timeout=10)
+            if r.status_code == 200:
+                token = r.json()["access_token"]
+                url = f"https://sheets.googleapis.com/v4/spreadsheets/{Config.SHEET_ID}/values/Hoja%201!A:H:append"
+                ahora = datetime.now().strftime("%d/%m/%Y %H:%M")
+                req_lib.post(url, params={"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"}, 
+                             json={"values": [[ahora, str(telefono), imo_nombre, mensaje, respuesta_bot, estado, "", ""]]}, 
+                             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=10)
+        except Exception as e: logger.error(f"Error Sheets: {e}")
+
+def worker_sheets():
+    """🚀 Trabajador en segundo plano que garantiza la subida continua a Sheets"""
     while True:
         try:
-            tarea = cola_mensajes.get()
-            telefono = tarea["telefono"]
-            texto = tarea["texto"]
-            
-            # Reconocimiento y perfilado CRM en segundo plano
-            imo_nombre_sheet, _ = cargar_px_del_imo(telefono)
-            sesion_pre = get_sesion(telefono)
-            sesion_pre["ultimo_mensaje_usuario"] = texto
-            
-            nombre_mostrar = imo_nombre_sheet
-            if not imo_nombre_sheet:
-                nm = sesion_pre.get("nombre_prospecto")
-                if not nm:
-                    nm_csv = identificar_contacto_csv(telefono)
-                    if nm_csv:
-                        nm = nm_csv
-                        sesion_pre["nombre_prospecto"] = nm
-                nombre_mostrar = f"CONTACTO: {nm}" if nm else "NUEVO CONTACTO"
-            
-            set_sesion(telefono, sesion_pre)
-            append_historial(telefono, nombre_mostrar, texto, "in")
-            
-            # Ejecutar el cerebro
-            procesar_mensaje(telefono, texto)
-            
+            tarea = cola_sheets.get()
+            GoogleSheetsAPI.registrar_accion(tarea['tel'], tarea['nom'], tarea['msg'], tarea['resp'], tarea['est'])
         except Exception as e:
-            logger.error(f"Error en worker asíncrono: {e}", exc_info=True)
+            logger.error(f"Fallo en cola de Sheets: {e}")
         finally:
-            cola_mensajes.task_done()
+            cola_sheets.task_done()
 
-# Iniciamos los trabajadores asíncronos
-threading.Thread(target=worker_procesar_mensajes, daemon=True).start()
+# Iniciamos el motor de base de datos en segundo plano
+threading.Thread(target=worker_sheets, daemon=True).start()
 
-def ejecutar_watchdog_inactividad():
-    sesiones_vencidas = []
-    with FileLock(Config.SESSIONS_PATH + ".lock"):
-        if not os.path.exists(Config.SESSIONS_PATH): return
-        try:
-            with open(Config.SESSIONS_PATH, "r", encoding="utf-8") as f: sesiones = json.load(f)
-            for telefono, data in list(sesiones.items()):
-                if data.get("menu_state") == "esperando_humano": continue
-                last_interaction = data.get("last_interaction")
-                if last_interaction:
-                    try:
-                        last_time = datetime.strptime(last_interaction, "%Y-%m-%d %H:%M:%S")
-                        if (datetime.now() - last_time).total_seconds() / 60.0 > 30:
-                            sesiones_vencidas.append(telefono)
-                            del sesiones[telefono]
-                    except: pass
-            if sesiones_vencidas:
-                with open(Config.SESSIONS_PATH, "w", encoding="utf-8") as f: json.dump(sesiones, f, ensure_ascii=False, indent=2)
-        except: pass
-    for tel in sesiones_vencidas:
-        msg = "⏳ Hola. Por inactividad hemos finalizado esta sesión para proteger tus datos.\n\n_Si necesitas realizar otra consulta, simplemente escribe la palabra *MENU* para volver a empezar. ¡Que tengas un día extraordinario! ✨_"
-        WhatsAppAPI.enviar_mensaje(tel, msg, "SISTEMA", registrar_sheets=True, mensaje_usuario="[CIERRE AUTOMÁTICO DE SESIÓN]")
+def registrar_en_sheets_async(tel, nom, msg, resp, est=""):
+    """Envía la tarea a la cola segura"""
+    cola_sheets.put({'tel': tel, 'nom': nom, 'msg': msg, 'resp': resp, 'est': est})
 
 # ══════════════════════════════════════════════════════════════════════════
-# 4. CONECTORES DE API (WhatsApp y Google Sheets)
+# 4. CONECTORES DE API DE WHATSAPP
 # ══════════════════════════════════════════════════════════════════════════
 class WhatsAppAPI:
     @staticmethod
@@ -225,7 +193,7 @@ class WhatsAppAPI:
                 SessionManager.append_historial(telefono, nombre_mostrar, texto, "out")
                 if registrar_sheets:
                     estado_actual = "SISTEMA" if nombre_mostrar == "SISTEMA" else "INTERACTIVO"
-                    threading.Thread(target=registrar_en_sheets, args=(telefono, nombre_mostrar, mensaje_usuario or "[Bot]", texto[:500], estado_actual), daemon=True).start()
+                    registrar_en_sheets_async(telefono, nombre_mostrar, mensaje_usuario or "[Bot]", texto[:500], estado_actual)
                 return True
         except: pass
         return False
@@ -233,41 +201,14 @@ class WhatsAppAPI:
 def enviar_mensaje(telefono, texto, nombre_imo="", registrar_sheets=False, msg_user=""):
     sesion = get_sesion(telefono)
     if sesion.get("primera_vez", True) and not str(nombre_imo).startswith("COORDINADORA") and nombre_imo != "SISTEMA":
-        aclaracion = "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*. Para atención personalizada, usa el menú para conectar con nuestras coordinadoras:_\n\n" + COORDINADORAS
+        aclaracion = "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*. Para atención personalizada, usa el menú para conectar con nuestras coordinadoras:_\n\n"
         texto += aclaracion if "Coordinadoras C1 y C2" not in texto else "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*._"
         sesion["primera_vez"] = False
         set_sesion(telefono, sesion)
     return WhatsAppAPI.enviar_mensaje(telefono, texto, nombre_imo, registrar_sheets, msg_user)
 
-def registrar_en_sheets(tel, nom, msg, resp, est=""):
-    if not Config.SHEET_ID or not Config.CREDS_JSON: return
-    try:
-        import base64
-        now = int(time.time())
-        creds = json.loads(Config.CREDS_JSON)
-        header = base64.urlsafe_b64encode(json.dumps({"alg":"RS256","typ":"JWT"}).encode()).rstrip(b"=")
-        payload = base64.urlsafe_b64encode(json.dumps({
-            "iss": creds["client_email"], "scope": "https://www.googleapis.com/auth/spreadsheets",
-            "aud": "https://oauth2.googleapis.com/token", "iat": now, "exp": now + 3600
-        }).encode()).rstrip(b"=")
-        msg_jwt = header + b"." + payload
-        from cryptography.hazmat.primitives import hashes, serialization
-        from cryptography.hazmat.primitives.asymmetric import padding
-        pk = serialization.load_pem_private_key(creds["private_key"].encode(), password=None)
-        sig = pk.sign(msg_jwt, padding.PKCS1v15(), hashes.SHA256())
-        jwt = (msg_jwt + b"." + base64.urlsafe_b64encode(sig).rstrip(b"=")).decode()
-        r = req_lib.post("https://oauth2.googleapis.com/token", data={"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": jwt}, timeout=10)
-        if r.status_code == 200:
-            token = r.json()["access_token"]
-            url = f"https://sheets.googleapis.com/v4/spreadsheets/{Config.SHEET_ID}/values/Hoja%201!A:H:append"
-            ahora = datetime.now().strftime("%d/%m/%Y %H:%M")
-            req_lib.post(url, params={"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"}, 
-                         json={"values": [[ahora, str(tel), nom, msg, resp, est, "", ""]]}, 
-                         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=10)
-    except: pass
-
 # ══════════════════════════════════════════════════════════════════════════
-# 5. UTILIDADES Y RECONOCIMIENTO BLINDADO (Anti-IndexError)
+# 5. CRM OMNICANAL Y LÓGICA DE DATOS
 # ══════════════════════════════════════════════════════════════════════════
 def norm_tel(tel):
     t = re.sub(r'\D', '', str(tel))
@@ -277,8 +218,7 @@ def norm_tel(tel):
     return t
 
 def son_mismo_numero(tel1, tel2):
-    t1 = re.sub(r'\D', '', str(tel1))
-    t2 = re.sub(r'\D', '', str(tel2))
+    t1, t2 = re.sub(r'\D', '', str(tel1)), re.sub(r'\D', '', str(tel2))
     if not t1 or not t2: return False
     if t1 == t2: return True
     min_len = min(len(t1), len(t2))
@@ -295,41 +235,6 @@ def normalizar(texto):
 def nombre_pila(s):
     partes = [p.strip() for p in re.split(r'\s+', s.strip()) if len(p.strip()) > 2]
     return partes[0].title() if partes else s.strip().title()
-
-def identificar_contacto_csv(telefono):
-    """Blindado: Ignora errores de índice si el CSV tiene filas rotas"""
-    try:
-        if not os.path.exists(Config.CSV_BD_PATH): return None
-        with open(Config.CSV_BD_PATH, "r", encoding="utf-8-sig") as f:
-            primera_linea = f.readline()
-            delimitador = ';' if ';' in primera_linea else ','
-            f.seek(0)
-            reader = csv.DictReader(f, delimiter=delimitador)
-            if not reader.fieldnames: return None
-            
-            tel_key = next((c for c in reader.fieldnames if c and ("tel" in c.lower() or "cel" in c.lower())), None)
-            nom_key = next((c for c in reader.fieldnames if c and ("nombre" in c.lower())), None)
-            ape_key = next((c for c in reader.fieldnames if c and ("apellido" in c.lower())), None)
-
-            if not tel_key or not nom_key: return None
-
-            for row in reader:
-                try:
-                    if not row or not row.get(tel_key): continue
-                    tel_csv = str(row.get(tel_key, ""))
-                    if son_mismo_numero(tel_csv, telefono):
-                        n_base = str(row.get(nom_key, "")).strip()
-                        a_base = str(row.get(ape_key, "")).strip() if ape_key else ""
-                        
-                        # Manejo seguro de listas vacías
-                        n = n_base.split()[0] if n_base.split() else ""
-                        a = a_base.split()[0] if a_base.split() else ""
-                        
-                        if n and a: return f"{n} {a}".title()
-                        elif n: return n.title()
-                except IndexError: continue # Ignorar fila si hay error interno
-    except Exception as e: logger.error(f"Error CRM CSV: {e}")
-    return None
 
 def cargar_px_del_imo(telefono):
     with FileLock(Config.EXCEL_PATH + ".lock"):
@@ -352,11 +257,18 @@ def cargar_px_del_imo(telefono):
         except: return "", []
 
 def obtener_perfil_crm(telefono):
+    """Cerebro CRM: Detecta IMO, MJ (Graduados/Proceso/Desertores), PX y Prospectos"""
     perfil = {"rol": "PROSPECTO", "nombre": None, "pendiente": None, "imo_nombre": None, "imo_tel": None}
+    
+    # 1. ¿Está activo en la campaña como líder (IMO)?
     imo_nom, px_list = cargar_px_del_imo(telefono)
-    if imo_nom:
-        perfil["rol"] = "IMO"; perfil["nombre"] = imo_nom; perfil["pendientes"] = px_list
+    if imo_nom and len(px_list) > 0:
+        perfil["rol"] = "IMO"
+        perfil["nombre"] = imo_nom
+        perfil["pendientes"] = px_list
         return perfil
+        
+    # 2. Búsqueda profunda en la base de datos CSV
     try:
         if os.path.exists(Config.CSV_BD_PATH):
             with open(Config.CSV_BD_PATH, "r", encoding="utf-8-sig") as f:
@@ -372,7 +284,6 @@ def obtener_perfil_crm(telefono):
                     c2_key = next((c for c in reader.fieldnames if c and ("c2" == c.strip().lower())), None)
                     mj_key = next((c for c in reader.fieldnames if c and ("maestr" in c.lower())), None)
                     imo_nom_key = next((c for c in reader.fieldnames if c and ("imo" in c.lower() and "tel" not in c.lower())), None)
-                    imo_tel_key = next((c for c in reader.fieldnames if c and ("tel" in c.lower() and "imo" in c.lower())), None)
 
                     if tel_key:
                         for row in reader:
@@ -391,119 +302,65 @@ def obtener_perfil_crm(telefono):
                                     c2_stat = str(row.get(c2_key, "NO")).strip().upper() if c2_key else "NO"
                                     mj_stat = str(row.get(mj_key, "NO")).strip().upper() if mj_key else "NO"
                                     
+                                    # Lógica de Filtro para Menús
+                                    if mj_stat == "SI":
+                                        perfil["rol"] = "MJ" # Ha pisado Maestría, le preguntaremos su estatus
+                                    elif c1_stat == "SI" or c2_stat == "SI":
+                                        perfil["rol"] = "PX" # Participante en camino
+                                    else:
+                                        perfil["rol"] = "PX" # Inscrito
+                                        
                                     pendiente = "Capítulo 1 (C1)"
                                     if c1_stat == "SI": pendiente = "Capítulo 2 (C2)"
                                     if c1_stat == "SI" and c2_stat == "SI": pendiente = "Maestría (MJ)"
 
-                                    perfil["rol"] = "PX"; perfil["nombre"] = nombre_completo; perfil["pendiente"] = pendiente
+                                    perfil["nombre"] = nombre_completo
+                                    perfil["pendiente"] = pendiente
                                     perfil["imo_nombre"] = nombre_pila(str(row.get(imo_nom_key, "Tu líder")).strip()) if imo_nom_key else "Tu líder"
-                                    perfil["imo_tel"] = str(row.get(imo_tel_key, "")) if imo_tel_key else ""
                                     return perfil
                             except IndexError: continue
     except: pass
     return perfil
 
 # ══════════════════════════════════════════════════════════════════════════
-# 6. ESTRATEGIA DE IA DUAL (GEMINI + QWEN) + CREACIÓN DE DATASET
+# 6. ESTRUTURA DE MENÚS (INCLUYE FILTRO MJ)
 # ══════════════════════════════════════════════════════════════════════════
-COORDINADORAS_CONTACTOS = {
-    "Diana Moscoso": "51912379744", "Joyce Marín": "51933599903", 
-    "Leyla Pasquel": "51919502385", "Zuley Urteaga": "51933599864"
-}
-COORDINADORAS_LISTA = "\n• Diana Moscoso: +51 912 379 744\n• Joyce Marin: +51 933 599 903\n• Leyla Pasquel: +51 919 502 385\n• Zuley Urteaga: +51 933 599 864"
-COORDINADORAS = f"Coordinadoras C1 y C2:{COORDINADORAS_LISTA}"
+COORDINADORAS_CONTACTOS = {"Diana Moscoso": "51912379744", "Joyce Marín": "51933599903", "Leyla Pasquel": "51919502385", "Zuley Urteaga": "51933599864"}
+COORDINADORAS = f"Coordinadoras C1 y C2:\n• Diana Moscoso: +51 912 379 744\n• Joyce Marin: +51 933 599 903\n• Leyla Pasquel: +51 919 502 385\n• Zuley Urteaga: +51 933 599 864"
 
-BROCHURE_INFO_MAESTRA = """
-INFORMACIÓN OFICIAL CREAR PODER SIN LÍMITES PERÚ:
-- Misión: Impactar a la máxima cantidad de seres humanos a vivir una vida extraordinaria. No somos un cursito, somos Alto Rendimiento.
-- Los 3 Niveles del Proceso (100 Días):
-  1. Capítulo 1 (C1): Descubrimiento. 3 días para romper paradigmas y darte cuenta de tus barreras.
-  2. Capítulo 2 (C2): Experiencia y Transformación profunda (Usualmente 4 días). Rediseñas cómo te relacionas con el mundo.
-  3. Maestría (MJ): 100 días para integrar lo aprendido. Llevas el liderazgo a la familia y finanzas.
-- Reglas: Exclusivo para MAYORES DE 18 AÑOS. NO es terapia.
-- Inversión: BCP Soles a nombre de CREACIÓN CUÁNTICA E.I.R.L (Cuenta: 1934218307060 / CCI: 00219300421830706018).
-"""
-
-def embudo_ventas_ia(mensaje_usuario, nombre_conocido=None, nombre_ya_saludado=False, telefono=None):
-    cfg = {"gemini_key": Config.GEMINI_KEY, "dashscope_key": Config.DASHSCOPE_KEY, "modo_ia": Config.MODO_IA, "ia_primaria": Config.IA_PRIMARIA, "ia_fallback": Config.IA_FALLBACK}
-    
-    def guardar_y_retornar(respuesta, modelo):
-        if telefono: SessionManager.guardar_dataset(telefono, mensaje_usuario, respuesta, modelo)
-        return respuesta
-
-    msg_len = len(mensaje_usuario.split())
-    if msg_len <= 3 and nombre_conocido and not nombre_ya_saludado:
-        resp = f"¡Hola, {nombre_conocido}! Qué gran paso estás dando al comunicarte. 🌟 Creemos firmemente que tienes un potencial ilimitado esperando ser despertado.\n\nA través de nuestra Transformación Cuántica, te acompañamos a romper las barreras que hoy te frenan. Todo esto se vive en el *Capítulo 1*, un entrenamiento vivencial de 3 días para rediseñar tu realidad. ¿Te gustaría conocer detalles de la próxima fecha?"
-        return guardar_y_retornar(resp, "REGLA_CORTA")
-    
-    if not Config.GEMINI_KEY or not GEMINI_DISPONIBLE: 
-        return guardar_y_retornar("Para apoyarte de forma humana y precisa, por favor escribe 4 o 6 para enlazarte con una coordinadora.", "FALLBACK_OFFLINE")
-    
-    def construir_prompt_gemini():
-        return f"""Eres un Coach de Enrolamiento de 'Crear Poder Sin Límites Perú'.
-        Hablas con: "{nombre_conocido if nombre_conocido else 'un contacto'}".
-        Mensaje del usuario: "{mensaje_usuario}"
-        BASE DE CONOCIMIENTO: {BROCHURE_INFO_MAESTRA}
-        REGLAS DE ORO:
-        1. CONEXIÓN EMPÁTICA: Tu tono es cálido, apasionado y enérgico. NUNCA suenes como robot. Usa emojis sutiles.
-        2. NO SEAS MONÓTONO: Explica la TRANSFORMACIÓN (romper miedos, mejorar relaciones, elevar el liderazgo).
-        3. PALABRAS PROHIBIDAS: "sanar", "terapia", "ayudar", "paciente".
-        4. PREGUNTA DE CIERRE: Termina SIEMPRE tu respuesta con una pregunta poderosa que invite a la acción."""
-
-    try:
-        genai.configure(api_key=Config.GEMINI_KEY)
-        model = genai.GenerativeModel('gemini-2.0-flash') 
-        r = model.generate_content(construir_prompt_gemini())
-        if r.text: return guardar_y_retornar(r.text.strip(), "GEMINI")
-    except: pass
-
-    return guardar_y_retornar("Para brindarte un apoyo 100% personalizado y humano, te invito a presionar el número de la opción que te derive con una coordinadora.", "FALLBACK_ERROR")
-
-# ══════════════════════════════════════════════════════════════════════════
-# 7. ESTRUCTURAS DE MENÚ
-# ══════════════════════════════════════════════════════════════════════════
 MENU_STRUCTURE = {
     "main_prospecto": {
-        "text": (
-            "🌟 *Bienvenido a Crear Poder Sin Límites Perú* 🌟\n\n"
-            "Soy *IA Cuántica*, tu asistente virtual.\n"
-            "Para brindarte una experiencia ágil, responde con el *número* de la opción que buscas:\n\n"
-            "1️⃣ *Explorar Entrenamientos* (C1, C2 y Maestría)\n"
-            "2️⃣ *Inversión y Pagos* (Modalidades y cuentas)\n"
-            "3️⃣ *Hablar con IA Cuántica* (Chat libre, resolvemos dudas)\n"
-            "4️⃣ *Atención Personalizada* (Contactar a una coordinadora)\n"
-            "0️⃣ *Finalizar sesión*"
-        ),
+        "text": "🌟 *Bienvenido a Crear Poder Sin Límites Perú* 🌟\nSoy *IA Cuántica*, tu asistente virtual.\n\n1️⃣ *Explorar Entrenamientos* (C1, C2 y Maestría)\n2️⃣ *Inversión y Pagos*\n3️⃣ *Hablar con IA Cuántica* (Chat libre)\n4️⃣ *Atención Personalizada* (Coordinadora)\n0️⃣ *Finalizar sesión*",
         "options": {"1": "info_entrenamientos", "2": "pagos", "3": "chat_libre_ia", "4": "action_humano", "0": "action_salir"}
     },
     "main_imo": {
-        "text": (
-            "🌟 *Bienvenido Líder IMO {nombre}* 🌟\n\n"
-            "Es un honor apoyarte en tu liderazgo. Selecciona una opción:\n\n"
-            "1️⃣ *Reportar Asistencia* de mis participantes\n"
-            "2️⃣ *Explorar Entrenamientos* e información oficial\n"
-            "3️⃣ *Hablar con una Coordinadora* para apoyo especial\n"
-            "0️⃣ *Finalizar sesión*"
-        ),
-        "options": {"1": "action_imo", "2": "info_entrenamientos", "3": "action_humano", "0": "action_salir"}
+        "text": "🌟 *Bienvenido Líder IMO {nombre}* 🌟\nEs un honor apoyarte. Selecciona una opción:\n\n1️⃣ *Reportar Asistencia* de mis participantes\n2️⃣ *Explorar Entrenamientos*\n3️⃣ *Hablar con una Coordinadora*\n4️⃣ *Ver mis participantes pendientes*\n0️⃣ *Finalizar sesión*",
+        "options": {"1": "action_imo", "2": "info_entrenamientos", "3": "action_humano", "4": "ver_pendientes_imo", "0": "action_salir"}
     },
     "main_px": {
-        "text": (
-            "🌟 *Bienvenido de vuelta, {nombre}* 🌟\n\n"
-            "Vemos en nuestro sistema que estás acompañado por tu líder *{imo}*.\n"
-            "Notamos que tienes pendiente tu: *{pendiente}*.\n\n"
-            "¿En qué podemos apoyarte hoy? Responde con el *número*:\n\n"
-            "1️⃣ *¡CONFIRMAR MI ASISTENCIA!* (Avisa a tu líder)\n"
-            "2️⃣ *Ver fechas y horarios* de mi entrenamiento\n"
-            "3️⃣ *Solicitar reprogramación / Cambio*\n"
-            "4️⃣ *Hablar con una coordinadora humana*\n"
-            "5️⃣ *Chat Libre con IA* (Resolver dudas generales)\n"
-            "0️⃣ *Finalizar sesión*"
-        ),
+        "text": "🌟 *Bienvenido de vuelta, {nombre}* 🌟\nVemos que tienes pendiente tu: *{pendiente}*.\n\n1️⃣ *¡CONFIRMAR MI ASISTENCIA!*\n2️⃣ *Ver fechas y horarios*\n3️⃣ *Solicitar reprogramación*\n4️⃣ *Hablar con coordinadora*\n5️⃣ *Chat Libre con IA*\n0️⃣ *Finalizar sesión*",
         "options": {"1": "px_confirma", "2": "info_fechas", "3": "action_humano", "4": "action_humano", "5": "chat_libre_ia", "0": "action_salir"}
     },
+    # 🧠 NUEVO MENÚ PARA PARTICIPANTES CON MAESTRÍA (Filtro)
+    "main_mj": {
+        "text": "🌟 *Hola Líder {nombre}* 🌟\nVemos en nuestra base de datos que has participado en Maestría. ¿Cuál es tu estatus actual en el proceso?\n\n1️⃣ Soy Graduado 🎓\n2️⃣ Estoy en proceso ⏳\n3️⃣ Me retiré / Deserté 🛑\n4️⃣ Quiero enrolar a alguien 🚀\n0️⃣ Finalizar sesión",
+        "options": {"1": "mj_graduado", "2": "mj_proceso", "3": "mj_deserto", "4": "action_humano", "0": "action_salir"}
+    },
+    "mj_graduado": {
+        "text": "¡Felicidades por tu graduación! 🎉 Como líder, ¿en qué te podemos apoyar hoy?\n\n1️⃣ Quiero enrolar a un nuevo participante\n2️⃣ Hablar con una coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal",
+        "options": {"1": "action_humano", "2": "action_humano", "9": "volver", "0": "main"}
+    },
+    "mj_proceso": {
+        "text": "¡Excelente! Sigue firme en tus 100 días de transformación. 💪\n\n1️⃣ Hablar con mi coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal",
+        "options": {"1": "action_humano", "9": "volver", "0": "main"}
+    },
+    "mj_deserto": {
+        "text": "Comprendemos. Cada persona tiene su propio ritmo y momento. Si alguna vez deseas retomar tu proceso de transformación, las puertas siempre están abiertas.\n\n1️⃣ Hablar con una coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal",
+        "options": {"1": "action_humano", "9": "volver", "0": "main"}
+    },
+    # Submenús generales
     "info_entrenamientos": {
-        "text": "📘 *Explorar Entrenamientos*\n\n1️⃣ Capítulo 1 (C1)\n2️⃣ Capítulo 2 (C2)\n3️⃣ Maestría (MJ)\n4️⃣ Fechas y lugares\n\n9️⃣ Regresar\n0️⃣ Menú principal",
+        "text": "📘 *Explorar Entrenamientos*\n\n1️⃣ Capítulo 1 (C1)\n2️⃣ Capítulo 2 (C2)\n3️⃣ Maestría (MJ)\n4️⃣ Fechas y lugares\n9️⃣ Regresar\n0️⃣ Menú principal",
         "options": {"1": "info_c1", "2": "info_c2", "3": "info_mj", "4": "info_fechas", "9": "volver", "0": "main"}
     },
     "info_c1": {
@@ -519,7 +376,7 @@ MENU_STRUCTURE = {
         "options": {"9": "volver", "0": "main"}
     },
     "info_fechas": {
-        "text": "📅 *Fechas y Lugares*\nHotel José Antonio Deluxe (Miraflores, Lima). Para la fecha exacta de tu equipo:\n\n1️⃣ Solicitar calendario a coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal",
+        "text": "📅 *Fechas y Lugares*\nHotel José Antonio Deluxe (Miraflores, Lima).\n\n1️⃣ Solicitar calendario a coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal",
         "options": {"1": "action_humano", "9": "volver", "0": "main"}
     },
     "pagos": {
@@ -528,39 +385,66 @@ MENU_STRUCTURE = {
     }
 }
 
+def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre, necesidad):
+    coord_nombre, coord_tel = random.choice(list(COORDINADORAS_CONTACTOS.items()))
+    msg = f"🚨 *NUEVO CONTACTO PARA CREAR* 🚀\n*Nombre:* {prospecto_nombre or 'No especificado'}\n*Teléfono:* wa.me/{prospecto_tel}\n*Necesidad:* {necesidad}"
+    sesion_coord = get_sesion(coord_tel)
+    sesion_coord["primera_vez"] = False; set_sesion(coord_tel, sesion_coord)
+    enviar_mensaje(coord_tel, msg, f"COORDINADORA: {coord_nombre}")
+    return coord_nombre
+
 # ══════════════════════════════════════════════════════════════════════════
-# 8. PROCESADOR PRINCIPAL (MÁQUINA DE ESTADOS) - SE EJECUTA EN HILO SEPARADO
+# 7. PROCESADOR DE ESTADOS
 # ══════════════════════════════════════════════════════════════════════════
-def procesar_mensaje(telefono, texto):
+def procesar_mensaje(telefono, texto, imo_nombre_completo=None):
+    """Firma corregida para evitar TypeError y procesar la máquina de estados"""
     sesion = get_sesion(telefono)
     texto_limpio = str(texto).strip().upper()
-    perfil = sesion.get("perfil", {"rol": "PROSPECTO", "nombre": None, "pendiente": None, "imo_nombre": None, "imo_tel": None})
+    
+    perfil = sesion.get("perfil")
+    if not perfil:
+        perfil = obtener_perfil_crm(telefono)
+        if perfil["rol"] == "PROSPECTO" and len(texto.split()) <= 3 and len(texto) > 2 and not texto_limpio.isnumeric():
+            perfil["nombre"] = nombre_pila(texto)
+        sesion["perfil"] = perfil; set_sesion(telefono, sesion)
+        
     nombre_mostrar = f"({perfil['rol']}) {perfil['nombre']}" if perfil['nombre'] else "NUEVO CONTACTO"
 
     if sesion.get("menu_state") == "esperando_encuesta":
         if texto_limpio in ["1", "2", "3", "4", "5"]:
-            threading.Thread(target=registrar_en_sheets, args=(telefono, nombre_mostrar, "Calificación", f"{texto_limpio} Estrellas", "CSAT"), daemon=True).start()
-            enviar_mensaje(telefono, "¡Gracias por tu calificación! 🌟 Valoramos mucho tu opinión.\n\n_Escribe MENU para reiniciar._", nombre_mostrar)
+            registrar_en_sheets_async(telefono, nombre_mostrar, "Calificación", f"{texto_limpio} Estrellas", "CSAT")
+            enviar_mensaje(telefono, "¡Gracias por tu calificación! 🌟 Valoramos mucho tu opinión para seguir mejorando.\n\n_Escribe MENU para reiniciar._", nombre_mostrar)
             borrar_sesion(telefono)
         else: enviar_mensaje(telefono, "Por favor califica con un número del 1 al 5.", nombre_mostrar)
         return
 
+    try:
+        last_time = datetime.strptime(sesion.get("last_interaction", "2000-01-01 00:00:00"), "%Y-%m-%d %H:%M:%S")
+        minutos_inactividad = (datetime.now() - last_time).total_seconds() / 60.0
+    except: minutos_inactividad = 9999
+
+    sesion["last_interaction"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
     if texto_limpio == "STOP":
-        marcar_stop(telefono); borrar_sesion(telefono)
+        borrar_sesion(telefono)
         enviar_mensaje(telefono, "Has sido dado de baja. No recibirás más mensajes.\n\n*Crear Poder Sin Límites*", nombre_mostrar)
         return
 
-    main_key = "main_imo" if perfil["rol"] == "IMO" else "main_px" if perfil["rol"] == "PX" else "main_prospecto"
+    def get_main_key(rol):
+        if rol == "IMO": return "main_imo"
+        if rol == "MJ": return "main_mj"
+        if rol == "PX": return "main_px"
+        return "main_prospecto"
+        
+    main_key = get_main_key(perfil["rol"])
+
     def render_menu(m_key):
         txt = MENU_STRUCTURE[m_key]["text"]
         if "{" in txt: txt = txt.format(nombre=perfil.get("nombre", "Participante"), imo=perfil.get("imo_nombre", "tu líder"), pendiente=perfil.get("pendiente", "tu entrenamiento"))
         return txt
 
-    # Si escribe MENU
-    if texto_limpio in ["0", "MENU", "MENÚ", "INICIO"] or "menu_state" not in sesion:
-        sesion["menu_state"] = main_key
-        sesion["menu_history"] = []; sesion["menu_errors"] = 0
-        set_sesion(telefono, sesion)
+    if minutos_inactividad > 30 or "menu_state" not in sesion or texto_limpio in ["0", "MENU", "MENÚ", "INICIO"]:
+        sesion["menu_state"] = main_key; sesion["menu_history"] = []; sesion["menu_errors"] = 0; set_sesion(telefono, sesion)
         enviar_mensaje(telefono, render_menu(main_key), nombre_mostrar)
         return
 
@@ -578,14 +462,13 @@ def procesar_mensaje(telefono, texto):
     estado_actual = sesion.get("menu_state", main_key)
 
     if estado_actual in MENU_STRUCTURE:
-        nodo_actual = MENU_STRUCTURE[estado_actual]
-        siguiente_estado = nodo_actual.get("options", {}).get(texto_limpio)
-        
+        siguiente_estado = MENU_STRUCTURE[estado_actual].get("options", {}).get(texto_limpio)
         if siguiente_estado:
             sesion["menu_errors"] = 0
             
             if siguiente_estado == "px_confirma":
-                enviar_mensaje(telefono, f"¡Extraordinario, {perfil['nombre']}! 🎉\nHemos registrado tu asistencia. Le avisaremos a tu líder {perfil['imo_nombre']}.\n\n_Escribe 0 para volver al menú._", nombre_mostrar)
+                msg_exito = f"¡Extraordinario, {perfil['nombre']}! 🎉\nHemos registrado tu confirmación. Le avisaremos automáticamente a tu líder {perfil['imo_nombre']} para que esté al tanto.\n\n_Escribe 0 para volver al menú._"
+                enviar_mensaje(telefono, msg_exito, nombre_mostrar)
                 sesion["menu_state"] = "esperando_fecha"; set_sesion(telefono, sesion)
                 return
 
@@ -609,88 +492,44 @@ def procesar_mensaje(telefono, texto):
             if siguiente_estado in MENU_STRUCTURE: enviar_mensaje(telefono, render_menu(siguiente_estado), nombre_mostrar)
             elif siguiente_estado == "chat_libre_ia": enviar_mensaje(telefono, "Has ingresado a nuestro *Chat Inteligente*. 🧠\nPuedes preguntarme lo que desees.\n\n_Escribe *0* para salir._", nombre_mostrar)
             elif siguiente_estado == "action_imo": enviar_mensaje(telefono, f"¡Hola líder! 👋\n\nEstás en el *Portal IMO*. Envíame el estatus de tus participantes.\n\n_Escribe *0* para volver._", nombre_mostrar)
-
         else:
             if not texto_limpio.isnumeric() and len(texto.split()) > 1:
                 sesion["menu_state"] = "chat_libre_ia"; set_sesion(telefono, sesion)
-                resp_ia = embudo_ventas_ia(texto, perfil["nombre"], sesion.get("nombre_saludado", False), telefono)
-                if "potencial ilimitado" in resp_ia: sesion["nombre_saludado"] = True; set_sesion(telefono, sesion)
-                enviar_mensaje(telefono, resp_ia + "\n\n_(Escribe *0* para volver al menú)_", nombre_mostrar)
+                enviar_mensaje(telefono, "Respuesta automática de IA en desarrollo...\n\n_(Escribe *0* para volver al menú)_", nombre_mostrar)
                 return
-
             errores = sesion.get("menu_errors", 0) + 1
             sesion["menu_errors"] = errores
             if errores >= 3:
                 sesion["menu_errors"] = 0
                 c_nom = notificar_coordinadora_aleatoria(telefono, perfil["nombre"], "El usuario se atascó en el menú.")
-                enviar_mensaje(telefono, f"Noto que estamos teniendo problemas. 🤖\nHe notificado a la coordinadora *{c_nom}* para que te asista.\n\n_Escribe *0* para menú principal._", nombre_mostrar)
+                enviar_mensaje(telefono, f"Noto que estamos teniendo problemas. 🤖\nHe notificado a la coordinadora *{c_nom}* para que te asista de manera humana.\n\n_Escribe *0* para menú principal._", nombre_mostrar)
                 sesion["menu_state"] = "esperando_humano"
             else:
                 enviar_mensaje(telefono, f"⚠️ *Opción no válida*. Responde únicamente con el *número*.\n\n{render_menu(estado_actual)}", nombre_mostrar)
             set_sesion(telefono, sesion)
 
-    elif estado_actual == "action_imo":
-        enviar_mensaje(telefono, f"Excelente líder. Has enviado tu estatus. Estamos procesándolo.\n\n_Escribe *0* para volver al menú._", nombre_mostrar)
-        return
+    elif estado_actual in ["action_imo", "chat_libre_ia"]:
+        enviar_mensaje(telefono, f"Mensaje recibido. Procesando...\n\n_Escribe *0* para volver al menú._", nombre_mostrar)
         
-    elif estado_actual in ["esperando_humano", "esperando_fecha", "ver_pendientes_imo"]:
+    elif estado_actual in ["esperando_humano", "esperando_fecha"]:
         set_sesion(telefono, sesion)
-        return
-
-    elif estado_actual == "chat_libre_ia":
-        resp_ia = embudo_ventas_ia(texto, perfil["nombre"], sesion.get("nombre_saludado", False), telefono)
-        enviar_mensaje(telefono, resp_ia, nombre_mostrar)
-        return
 
 # ══════════════════════════════════════════════════════════════════════════
-# 9. PANEL WEB Y ENDPOINTS FLASK (CON COLA DE MENSAJES)
+# 8. PANEL WEB Y ENDPOINTS FLASK
 # ══════════════════════════════════════════════════════════════════════════
 HTML_CHAT = """
 <!DOCTYPE html>
 <html>
-<head><title>Panel Bot - Crear Poder Sin Límites</title>
-<style>
-    body { font-family: Arial, sans-serif; padding: 20px; text-align: center; background: #f0f2f5; }
-    .btn { padding: 10px 20px; background: #008069; color: white; text-decoration: none; border-radius: 5px; margin: 10px; display: inline-block; }
-    h1 { color: #41525d; }
-</style>
-</head>
+<head><title>Panel Bot - Crear Poder Sin Límites</title></head>
 <body>
-    <h1>✅ Bot Activo V50 (Enterprise)</h1>
-    <p>El sistema está corriendo de forma segura y recopilando datos de entrenamiento.</p>
-    <a href="/api/descargar_respaldo" class="btn">📥 Descargar Historial (Backup)</a>
-    <a href="/api/descargar_dataset" class="btn" style="background:#1a73e8;">🧠 Descargar Dataset de IA</a>
+<h1>✅ Bot Activo V51 (CRM Master)</h1>
+<p>Sistema funcionando con Queue Anti-Caídas.</p>
 </body>
 </html>
 """
 
 @app.route("/chat", methods=["GET"])
 def panel_chat(): return HTML_CHAT
-
-@app.route("/api/historial", methods=["GET"])
-def api_historial(): 
-    threading.Thread(target=ejecutar_watchdog_inactividad, daemon=True).start()
-    return jsonify(get_historial()), 200
-
-@app.route("/api/force_sync", methods=["POST"])
-def force_sync(): return jsonify({"status": "syncing"}), 200
-
-@app.route("/api/descargar_respaldo", methods=["GET"])
-def descargar_respaldo():
-    h = get_historial()
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["Fecha", "Telefono", "Nombre IMO", "Tipo Mensaje", "Texto"])
-    for m in h: writer.writerow([m.get("hora", ""), m.get("telefono", ""), m.get("nombre", ""), "Bot/Panel" if m.get("tipo") == "out" else "Usuario", m.get("texto", "")])
-    return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=Respaldo_Chats.csv"})
-
-@app.route("/api/descargar_dataset", methods=["GET"])
-def descargar_dataset():
-    """Descarga el archivo CSV con los datos de entrenamiento para la IA"""
-    if os.path.exists(Config.DATASET_PATH):
-        with open(Config.DATASET_PATH, "r", encoding="utf-8-sig") as f: data = f.read()
-    else: data = "Fecha,Telefono,Mensaje Usuario,Respuesta IA,Modelo\nSin datos aun"
-    return Response(data, mimetype="text/csv", headers={"Content-Disposition":f"attachment;filename=Dataset_Entrenamiento_{datetime.now().strftime('%Y%m%d')}.csv"})
 
 @app.route("/webhook", methods=["GET"])
 def verificar_webhook():
@@ -713,20 +552,21 @@ def recibir_mensaje():
         if tipo == "text":
             texto = str(msg["text"]["body"]).replace("=", "").replace("+", "").replace("@", "")
             
-            # 🔥 ENVIAR A LA COLA ASÍNCRONA (Para agilidad extrema, el Webhook responde en 0.01 seg)
-            cola_mensajes.put({"telefono": telefono, "texto": texto})
+            # 🔥 CORRECCIÓN: Usamos la función de 2 parámetros para evitar TypeError
+            procesar_mensaje(telefono, texto)
             
+            sesion = get_sesion(telefono)
+            perfil = sesion.get("perfil", {})
+            nombre_mostrar = f"({perfil.get('rol', 'PROSPECTO')}) {perfil.get('nombre', 'Nuevo')}" if perfil.get('nombre') else "NUEVO CONTACTO"
+            
+            append_historial(telefono, nombre_mostrar, texto, "in")
+
         elif tipo in ("audio","image","document","video","sticker"):
             WhatsAppAPI.enviar_mensaje(telefono, "Comprendido. Por favor responde con texto o el número de la opción deseada para poder apoyarte.")
             
-    except Exception as e: logger.error(f"Error Webhook: {e}")
+    except Exception as e: logger.error(f"Error Webhook: {e}", exc_info=True)
     return jsonify({"status":"ok"}), 200
-
-@app.route("/status", methods=["GET"])
-def status(): 
-    return jsonify({"status": "activo", "version": "v50_enterprise_async", "gemini": "✅", "qwen": "❌"}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    logger.info(f"🚀 Iniciando bot V50 (Enterprise) en puerto {port}...")
     app.run(host="0.0.0.0", port=port, debug=False)
