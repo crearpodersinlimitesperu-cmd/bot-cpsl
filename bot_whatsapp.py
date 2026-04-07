@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V36: Sistema Anti-Pérdida de Datos, Buscador Web y Backup en Sheets
+✅ Versión V37: Buscador Omnisciente en Panel Web, Carga Masiva (10k) y Sync Total
 """
 
 import os, re, json, threading, time, csv, io, random, logging
@@ -32,7 +32,6 @@ try:
 except ImportError:
     pass
 
-# Configuración de Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("BotCrear")
 
@@ -48,18 +47,16 @@ class Config:
     EXCEL_PATH = os.environ.get("EXCEL_PATH", "campana_imos_c1_e27.xlsx")
     SESSIONS_PATH = os.environ.get("SESSIONS_PATH", "sesiones.json")
     HISTORIAL_PATH = "historial_chat.json"
-    
     GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
     DASHSCOPE_KEY = os.environ.get("DASHSCOPE_API_KEY", "")
     MODO_IA = os.environ.get("MODO_IA", "fallback").lower() 
     IA_PRIMARIA = os.environ.get("IA_PRIMARIA", "qwen").lower() 
     IA_FALLBACK = os.environ.get("IA_FALLBACK", "gemini").lower()
-    
     SHEET_ID = os.environ.get("SHEET_ID", "")
     CREDS_JSON = os.environ.get("GOOGLE_CREDENTIALS", "")
 
 # ══════════════════════════════════════════════════════════════════════════
-# 2. GESTOR DE ESTADO CONCURRENTE (SISTEMA DE BACKUP)
+# 2. GESTOR DE ESTADO CONCURRENTE (SISTEMA DE BACKUP MASIVO)
 # ══════════════════════════════════════════════════════════════════════════
 class SessionManager:
     _session_lock = threading.Lock()
@@ -89,7 +86,7 @@ class SessionManager:
                 with open(Config.SESSIONS_PATH, "w", encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False, indent=2)
             except Exception as e:
-                logger.error(f"Error guardando sesión para {telefono}: {e}")
+                logger.error(f"Error guardando sesión: {e}")
 
     @staticmethod
     def borrar_sesion(telefono):
@@ -104,7 +101,7 @@ class SessionManager:
                         with open(Config.SESSIONS_PATH, "w", encoding="utf-8") as f:
                             json.dump(data, f, ensure_ascii=False, indent=2)
             except Exception as e:
-                logger.error(f"Error borrando sesión {telefono}: {e}")
+                logger.error(f"Error borrando sesión: {e}")
 
     @staticmethod
     def append_historial(telefono, nombre, texto, tipo):
@@ -121,14 +118,15 @@ class SessionManager:
                     "tipo": tipo, 
                     "hora": datetime.now().strftime("%d/%m %H:%M")
                 })
+                # Carga Masiva: Guarda hasta 10,000 mensajes
                 with open(Config.HISTORIAL_PATH, "w", encoding="utf-8") as f:
-                    json.dump(h[-2000:], f, ensure_ascii=False, indent=2)
+                    json.dump(h[-10000:], f, ensure_ascii=False, indent=2)
             except Exception as e:
                 logger.error(f"Error escribiendo en historial: {e}")
 
     @staticmethod
     def forzar_sincronizacion(leer_sheet_func, norm_tel_func):
-        """Restaura el historial desde Google Sheets para evitar pérdidas de datos en Render"""
+        """Restaura el historial completo desde Google Sheets"""
         with SessionManager._history_lock:
             try:
                 local_hist = []
@@ -158,7 +156,7 @@ class SessionManager:
                     
                     # Ordenar cronológicamente y guardar
                     with open(Config.HISTORIAL_PATH, "w", encoding="utf-8") as f: 
-                        json.dump(local_hist[-2000:], f, ensure_ascii=False, indent=2) 
+                        json.dump(local_hist[-10000:], f, ensure_ascii=False, indent=2) 
             except Exception as e:
                 logger.error(f"Error restaurando Backup de Sheets: {e}")
 
@@ -180,7 +178,7 @@ def get_historial():
 # ══════════════════════════════════════════════════════════════════════════
 class WhatsAppAPI:
     @staticmethod
-    def enviar_mensaje(telefono, texto, nombre_mostrar=""):
+    def enviar_mensaje(telefono, texto, nombre_mostrar="", registrar_sheets=False, mensaje_usuario=""):
         url = f"https://graph.facebook.com/v19.0/{Config.PHONE_ID}/messages"
         headers = {"Authorization": f"Bearer {Config.TOKEN}", "Content-Type": "application/json"}
         payload = {
@@ -190,25 +188,24 @@ class WhatsAppAPI:
         try:
             r = req_lib.post(url, json=payload, headers=headers, timeout=10)
             if r.status_code == 200:
-                # Se guarda en Panel Web
                 SessionManager.append_historial(telefono, nombre_mostrar, texto, "out")
                 
-                # Se guarda en Sheets (Backup de Entrenamiento) de manera robusta
-                sesion = get_sesion(telefono)
-                ultimo_msg = sesion.get("ultimo_mensaje_usuario", "[Bot Autónomo]")
-                estado_actual = sesion.get("menu_state", "BOT")
-                
-                threading.Thread(
-                    target=registrar_en_sheets, 
-                    args=(telefono, nombre_mostrar, ultimo_msg, texto[:500], estado_actual),
-                    daemon=True
-                ).start()
+                if registrar_sheets:
+                    sesion = get_sesion(telefono)
+                    ultimo_msg = sesion.get("ultimo_mensaje_usuario", mensaje_usuario or "[Bot Autónomo]")
+                    estado_actual = sesion.get("menu_state", "BOT")
+                    
+                    threading.Thread(
+                        target=registrar_en_sheets, 
+                        args=(telefono, nombre_mostrar, ultimo_msg, texto[:500], estado_actual),
+                        daemon=True
+                    ).start()
                 return True
         except Exception as e:
             logger.error(f"Fallo al enviar mensaje a {telefono}: {e}")
         return False
 
-def enviar_mensaje(telefono, texto, nombre_imo=""):
+def enviar_mensaje(telefono, texto, nombre_imo="", registrar_sheets=False, msg_user=""):
     sesion = get_sesion(telefono)
     if sesion.get("primera_vez", True) and not str(nombre_imo).startswith("COORDINADORA"):
         aclaracion = "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*. Mis respuestas pueden ser limitadas. Para más información, comunícate con nuestras coordinadoras:_\n\n" + COORDINADORAS
@@ -216,7 +213,7 @@ def enviar_mensaje(telefono, texto, nombre_imo=""):
         sesion["primera_vez"] = False
         set_sesion(telefono, sesion)
     
-    return WhatsAppAPI.enviar_mensaje(telefono, texto, nombre_imo)
+    return WhatsAppAPI.enviar_mensaje(telefono, texto, nombre_imo, registrar_sheets, msg_user)
 
 class GoogleSheetsAPI:
     _token_cache = {"token": None, "exp": 0}
@@ -766,7 +763,7 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
         return
 
 # ══════════════════════════════════════════════════════════════════════════
-# 8. PANEL WEB (Buscador Efectivo) Y ENDPOINTS
+# 8. PANEL WEB (BUSCADOR INTELIGENTE) Y ENDPOINTS
 # ══════════════════════════════════════════════════════════════════════════
 HTML_CHAT = """
 <!DOCTYPE html>
@@ -813,12 +810,13 @@ HTML_CHAT = """
         <div class="sidebar">
             <div class="sidebar-header">
                 <div class="header-top">
-                    <div>💬 Panel V36</div>
+                    <div>💬 Panel V37</div>
                     <div class="header-actions">
                         <a href="/api/descargar_respaldo" class="download-btn">📥 Backup</a>
+                        <button class="sync-btn" id="syncBtn" onclick="forceSync()">🔄 Excel</button>
                     </div>
                 </div>
-                <input type="text" id="searchBox" class="search-box" placeholder="🔍 Buscar nombre o mensaje..." onkeyup="filterChats()">
+                <input type="text" id="searchBox" class="search-box" placeholder="🔍 Buscar nombre, número o mensaje..." onkeyup="filtrarChats()">
             </div>
             <div class="contacts-list" id="contactsList"></div>
         </div>
@@ -854,13 +852,25 @@ HTML_CHAT = """
             } catch (e) { }
         }
         
-        function filterChats() {
-            let term = document.getElementById("searchBox").value.toLowerCase();
-            let items = document.querySelectorAll(".contact-item");
+        function filtrarChats() {
+            const query = document.getElementById("searchBox").value.toLowerCase();
+            const items = document.querySelectorAll(".contact-item");
             items.forEach(item => {
-                let textContent = item.innerText.toLowerCase();
-                item.style.display = textContent.includes(term) ? "flex" : "none";
+                const searchData = item.getAttribute("data-search") || "";
+                if (searchData.includes(query)) {
+                    item.style.display = "flex";
+                } else {
+                    item.style.display = "none";
+                }
             });
+        }
+
+        async function forceSync() {
+            const btn = document.getElementById('syncBtn'); btn.classList.add('loading'); btn.innerText = "⏳...";
+            try {
+                await fetch('/api/force_sync', {method: 'POST'});
+                setTimeout(async () => { await cargarDatos(); btn.classList.remove('loading'); btn.innerText = "🔄 Excel"; }, 4000);
+            } catch(e) { btn.classList.remove('loading'); btn.innerText = "🔄 Excel"; }
         }
 
         function renderContacts() {
@@ -871,14 +881,22 @@ HTML_CHAT = """
                 const contactData = chatHistory[phone]; 
                 const lastMessage = contactData.messages[contactData.messages.length - 1].text;
                 const displayName = contactData.nombre ? contactData.nombre : `+${phone}`;
+                
+                // DATA PARA EL BUSCADOR OMNISCIENTE
+                const allMessages = contactData.messages.map(m => m.text.toLowerCase()).join(" ");
+                const searchStr = `${displayName.toLowerCase()} ${phone} ${allMessages}`.replace(/"/g, '');
+
                 const div = document.createElement('div');
                 div.className = `contact-item ${activeContact === phone ? 'active' : ''}`;
                 div.onclick = () => openChat(phone, displayName);
+                div.setAttribute("data-search", searchStr);
+                
                 div.innerHTML = `<div class="avatar">👤</div><div class="contact-info"><h4>${displayName}</h4><p>${lastMessage}</p></div>`;
                 list.appendChild(div);
             });
-            filterChats(); // Aplicar filtro si alguien está escribiendo mientras se actualiza
+            filtrarChats(); 
         }
+
         function openChat(phone, displayName) {
             activeContact = phone;
             document.getElementById('emptyState').classList.add('hidden'); 
@@ -888,6 +906,7 @@ HTML_CHAT = """
             document.getElementById('chatHeaderName').innerHTML = `${displayName} <span style="font-size:12px; color:#888; margin-left:10px;">(+${phone})</span>`;
             renderContacts(); renderMessages();
         }
+
         function renderMessages() {
             const container = document.getElementById('messagesContainer'); container.innerHTML = '';
             if (!activeContact || !chatHistory[activeContact]) return;
@@ -898,6 +917,7 @@ HTML_CHAT = """
             });
             container.scrollTop = container.scrollHeight;
         }
+
         async function sendMessage() {
             const textarea = document.getElementById('messageInput'); const mensaje = textarea.value.trim(); const destino = activeContact;
             if (!mensaje || !destino) return;
@@ -920,6 +940,11 @@ def panel_chat(): return HTML_CHAT
 
 @app.route("/api/historial", methods=["GET"])
 def api_historial(): return jsonify(get_historial()), 200
+
+@app.route("/api/force_sync", methods=["POST"])
+def force_sync():
+    threading.Thread(target=forzar_sincronizacion_sheets, daemon=True).start()
+    return jsonify({"status": "syncing"}), 200
 
 @app.route("/api/descargar_respaldo", methods=["GET"])
 def descargar_respaldo():
@@ -967,7 +992,6 @@ def recibir_mensaje():
             texto = msg["text"]["body"]
             texto = str(texto).replace("=", "").replace("+", "").replace("@", "")
             
-            # Guardar el último mensaje del usuario para el log de Sheets
             sesion_pre = get_sesion(telefono)
             sesion_pre["ultimo_mensaje_usuario"] = texto
             set_sesion(telefono, sesion_pre)
@@ -992,12 +1016,11 @@ def recibir_mensaje():
 def status(): 
     return jsonify({
         "status": "activo", 
-        "version": "v36_anti_data_loss_search_bar",
+        "version": "v37_buscador_omnisciente_10k",
         "gemini": "disponible" if GEMINI_DISPONIBLE else "no instalado",
         "qwen": "disponible" if QWEN_DISPONIBLE else "no instalado"
     }), 200
 
-# Arrancar sincronización inicial en segundo plano
 threading.Thread(target=forzar_sincronizacion_sheets, daemon=True).start()
 
 if __name__ == "__main__":
