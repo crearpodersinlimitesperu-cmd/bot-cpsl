@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V51 MASTER CRM: Filtro MJ (Graduado/Proceso/Deserto) + Queue System para Sheets
+✅ Versión V52: CRM Absoluto (Cambio de Cupos, Todos los Enrolados, Fix Historial/Sheets)
 """
 
 import os, re, json, time, csv, io, random, logging, queue, threading
@@ -48,36 +48,29 @@ class Config:
     TOKEN = os.environ.get("WA_TOKEN", "")
     PHONE_ID = os.environ.get("WA_PHONE_ID", "")
     VERIFY_TOKEN = os.environ.get("WA_VERIFY_TOKEN", "cpsl2026")
-    
     EXCEL_PATH = os.environ.get("EXCEL_PATH", "campana_imos_c1_e27.xlsx")
     CSV_BD_PATH = os.environ.get("CSV_BD_PATH", get_csv_bd_path())
     SESSIONS_PATH = os.environ.get("SESSIONS_PATH", "sesiones.json")
     HISTORIAL_PATH = "historial_chat.json"
     DATASET_PATH = "dataset_entrenamiento.csv"
-    
     GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
     DASHSCOPE_KEY = os.environ.get("DASHSCOPE_API_KEY", "")
     MODO_IA = os.environ.get("MODO_IA", "fallback").lower() 
     IA_PRIMARIA = os.environ.get("IA_PRIMARIA", "gemini").lower() 
     IA_FALLBACK = os.environ.get("IA_FALLBACK", "qwen").lower()
-    
     SHEET_ID = os.environ.get("SHEET_ID", "")
     CREDS_JSON = os.environ.get("GOOGLE_CREDENTIALS", "")
 
 # ══════════════════════════════════════════════════════════════════════════
-# 2. GESTOR DE ESTADO
+# 2. GESTOR DE ESTADO Y ARCHIVOS
 # ══════════════════════════════════════════════════════════════════════════
 class SessionManager:
-    _session_lock = threading.Lock()
-    _history_lock = threading.Lock()
-
     @staticmethod
     def get_sesion(telefono):
         with FileLock(Config.SESSIONS_PATH + ".lock"):
             try:
                 if os.path.exists(Config.SESSIONS_PATH):
-                    with open(Config.SESSIONS_PATH, "r", encoding="utf-8") as f:
-                        return json.load(f).get(str(telefono), {})
+                    with open(Config.SESSIONS_PATH, "r", encoding="utf-8") as f: return json.load(f).get(str(telefono), {})
             except: pass
             return {}
 
@@ -112,7 +105,7 @@ class SessionManager:
                     with open(Config.HISTORIAL_PATH, "r", encoding="utf-8") as f: h = json.load(f)
                 h.append({"telefono": str(telefono), "nombre": nombre or "Desconocido", "texto": texto, "tipo": tipo, "hora": datetime.now().strftime("%d/%m %H:%M")})
                 with open(Config.HISTORIAL_PATH, "w", encoding="utf-8") as f: json.dump(h[-10000:], f, ensure_ascii=False, indent=2)
-            except: pass
+            except Exception as e: logger.error(f"Error escribiendo historial: {e}")
 
 def get_sesion(tel): return SessionManager.get_sesion(tel)
 def set_sesion(tel, d): SessionManager.set_sesion(tel, d)
@@ -126,9 +119,8 @@ def get_historial():
     return []
 
 # ══════════════════════════════════════════════════════════════════════════
-# 3. SISTEMA DE COLAS (QUEUE) PARA EVITAR PÉRDIDA EN GOOGLE SHEETS
+# 3. WORKER ANTI-CAÍDAS PARA GOOGLE SHEETS
 # ══════════════════════════════════════════════════════════════════════════
-cola_mensajes = queue.Queue()
 cola_sheets = queue.Queue()
 
 class GoogleSheetsAPI:
@@ -161,25 +153,23 @@ class GoogleSheetsAPI:
         except Exception as e: logger.error(f"Error Sheets: {e}")
 
 def worker_sheets():
-    """🚀 Trabajador en segundo plano que garantiza la subida continua a Sheets"""
+    """Trabajador blindado que manda los datos a Sheets sin detenerse si hay error"""
     while True:
         try:
             tarea = cola_sheets.get()
             GoogleSheetsAPI.registrar_accion(tarea['tel'], tarea['nom'], tarea['msg'], tarea['resp'], tarea['est'])
         except Exception as e:
-            logger.error(f"Fallo en cola de Sheets: {e}")
+            logger.error(f"Fallo ignorado en worker Sheets: {e}")
         finally:
             cola_sheets.task_done()
 
-# Iniciamos el motor de base de datos en segundo plano
 threading.Thread(target=worker_sheets, daemon=True).start()
 
 def registrar_en_sheets_async(tel, nom, msg, resp, est=""):
-    """Envía la tarea a la cola segura"""
     cola_sheets.put({'tel': tel, 'nom': nom, 'msg': msg, 'resp': resp, 'est': est})
 
 # ══════════════════════════════════════════════════════════════════════════
-# 4. CONECTORES DE API DE WHATSAPP
+# 4. CONECTORES DE WHATSAPP API
 # ══════════════════════════════════════════════════════════════════════════
 class WhatsAppAPI:
     @staticmethod
@@ -190,7 +180,7 @@ class WhatsAppAPI:
         try:
             r = req_lib.post(url, json=payload, headers=headers, timeout=10)
             if r.status_code == 200:
-                SessionManager.append_historial(telefono, nombre_mostrar, texto, "out")
+                append_historial(telefono, nombre_mostrar, texto, "out")
                 if registrar_sheets:
                     estado_actual = "SISTEMA" if nombre_mostrar == "SISTEMA" else "INTERACTIVO"
                     registrar_en_sheets_async(telefono, nombre_mostrar, mensaje_usuario or "[Bot]", texto[:500], estado_actual)
@@ -208,7 +198,7 @@ def enviar_mensaje(telefono, texto, nombre_imo="", registrar_sheets=False, msg_u
     return WhatsAppAPI.enviar_mensaje(telefono, texto, nombre_imo, registrar_sheets, msg_user)
 
 # ══════════════════════════════════════════════════════════════════════════
-# 5. CRM OMNICANAL Y LÓGICA DE DATOS
+# 5. UTILIDADES, CSV, CAMBIO DE CUPO Y CRM
 # ══════════════════════════════════════════════════════════════════════════
 def norm_tel(tel):
     t = re.sub(r'\D', '', str(tel))
@@ -259,16 +249,10 @@ def cargar_px_del_imo(telefono):
 def obtener_perfil_crm(telefono):
     """Cerebro CRM: Detecta IMO, MJ (Graduados/Proceso/Desertores), PX y Prospectos"""
     perfil = {"rol": "PROSPECTO", "nombre": None, "pendiente": None, "imo_nombre": None, "imo_tel": None}
-    
-    # 1. ¿Está activo en la campaña como líder (IMO)?
     imo_nom, px_list = cargar_px_del_imo(telefono)
     if imo_nom and len(px_list) > 0:
-        perfil["rol"] = "IMO"
-        perfil["nombre"] = imo_nom
-        perfil["pendientes"] = px_list
+        perfil["rol"] = "IMO"; perfil["nombre"] = imo_nom; perfil["pendientes"] = px_list
         return perfil
-        
-    # 2. Búsqueda profunda en la base de datos CSV
     try:
         if os.path.exists(Config.CSV_BD_PATH):
             with open(Config.CSV_BD_PATH, "r", encoding="utf-8-sig") as f:
@@ -302,13 +286,9 @@ def obtener_perfil_crm(telefono):
                                     c2_stat = str(row.get(c2_key, "NO")).strip().upper() if c2_key else "NO"
                                     mj_stat = str(row.get(mj_key, "NO")).strip().upper() if mj_key else "NO"
                                     
-                                    # Lógica de Filtro para Menús
-                                    if mj_stat == "SI":
-                                        perfil["rol"] = "MJ" # Ha pisado Maestría, le preguntaremos su estatus
-                                    elif c1_stat == "SI" or c2_stat == "SI":
-                                        perfil["rol"] = "PX" # Participante en camino
-                                    else:
-                                        perfil["rol"] = "PX" # Inscrito
+                                    if mj_stat == "SI": perfil["rol"] = "MJ"
+                                    elif c1_stat == "SI" or c2_stat == "SI": perfil["rol"] = "PX"
+                                    else: perfil["rol"] = "PX"
                                         
                                     pendiente = "Capítulo 1 (C1)"
                                     if c1_stat == "SI": pendiente = "Capítulo 2 (C2)"
@@ -322,8 +302,84 @@ def obtener_perfil_crm(telefono):
     except: pass
     return perfil
 
+def buscar_todos_imo_csv(telefono):
+    """🧠 MAGIA CRM: Busca a todos los participantes, resuelve Cambios de Cupo y calcula el Estatus Real"""
+    try:
+        if not os.path.exists(Config.CSV_BD_PATH): return []
+        with open(Config.CSV_BD_PATH, "r", encoding="utf-8-sig") as f:
+            primera_linea = f.readline()
+            delimitador = ';' if ';' in primera_linea else ','
+            f.seek(0)
+            
+            # Leemos todo a una lista para poder cruzar datos
+            all_rows = list(csv.DictReader(f, delimiter=delimitador))
+            if not all_rows: return []
+            
+            # Identificamos columnas clave (ignorando mayúsculas/minúsculas)
+            keys = {k.strip().lower(): k for k in all_rows[0].keys() if k}
+            
+            id_key = keys.get("identificación", keys.get("identificacion"))
+            cambio_key = keys.get("ident. cambio cupo", keys.get("ident. cambio", keys.get("ident cambio cupo")))
+            imo_tel_key = next((k for k in keys.values() if "tel" in k.lower() and "imo" in k.lower()), None)
+            nom_key = next((k for k in keys.values() if "nombre" in k.lower()), None)
+            ape_key = next((k for k in keys.values() if "apellido" in k.lower()), None)
+            c1_key = next((k for k in keys.values() if "c1" == k.lower().strip()), None)
+            c2_key = next((k for k in keys.values() if "c2" == k.lower().strip()), None)
+            mj_key = next((k for k in keys.values() if "maestr" in k.lower()), None)
+
+            if not imo_tel_key: return []
+
+            # Crear diccionario rápido de participantes por su ID para buscar los reemplazos
+            participantes_por_id = {}
+            if id_key:
+                for row in all_rows:
+                    val_id = str(row.get(id_key, "")).strip()
+                    if val_id and val_id != "-":
+                        participantes_por_id[val_id] = row
+
+            resultados = []
+            tel_buscado = norm_tel(telefono)
+
+            for row in all_rows:
+                if not row or not row.get(imo_tel_key): continue
+                imo_t = str(row.get(imo_tel_key, ""))
+                
+                if son_mismo_numero(imo_t, tel_buscado):
+                    px_actual = row
+                    
+                    # 🚀 AUTO-TRACING: Si hay un cambio de cupo, buscar a la persona nueva
+                    if cambio_key:
+                        reemplazo_id = str(row.get(cambio_key, "")).strip()
+                        if reemplazo_id and reemplazo_id != '-' and reemplazo_id in participantes_por_id:
+                            px_actual = participantes_por_id[reemplazo_id] # Usamos los datos de la nueva persona
+                            
+                    # Formatear el nombre
+                    n_base = str(px_actual.get(nom_key, "")).strip()
+                    a_base = str(px_actual.get(ape_key, "")).strip() if ape_key else ""
+                    n = n_base.split()[0] if n_base.split() else ""
+                    a = a_base.split()[0] if a_base.split() else ""
+                    nombre_completo = f"{n} {a}".title().strip() if (n and a) else nombre_pila(n_base)
+                    
+                    if not nombre_completo: continue
+
+                    # Calcular Estatus
+                    c1 = str(px_actual.get(c1_key, "NO")).strip().upper() if c1_key else "NO"
+                    c2 = str(px_actual.get(c2_key, "NO")).strip().upper() if c2_key else "NO"
+                    mj = str(px_actual.get(mj_key, "NO")).strip().upper() if mj_key else "NO"
+                    
+                    if mj == "SI": estatus = "🎓 Graduado (MJ)"
+                    elif c2 == "SI": estatus = "🔥 En Proceso (C2)"
+                    elif c1 == "SI": estatus = "🚀 Inició (C1)"
+                    else: estatus = "⏳ Rezagado (Falta C1)"
+
+                    resultados.append(f"• {nombre_completo} - {estatus}")
+                    
+            return resultados
+    except Exception as e: logger.error(f"Error consultando todos los IMO CSV: {e}")
+    return []
+
 # ══════════════════════════════════════════════════════════════════════════
-# 6. ESTRUTURA DE MENÚS (INCLUYE FILTRO MJ)
+# 7. MENÚS Y ESTRUCTURA DE TEXTOS
 # ══════════════════════════════════════════════════════════════════════════
 COORDINADORAS_CONTACTOS = {"Diana Moscoso": "51912379744", "Joyce Marín": "51933599903", "Leyla Pasquel": "51919502385", "Zuley Urteaga": "51933599864"}
 COORDINADORAS = f"Coordinadoras C1 y C2:\n• Diana Moscoso: +51 912 379 744\n• Joyce Marin: +51 933 599 903\n• Leyla Pasquel: +51 919 502 385\n• Zuley Urteaga: +51 933 599 864"
@@ -334,14 +390,13 @@ MENU_STRUCTURE = {
         "options": {"1": "info_entrenamientos", "2": "pagos", "3": "chat_libre_ia", "4": "action_humano", "0": "action_salir"}
     },
     "main_imo": {
-        "text": "🌟 *Bienvenido Líder IMO {nombre}* 🌟\nEs un honor apoyarte. Selecciona una opción:\n\n1️⃣ *Reportar Asistencia* de mis participantes\n2️⃣ *Explorar Entrenamientos*\n3️⃣ *Hablar con una Coordinadora*\n4️⃣ *Ver mis participantes pendientes*\n0️⃣ *Finalizar sesión*",
-        "options": {"1": "action_imo", "2": "info_entrenamientos", "3": "action_humano", "4": "ver_pendientes_imo", "0": "action_salir"}
+        "text": "🌟 *Bienvenido Líder IMO {nombre}* 🌟\nEs un honor apoyarte. Selecciona una opción:\n\n1️⃣ *Reportar Asistencia* de mis participantes\n2️⃣ *Explorar Entrenamientos*\n3️⃣ *Hablar con una Coordinadora*\n4️⃣ *Ver mis participantes pendientes (C1/C2)*\n5️⃣ *Ver TODOS mis enrolados y estatus*\n0️⃣ *Finalizar sesión*",
+        "options": {"1": "action_imo", "2": "info_entrenamientos", "3": "action_humano", "4": "ver_pendientes_imo", "5": "ver_todos_imo", "0": "action_salir"}
     },
     "main_px": {
         "text": "🌟 *Bienvenido de vuelta, {nombre}* 🌟\nVemos que tienes pendiente tu: *{pendiente}*.\n\n1️⃣ *¡CONFIRMAR MI ASISTENCIA!*\n2️⃣ *Ver fechas y horarios*\n3️⃣ *Solicitar reprogramación*\n4️⃣ *Hablar con coordinadora*\n5️⃣ *Chat Libre con IA*\n0️⃣ *Finalizar sesión*",
         "options": {"1": "px_confirma", "2": "info_fechas", "3": "action_humano", "4": "action_humano", "5": "chat_libre_ia", "0": "action_salir"}
     },
-    # 🧠 NUEVO MENÚ PARA PARTICIPANTES CON MAESTRÍA (Filtro)
     "main_mj": {
         "text": "🌟 *Hola Líder {nombre}* 🌟\nVemos en nuestra base de datos que has participado en Maestría. ¿Cuál es tu estatus actual en el proceso?\n\n1️⃣ Soy Graduado 🎓\n2️⃣ Estoy en proceso ⏳\n3️⃣ Me retiré / Deserté 🛑\n4️⃣ Quiero enrolar a alguien 🚀\n0️⃣ Finalizar sesión",
         "options": {"1": "mj_graduado", "2": "mj_proceso", "3": "mj_deserto", "4": "action_humano", "0": "action_salir"}
@@ -358,7 +413,6 @@ MENU_STRUCTURE = {
         "text": "Comprendemos. Cada persona tiene su propio ritmo y momento. Si alguna vez deseas retomar tu proceso de transformación, las puertas siempre están abiertas.\n\n1️⃣ Hablar con una coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal",
         "options": {"1": "action_humano", "9": "volver", "0": "main"}
     },
-    # Submenús generales
     "info_entrenamientos": {
         "text": "📘 *Explorar Entrenamientos*\n\n1️⃣ Capítulo 1 (C1)\n2️⃣ Capítulo 2 (C2)\n3️⃣ Maestría (MJ)\n4️⃣ Fechas y lugares\n9️⃣ Regresar\n0️⃣ Menú principal",
         "options": {"1": "info_c1", "2": "info_c2", "3": "info_mj", "4": "info_fechas", "9": "volver", "0": "main"}
@@ -394,10 +448,9 @@ def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre, necesidad)
     return coord_nombre
 
 # ══════════════════════════════════════════════════════════════════════════
-# 7. PROCESADOR DE ESTADOS
+# 8. PROCESADOR DE ESTADOS (MÁQUINA PRINCIPAL)
 # ══════════════════════════════════════════════════════════════════════════
 def procesar_mensaje(telefono, texto, imo_nombre_completo=None):
-    """Firma corregida para evitar TypeError y procesar la máquina de estados"""
     sesion = get_sesion(telefono)
     texto_limpio = str(texto).strip().upper()
     
@@ -466,10 +519,20 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo=None):
         if siguiente_estado:
             sesion["menu_errors"] = 0
             
-            if siguiente_estado == "px_confirma":
-                msg_exito = f"¡Extraordinario, {perfil['nombre']}! 🎉\nHemos registrado tu confirmación. Le avisaremos automáticamente a tu líder {perfil['imo_nombre']} para que esté al tanto.\n\n_Escribe 0 para volver al menú._"
-                enviar_mensaje(telefono, msg_exito, nombre_mostrar)
-                sesion["menu_state"] = "esperando_fecha"; set_sesion(telefono, sesion)
+            # --- 🚀 LÓGICA DE NUEVO BOTÓN: VER TODOS LOS ENROLADOS ---
+            if siguiente_estado == "ver_todos_imo":
+                lista_todos = buscar_todos_imo_csv(telefono)
+                if lista_todos:
+                    msg_lista = "\n".join(lista_todos)
+                    msg = f"📊 *Reporte Completo de tu Equipo*\n\n{msg_lista}\n\n_Escribe *0* para volver al menú._"
+                else:
+                    msg = "No encontramos participantes vinculados a tu número en la base de datos actual.\n\n_Escribe *0* para volver al menú._"
+                
+                enviar_mensaje(telefono, msg, nombre_mostrar)
+                
+                hist = sesion.get("menu_history", [])
+                if estado_actual != main_key and (not hist or hist[-1] != estado_actual): hist.append(estado_actual)
+                sesion["menu_state"] = "ver_todos_imo"; sesion["menu_history"] = hist; set_sesion(telefono, sesion)
                 return
 
             elif siguiente_estado == "action_humano":
@@ -493,10 +556,6 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo=None):
             elif siguiente_estado == "chat_libre_ia": enviar_mensaje(telefono, "Has ingresado a nuestro *Chat Inteligente*. 🧠\nPuedes preguntarme lo que desees.\n\n_Escribe *0* para salir._", nombre_mostrar)
             elif siguiente_estado == "action_imo": enviar_mensaje(telefono, f"¡Hola líder! 👋\n\nEstás en el *Portal IMO*. Envíame el estatus de tus participantes.\n\n_Escribe *0* para volver._", nombre_mostrar)
         else:
-            if not texto_limpio.isnumeric() and len(texto.split()) > 1:
-                sesion["menu_state"] = "chat_libre_ia"; set_sesion(telefono, sesion)
-                enviar_mensaje(telefono, "Respuesta automática de IA en desarrollo...\n\n_(Escribe *0* para volver al menú)_", nombre_mostrar)
-                return
             errores = sesion.get("menu_errors", 0) + 1
             sesion["menu_errors"] = errores
             if errores >= 3:
@@ -511,25 +570,200 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo=None):
     elif estado_actual in ["action_imo", "chat_libre_ia"]:
         enviar_mensaje(telefono, f"Mensaje recibido. Procesando...\n\n_Escribe *0* para volver al menú._", nombre_mostrar)
         
-    elif estado_actual in ["esperando_humano", "esperando_fecha"]:
+    elif estado_actual in ["esperando_humano", "esperando_fecha", "ver_todos_imo", "ver_pendientes_imo"]:
         set_sesion(telefono, sesion)
 
 # ══════════════════════════════════════════════════════════════════════════
-# 8. PANEL WEB Y ENDPOINTS FLASK
+# 9. PANEL WEB Y ENDPOINTS FLASK
 # ══════════════════════════════════════════════════════════════════════════
 HTML_CHAT = """
 <!DOCTYPE html>
-<html>
-<head><title>Panel Bot - Crear Poder Sin Límites</title></head>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel WhatsApp - Creación Cuántica</title>
+    <style>
+        :root { --primary: #008069; --bg-body: #d1d7db; --bg-chat: #efeae2; --chat-bubble-out: #d9fdd3; --text-dark: #111b21; --text-muted: #667781; --border: #e9edef; --panel-bg: #ffffff; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; }
+        body { background-color: var(--bg-body); color: var(--text-dark); height: 100vh; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+        .app-container { display: flex; width: 100%; max-width: 1400px; height: 95vh; background: var(--panel-bg); box-shadow: 0 6px 18px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; }
+        .sidebar { width: 30%; min-width: 320px; border-right: 1px solid var(--border); display: flex; flex-direction: column; background: #ffffff; }
+        .sidebar-header { background: #f0f2f5; padding: 15px 20px; font-weight: 600; font-size: 18px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .header-actions { font-size:12px; font-weight:normal; display:flex; align-items:center; gap:8px; }
+        .search-box { width: 100%; padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; outline: none; font-size: 14px; }
+        .contacts-list { flex: 1; overflow-y: auto; }
+        .contact-item { padding: 15px 20px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s; display: flex; align-items: center; }
+        .contact-item:hover, .contact-item.active { background: #f0f2f5; }
+        .avatar { width: 45px; height: 45px; background: #dfe5e7; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 15px; font-size: 20px; flex-shrink: 0;}
+        .contact-info { flex: 1; min-width: 0; }
+        .contact-info h4 { margin-bottom: 4px; font-weight: 500; font-size:15px; color: #111b21;}
+        .contact-info p { font-size: 13px; color: var(--text-muted); text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
+        .chat-area { flex: 1; display: flex; flex-direction: column; background: var(--bg-chat); position: relative; }
+        .chat-header { background: #f0f2f5; padding: 15px 25px; font-weight: 500; border-bottom: 1px solid var(--border); z-index: 1; display: flex; align-items: center; }
+        .messages-container { flex: 1; padding: 30px; overflow-y: auto; z-index: 1; display: flex; flex-direction: column; scroll-behavior: smooth; }
+        .message { max-width: 65%; padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; position: relative; font-size: 14.5px; line-height: 1.4; box-shadow: 0 1px 1px rgba(0,0,0,0.1); word-wrap: break-word; }
+        .message.sent { align-self: flex-end; background: var(--chat-bubble-out); border-top-right-radius: 0; }
+        .message.received { align-self: flex-start; background: #ffffff; border-top-left-radius: 0; }
+        .message .time { font-size: 11px; color: var(--text-muted); float: right; margin-top: 5px; margin-left: 15px; }
+        .chat-input-area { background: #f0f2f5; padding: 15px 25px; display: flex; align-items: center; z-index: 1; gap: 15px; }
+        .chat-input-area textarea { flex: 1; border: none; padding: 12px 15px; border-radius: 8px; resize: none; outline: none; font-size: 15px; }
+        .send-btn { background: var(--primary); color: white; border: none; width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; flex-shrink:0; }
+        .hidden { display: none !important; }
+        .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; z-index: 1; color: var(--text-muted); text-align: center; padding: 20px;}
+        .download-btn { background: #00a884; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; transition: 0.2s; text-decoration: none;}
+    </style>
+</head>
 <body>
-<h1>✅ Bot Activo V51 (CRM Master)</h1>
-<p>Sistema funcionando con Queue Anti-Caídas.</p>
+    <div class="app-container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="header-top">
+                    <div>💬 Panel V52</div>
+                    <div class="header-actions">
+                        <a href="/api/descargar_respaldo" class="download-btn">📥 Backup</a>
+                    </div>
+                </div>
+                <input type="text" id="searchBox" class="search-box" placeholder="🔍 Buscar nombre, número o mensaje..." onkeyup="filtrarChats()">
+            </div>
+            <div class="contacts-list" id="contactsList"></div>
+        </div>
+        <div class="chat-area" id="chatArea">
+            <div class="empty-state" id="emptyState">
+                <div style="font-size: 50px; margin-bottom: 20px;">🚀</div>
+                <h2 style="color: #41525d; font-weight: 300;">Creación Cuántica Web</h2>
+                <p style="margin-top: 10px; font-size:14px;">Selecciona un chat de la columna izquierda.</p>
+            </div>
+            <div class="chat-header hidden" id="chatHeader">
+                <div class="avatar">👤</div>
+                <h3 id="chatHeaderName" style="color: #111b21;"></h3>
+            </div>
+            <div class="messages-container hidden" id="messagesContainer"></div>
+            <div class="chat-input-area hidden" id="chatInputArea">
+                <textarea id="messageInput" rows="1" placeholder="Escribe tu respuesta aquí..."></textarea>
+                <button class="send-btn" onclick="sendMessage()">Enviar</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        let chatHistory = {}; let activeContact = null;
+        async function cargarDatos() {
+            try {
+                let res = await fetch('/api/historial'); let data = await res.json();
+                let newHistory = {};
+                for(let m of data) {
+                    if (!newHistory[m.telefono]) newHistory[m.telefono] = { nombre: "", messages: [] };
+                    if (m.nombre) newHistory[m.telefono].nombre = m.nombre;
+                    newHistory[m.telefono].messages.push({ text: m.texto, time: m.hora, sent: m.tipo === 'out' });
+                }
+                chatHistory = newHistory; renderContacts(); if (activeContact) renderMessages();
+            } catch (e) { }
+        }
+        
+        function filtrarChats() {
+            const query = document.getElementById("searchBox").value.toLowerCase();
+            const items = document.querySelectorAll(".contact-item");
+            items.forEach(item => {
+                const searchData = item.getAttribute("data-search") || "";
+                if (searchData.includes(query)) {
+                    item.style.display = "flex";
+                } else {
+                    item.style.display = "none";
+                }
+            });
+        }
+
+        function renderContacts() {
+            const list = document.getElementById('contactsList'); list.innerHTML = '';
+            const phones = Object.keys(chatHistory).reverse();
+            if(phones.length === 0) { list.innerHTML = '<div style="padding: 20px; text-align: center; color: #888;">Cargando chats...</div>'; return; }
+            phones.forEach(phone => {
+                const contactData = chatHistory[phone]; 
+                const lastMessage = contactData.messages[contactData.messages.length - 1].text;
+                const displayName = contactData.nombre ? contactData.nombre : `+${phone}`;
+                
+                const allMessages = contactData.messages.map(m => m.text.toLowerCase()).join(" ");
+                const searchStr = `${displayName.toLowerCase()} ${phone} ${allMessages}`.replace(/"/g, '');
+
+                const div = document.createElement('div');
+                div.className = `contact-item ${activeContact === phone ? 'active' : ''}`;
+                div.onclick = () => openChat(phone, displayName);
+                div.setAttribute("data-search", searchStr);
+                
+                div.innerHTML = `<div class="avatar">👤</div><div class="contact-info"><h4>${displayName}</h4><p>${lastMessage}</p></div>`;
+                list.appendChild(div);
+            });
+            filtrarChats(); 
+        }
+
+        function openChat(phone, displayName) {
+            activeContact = phone;
+            document.getElementById('emptyState').classList.add('hidden'); 
+            document.getElementById('chatHeader').classList.remove('hidden');
+            document.getElementById('messagesContainer').classList.remove('hidden'); 
+            document.getElementById('chatInputArea').classList.remove('hidden');
+            document.getElementById('chatHeaderName').innerHTML = `${displayName} <span style="font-size:12px; color:#888; margin-left:10px;">(+${phone})</span>`;
+            renderContacts(); renderMessages();
+        }
+
+        function renderMessages() {
+            const container = document.getElementById('messagesContainer'); container.innerHTML = '';
+            if (!activeContact || !chatHistory[activeContact]) return;
+            chatHistory[activeContact].messages.forEach(msg => {
+                const div = document.createElement('div'); div.className = `message ${msg.sent ? 'sent' : 'received'}`;
+                div.innerHTML = `${msg.text.replace(/\\n/g, '<br>')}<span class="time">${msg.time}</span>`;
+                container.appendChild(div);
+            });
+            container.scrollTop = container.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const textarea = document.getElementById('messageInput'); const mensaje = textarea.value.trim(); const destino = activeContact;
+            if (!mensaje || !destino) return;
+            textarea.value = '';
+            chatHistory[destino].messages.push({ text: mensaje, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), sent: true });
+            renderMessages(); renderContacts();
+            try {
+                await fetch('/api/enviar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ telefono: destino, mensaje: mensaje }) });
+                cargarDatos();
+            } catch (error) { alert("Error de conexión"); }
+        }
+        setInterval(cargarDatos, 3000); cargarDatos();
+    </script>
 </body>
 </html>
 """
 
 @app.route("/chat", methods=["GET"])
 def panel_chat(): return HTML_CHAT
+
+@app.route("/api/historial", methods=["GET"])
+def api_historial(): 
+    return jsonify(get_historial()), 200
+
+@app.route("/api/descargar_respaldo", methods=["GET"])
+def descargar_respaldo():
+    h = get_historial()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Fecha", "Telefono", "Nombre IMO", "Tipo Mensaje", "Texto"])
+    for m in h:
+        tipo_str = "Bot/Panel envió" if m.get("tipo") == "out" else "Contacto respondió"
+        writer.writerow([m.get("hora", ""), m.get("telefono", ""), m.get("nombre", ""), tipo_str, m.get("texto", "")])
+    return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=Respaldo_Chats.csv"})
+
+@app.route("/api/enviar", methods=["POST"])
+def api_enviar():
+    data = request.json; tel = data.get("telefono"); msg = data.get("mensaje")
+    if tel and msg:
+        sesion = get_sesion(tel)
+        perfil = sesion.get("perfil")
+        if not perfil: perfil = obtener_perfil_crm(tel)
+        nombre_mostrar = f"({perfil['rol']}) {perfil['nombre']}" if perfil['nombre'] else "NUEVO CONTACTO"
+        WhatsAppAPI.enviar_mensaje(tel, msg, nombre_mostrar, registrar_sheets=True, mensaje_usuario="[ENVIADO DESDE PANEL PRIVADO]")
+        return jsonify({"status": "ok"}), 200
+    return jsonify({"error": "Faltan datos"}), 400
 
 @app.route("/webhook", methods=["GET"])
 def verificar_webhook():
@@ -552,7 +786,7 @@ def recibir_mensaje():
         if tipo == "text":
             texto = str(msg["text"]["body"]).replace("=", "").replace("+", "").replace("@", "")
             
-            # 🔥 CORRECCIÓN: Usamos la función de 2 parámetros para evitar TypeError
+            # FIRMA CORREGIDA: SOLO 2 PARÁMETROS
             procesar_mensaje(telefono, texto)
             
             sesion = get_sesion(telefono)
