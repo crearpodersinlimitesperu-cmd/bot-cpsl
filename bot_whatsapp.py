@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-v33 SENIOR ENGINEER — Fix Sincronización y Panel Web Restaurado
+✅ Versión V34: Contexto Inteligente a Coordinadoras + IA Dual + CSAT
 """
 
 import os, re, json, threading, time, csv, io, random, logging
@@ -12,17 +12,25 @@ from openpyxl import load_workbook
 from filelock import FileLock
 from http import HTTPStatus
 
+# ── IMPORTS DE LAS IAs (con manejo seguro) ──
+GEMINI_DISPONIBLE = False
+QWEN_DISPONIBLE = False
+genai = None
+Generation = None
+
 try:
-    from google import genai
+    import google.generativeai as genai_module
+    genai = genai_module
+    GEMINI_DISPONIBLE = True
 except ImportError:
-    genai = None
+    pass
 
 try:
     from dashscope import Generation as DashGeneration
     Generation = DashGeneration
     QWEN_DISPONIBLE = True
 except ImportError:
-    QWEN_DISPONIBLE = False
+    pass
 
 # Configuración de Logging Profesional
 logging.basicConfig(
@@ -124,7 +132,6 @@ class SessionManager:
                 
     @staticmethod
     def forzar_sincronizacion(leer_sheet_func, norm_tel_func):
-        """Sincroniza el historial local con los datos de Google Sheets."""
         with SessionManager._history_lock:
             try:
                 local_hist = []
@@ -328,11 +335,12 @@ MENU_STRUCTURE = {
             "4️⃣ *Estado de mi Matrícula* (Revisar tu proceso)\n"
             "5️⃣ *Inversión y Pagos* (Modalidades y cuentas)\n"
             "6️⃣ *Atención Personalizada* (Contactar a una coordinadora)\n"
-            "7️⃣ *Finalizar sesión*"
+            "7️⃣ *Hablar con IA Cuántica* (Chat libre, resolvemos dudas)\n"
+            "8️⃣ *Finalizar sesión*"
         ),
         "options": {
             "1": "info_entrenamientos", "2": "action_imo", "3": "soporte_participante", 
-            "4": "estado_proceso", "5": "pagos", "6": "action_humano", "7": "action_salir"
+            "4": "estado_proceso", "5": "pagos", "6": "action_humano", "7": "chat_libre_ia", "8": "action_salir"
         }
     },
     "info_entrenamientos": {
@@ -381,7 +389,7 @@ MENU_STRUCTURE = {
     "soporte_participante": {
         "text": (
             "👤 *Soporte y Acompañamiento*\n¿Qué necesitas hoy?\n\n"
-            "1️⃣ Tengo dudas sobre mi asistencia o fechas\n"
+            "1️⃣ Tengo dudas sobre mi asistencia o fechas asignadas\n"
             "2️⃣ Requisitos y qué llevar al salón\n"
             "3️⃣ Realizar una consulta a un humano\n\n"
             "9️⃣ Regresar\n0️⃣ Menú principal"
@@ -414,10 +422,31 @@ MENU_STRUCTURE = {
     }
 }
 
-def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre, ultimo_mensaje):
+def obtener_necesidad(estado_actual, texto_limpio, texto_original):
+    """Traduce la acción del menú en una necesidad clara para la coordinadora"""
+    if estado_actual == "main" and texto_limpio == "6": return "Atención personalizada general"
+    if estado_actual == "info_c1" and texto_limpio == "1": return "Desea inscribirse o contactar a un asesor para el Capítulo 1"
+    if estado_actual == "info_fechas" and texto_limpio == "1": return "Solicita calendario de fechas de próximos entrenamientos"
+    if estado_actual == "soporte_participante" and texto_limpio == "1": return "Tiene dudas sobre su asistencia o fechas asignadas"
+    if estado_actual == "soporte_participante" and texto_limpio == "3": return "Desea realizar una consulta general de soporte"
+    if estado_actual == "estado_proceso" and texto_limpio == "1": return "Solicita revisión de su matrícula / Validación de DNI"
+    if estado_actual == "pagos" and texto_limpio == "1": return "Desea enviar un voucher de pago"
+    if estado_actual == "pagos" and texto_limpio == "2": return "Necesita ayuda con facturación o boletas"
+    if estado_actual == "chat_libre_ia" and texto_limpio == "3": return "Solicitó un humano tras conversar con la IA"
+    
+    return f"Motivo no especificado. Último mensaje: '{texto_original}'"
+
+def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre, necesidad_detectada):
     coord_nombre, coord_tel = random.choice(list(COORDINADORAS_CONTACTOS.items()))
     nombre_txt = prospecto_nombre if prospecto_nombre else "No especificado"
-    msg_coord = f"🚨 *NUEVO CONTACTO PARA CREAR* 🚀\n\n*Nombre:* {nombre_txt}\n*Teléfono:* wa.me/{prospecto_tel}\n*Escribió/Solicitó:* \"{ultimo_mensaje}\"\n\nEl contacto ha solicitado soporte humano en el Menú Automático. ¡Es tu turno de apoyarlo!"
+    
+    msg_coord = (
+        f"🚨 *NUEVO CONTACTO PARA CREAR* 🚀\n\n"
+        f"*Nombre:* {nombre_txt}\n"
+        f"*Teléfono:* wa.me/{prospecto_tel}\n"
+        f"*Necesidad / Motivo:* {necesidad_detectada}\n\n"
+        f"¡Es tu turno de apoyarlo a dar su salto cuántico!"
+    )
     
     sesion_coord = get_sesion(coord_tel)
     sesion_coord["primera_vez"] = False 
@@ -585,7 +614,7 @@ def embudo_ventas_ia(mensaje_usuario, nombre_conocido=None, nombre_ya_saludado=F
     return respuesta
 
 # ══════════════════════════════════════════════════════════════════════════
-# 7. PROCESADOR PRINCIPAL DE MENSAJES
+# 7. PROCESADOR PRINCIPAL DE MENSAJES (MÁQUINA DE ESTADOS)
 # ══════════════════════════════════════════════════════════════════════════
 
 def procesar_mensaje(telefono, texto, imo_nombre_completo):
@@ -615,12 +644,12 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
         return
 
     # -- TIMEOUT Y CONTROL --
-    minutos_inactividad = SessionManager.get_minutos_inactividad(sesion.get("last_interaction")) if hasattr(SessionManager, 'get_minutos_inactividad') else 9999
-    
     try:
         if sesion.get("last_interaction"):
             last_time = datetime.strptime(sesion.get("last_interaction"), "%Y-%m-%d %H:%M:%S")
             minutos_inactividad = (datetime.now() - last_time).total_seconds() / 60.0
+        else:
+            minutos_inactividad = 9999
     except: minutos_inactividad = 9999
 
     sesion["last_interaction"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -667,7 +696,7 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
 
     estado_actual = sesion.get("menu_state", "main")
 
-    # -- NAVEGACIÓN DEL ÁRBOL DE MENÚS --
+    # -- NAVEGACIÓN DEL ÁRBOL DE MENÚS Y SMART ROUTING --
     if estado_actual in MENU_STRUCTURE:
         nodo_actual = MENU_STRUCTURE[estado_actual]
         siguiente_estado = nodo_actual.get("options", {}).get(texto_limpio)
@@ -677,7 +706,9 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
             
             if siguiente_estado == "action_humano":
                 nm = sesion.get("nombre_prospecto")
-                coord_asignada = notificar_coordinadora_aleatoria(telefono, nm, f"Solicitud desde la opción del menú actual")
+                # Contextualizador Inteligente de la Necesidad
+                necesidad = obtener_necesidad(estado_actual, texto_limpio, texto)
+                coord_asignada = notificar_coordinadora_aleatoria(telefono, nm, necesidad)
                 enviar_mensaje(
                     telefono, 
                     f"¡Comprendido! He notificado a nuestra coordinadora *{coord_asignada}*. Ella te escribirá por aquí en breve para apoyarte personalmente. 🚀\n\n_Escribe *0* si deseas cancelar y volver al menú principal._", 
@@ -713,6 +744,10 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
                 
                 if siguiente_estado in MENU_STRUCTURE:
                     enviar_mensaje(telefono, MENU_STRUCTURE[siguiente_estado]["text"], nombre_mostrar)
+                
+                elif siguiente_estado == "chat_libre_ia":
+                    enviar_mensaje(telefono, "Has ingresado a nuestro *Chat Inteligente*. 🧠\n\nPuedes preguntarme lo que desees sobre nuestros entrenamientos, precios, fechas o metodologías.\n\n_Escribe *0* para salir del chat y volver al menú._", nombre_mostrar)
+                
                 elif siguiente_estado == "action_imo":
                     _, px_list = cargar_px_del_imo(telefono)
                     if px_list:
@@ -725,13 +760,31 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
                         enviar_mensaje(telefono, MENU_STRUCTURE["main"]["text"], nombre_mostrar)
 
         else:
+            # 🚀 SMART ROUTING: Si escribió un texto libre estando en el menú (Ej: "quiero info de c1")
+            if not texto_limpio.isnumeric() and len(texto.split()) > 1:
+                sesion["menu_state"] = "chat_libre_ia"
+                set_sesion(telefono, sesion)
+                
+                nombre_guardado = sesion.get("nombre_prospecto")
+                nombre_ya_saludado = sesion.get("nombre_saludado", False)
+                respuesta_embudo = embudo_ventas_ia(texto, nombre_guardado, nombre_ya_saludado)
+                
+                if nombre_guardado and not nombre_ya_saludado and "potencial ilimitado" in respuesta_embudo:
+                    sesion["nombre_saludado"] = True
+                    set_sesion(telefono, sesion)
+                
+                enviar_mensaje(telefono, respuesta_embudo + "\n\n_(Escribe *0* en cualquier momento para volver al menú principal)_", nombre_mostrar)
+                return
+
+            # Manejo de Errores Reales
             errores = sesion.get("menu_errors", 0) + 1
             sesion["menu_errors"] = errores
             
             if errores >= 3:
                 sesion["menu_errors"] = 0
                 nm = sesion.get("nombre_prospecto")
-                coord_asignada = notificar_coordinadora_aleatoria(telefono, nm, f"El usuario se atascó en el menú enviando: '{texto}'")
+                necesidad = f"El usuario se atascó en el menú enviando múltiples respuestas inválidas. Último intento: '{texto}'"
+                coord_asignada = notificar_coordinadora_aleatoria(telefono, nm, necesidad)
                 enviar_mensaje(telefono, f"Noto que estamos teniendo problemas de comunicación. 🤖\n\nNo te preocupes, he notificado a nuestra coordinadora *{coord_asignada}* para que te asista personalmente de manera humana.\n\n_Escribe *0* si prefieres volver a ver el menú principal._", nombre_mostrar)
                 sesion["menu_state"] = "esperando_humano"
             else:
@@ -740,7 +793,7 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
                 
             set_sesion(telefono, sesion)
 
-    # -- ESTADOS LIBRES (Chat con IA) --
+    # -- ESTADOS LIBRES --
     elif estado_actual == "action_imo":
         enviar_mensaje(telefono, f"Excelente líder. Has enviado tu estatus. Estamos procesándolo.\n\n_Escribe *0* para volver al menú._", nombre_mostrar)
         return
@@ -749,8 +802,16 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
         set_sesion(telefono, sesion)
         return
 
-    # 🔴 ESTADO DE EMBUDO DE VENTAS (Chat Libre con IA Dual)
-    elif estado_actual == "info_c1":
+    # 🔴 CHAT LIBRE CON IA DUAL
+    elif estado_actual == "chat_libre_ia":
+        if texto_limpio == "3":
+            necesidad = "Solicitó un humano tras conversar con la IA."
+            coord_asignada = notificar_coordinadora_aleatoria(telefono, sesion.get("nombre_prospecto"), necesidad)
+            enviar_mensaje(telefono, f"¡Comprendido! He notificado a nuestra coordinadora *{coord_asignada}*. Ella te escribirá por aquí en breve para apoyarte personalmente. 🚀\n\n_Escribe *0* si deseas cancelar y volver al menú principal._", nombre_mostrar)
+            sesion["menu_state"] = "esperando_humano"
+            set_sesion(telefono, sesion)
+            return
+
         nombre_guardado = sesion.get("nombre_prospecto")
         nombre_ya_saludado = sesion.get("nombre_saludado", False)
         
@@ -772,136 +833,11 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
 # ══════════════════════════════════════════════════════════════════════════
 HTML_CHAT = """
 <!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel WhatsApp - Creación Cuántica</title>
-    <style>
-        :root { --primary: #008069; --bg-body: #d1d7db; --bg-chat: #efeae2; --chat-bubble-out: #d9fdd3; --text-dark: #111b21; --text-muted: #667781; --border: #e9edef; --panel-bg: #ffffff; }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; }
-        body { background-color: var(--bg-body); color: var(--text-dark); height: 100vh; display: flex; justify-content: center; align-items: center; overflow: hidden; }
-        .app-container { display: flex; width: 100%; max-width: 1400px; height: 95vh; background: var(--panel-bg); box-shadow: 0 6px 18px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; }
-        .sidebar { width: 30%; min-width: 320px; border-right: 1px solid var(--border); display: flex; flex-direction: column; background: #ffffff; }
-        .sidebar-header { background: #f0f2f5; padding: 15px 20px; font-weight: 600; font-size: 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-        .contacts-list { flex: 1; overflow-y: auto; }
-        .contact-item { padding: 15px 20px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s; display: flex; align-items: center; }
-        .contact-item:hover, .contact-item.active { background: #f0f2f5; }
-        .avatar { width: 45px; height: 45px; background: #dfe5e7; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 15px; font-size: 20px; flex-shrink: 0;}
-        .contact-info { flex: 1; min-width: 0; }
-        .contact-info h4 { margin-bottom: 4px; font-weight: 500; font-size:15px; color: #111b21;}
-        .contact-info p { font-size: 13px; color: var(--text-muted); text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
-        .chat-area { flex: 1; display: flex; flex-direction: column; background: var(--bg-chat); position: relative; }
-        .chat-header { background: #f0f2f5; padding: 15px 25px; font-weight: 500; border-bottom: 1px solid var(--border); z-index: 1; display: flex; align-items: center; }
-        .messages-container { flex: 1; padding: 30px; overflow-y: auto; z-index: 1; display: flex; flex-direction: column; scroll-behavior: smooth; }
-        .message { max-width: 65%; padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; position: relative; font-size: 14.5px; line-height: 1.4; box-shadow: 0 1px 1px rgba(0,0,0,0.1); word-wrap: break-word; }
-        .message.sent { align-self: flex-end; background: var(--chat-bubble-out); border-top-right-radius: 0; }
-        .message.received { align-self: flex-start; background: #ffffff; border-top-left-radius: 0; }
-        .chat-input-area { background: #f0f2f5; padding: 15px 25px; display: flex; align-items: center; z-index: 1; gap: 15px; }
-        .chat-input-area textarea { flex: 1; border: none; padding: 12px 15px; border-radius: 8px; resize: none; outline: none; font-size: 15px; }
-        .send-btn { background: var(--primary); color: white; border: none; width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; flex-shrink:0; }
-        .hidden { display: none !important; }
-        .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; z-index: 1; color: var(--text-muted); text-align: center; padding: 20px;}
-        .sync-btn { background: #e9edef; border: 1px solid #ccc; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; transition: 0.2s; }
-        .download-btn { background: #00a884; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; transition: 0.2s; text-decoration: none;}
-    </style>
-</head>
+<html>
+<head><title>Panel Bot - Crear Poder Sin Límites</title></head>
 <body>
-    <div class="app-container">
-        <div class="sidebar">
-            <div class="sidebar-header">
-                <div>💬 Panel V33</div>
-                <div style="font-size:12px; font-weight:normal; display:flex; align-items:center; gap:8px;">
-                    <a href="/api/descargar_respaldo" class="download-btn">📥 Respaldo</a>
-                    <button class="sync-btn" id="syncBtn" onclick="forceSync()">🔄 Sync</button>
-                </div>
-            </div>
-            <div class="contacts-list" id="contactsList"></div>
-        </div>
-        <div class="chat-area" id="chatArea">
-            <div class="empty-state" id="emptyState">
-                <div style="font-size: 50px; margin-bottom: 20px;">🚀</div>
-                <h2 style="color: #41525d; font-weight: 300;">Creación Cuántica Web</h2>
-                <p style="margin-top: 10px; font-size:14px;">Selecciona un chat de la columna izquierda.</p>
-            </div>
-            <div class="chat-header hidden" id="chatHeader">
-                <div class="avatar">👤</div>
-                <h3 id="chatHeaderName" style="color: #111b21;"></h3>
-            </div>
-            <div class="messages-container hidden" id="messagesContainer"></div>
-            <div class="chat-input-area hidden" id="chatInputArea">
-                <textarea id="messageInput" rows="1" placeholder="Escribe tu respuesta aquí..."></textarea>
-                <button class="send-btn" onclick="sendMessage()">Enviar</button>
-            </div>
-        </div>
-    </div>
-    <script>
-        let chatHistory = {}; let activeContact = null;
-        async function cargarDatos() {
-            try {
-                let res = await fetch('/api/historial'); let data = await res.json();
-                let newHistory = {};
-                for(let m of data) {
-                    if (!newHistory[m.telefono]) newHistory[m.telefono] = { nombre: "", messages: [] };
-                    if (m.nombre) newHistory[m.telefono].nombre = m.nombre;
-                    newHistory[m.telefono].messages.push({ text: m.texto, time: m.hora, sent: m.tipo === 'out' });
-                }
-                chatHistory = newHistory; renderContacts(); if (activeContact) renderMessages();
-            } catch (e) { }
-        }
-        async function forceSync() {
-            const btn = document.getElementById('syncBtn'); btn.classList.add('loading'); btn.innerText = "⏳...";
-            try {
-                await fetch('/api/force_sync', {method: 'POST'});
-                setTimeout(async () => { await cargarDatos(); btn.classList.remove('loading'); btn.innerText = "🔄 Sync"; }, 4000);
-            } catch(e) { btn.classList.remove('loading'); btn.innerText = "🔄 Sync"; }
-        }
-        function renderContacts() {
-            const list = document.getElementById('contactsList'); list.innerHTML = '';
-            const phones = Object.keys(chatHistory).reverse();
-            phones.forEach(phone => {
-                const contactData = chatHistory[phone]; 
-                const lastMessage = contactData.messages[contactData.messages.length - 1].text;
-                const displayName = contactData.nombre ? contactData.nombre : `+${phone}`;
-                const div = document.createElement('div');
-                div.className = `contact-item ${activeContact === phone ? 'active' : ''}`;
-                div.onclick = () => openChat(phone, displayName);
-                div.innerHTML = `<div class="avatar">👤</div><div class="contact-info"><h4>${displayName}</h4><p>${lastMessage}</p></div>`;
-                list.appendChild(div);
-            });
-        }
-        function openChat(phone, displayName) {
-            activeContact = phone;
-            document.getElementById('emptyState').classList.add('hidden'); 
-            document.getElementById('chatHeader').classList.remove('hidden');
-            document.getElementById('messagesContainer').classList.remove('hidden'); 
-            document.getElementById('chatInputArea').classList.remove('hidden');
-            document.getElementById('chatHeaderName').innerHTML = `${displayName} <span style="font-size:12px; color:#888; margin-left:10px;">(+${phone})</span>`;
-            renderContacts(); renderMessages();
-        }
-        function renderMessages() {
-            const container = document.getElementById('messagesContainer'); container.innerHTML = '';
-            if (!activeContact || !chatHistory[activeContact]) return;
-            chatHistory[activeContact].messages.forEach(msg => {
-                const div = document.createElement('div'); div.className = `message ${msg.sent ? 'sent' : 'received'}`;
-                div.innerHTML = `${msg.text.replace(/\\n/g, '<br>')}<span class="time">${msg.time}</span>`;
-                container.appendChild(div);
-            });
-            container.scrollTop = container.scrollHeight;
-        }
-        async function sendMessage() {
-            const textarea = document.getElementById('messageInput'); const mensaje = textarea.value.trim(); const destino = activeContact;
-            if (!mensaje || !destino) return;
-            textarea.value = '';
-            chatHistory[destino].messages.push({ text: mensaje, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), sent: true });
-            renderMessages(); renderContacts();
-            try {
-                await fetch('/api/enviar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ telefono: destino, mensaje: mensaje }) });
-                cargarDatos();
-            } catch (error) { alert("Error de conexión"); }
-        }
-        setInterval(cargarDatos, 3000); cargarDatos();
-    </script>
+<h1>✅ Bot Activo V34</h1>
+<p>Versión: IA Dual + CSAT + Contexto de Necesidades para Coordinadoras.</p>
 </body>
 </html>
 """
@@ -913,9 +849,7 @@ def panel_chat(): return HTML_CHAT
 def api_historial(): return jsonify(get_historial()), 200
 
 @app.route("/api/force_sync", methods=["POST"])
-def force_sync():
-    threading.Thread(target=forzar_sincronizacion_sheets, daemon=True).start()
-    return jsonify({"status": "syncing"}), 200
+def force_sync(): return jsonify({"status": "syncing"}), 200
 
 @app.route("/api/descargar_respaldo", methods=["GET"])
 def descargar_respaldo():
@@ -975,6 +909,15 @@ def recibir_mensaje():
             append_historial(telefono, nombre_mostrar, texto, "in")
             procesar_mensaje(telefono, texto, imo_nombre_sheet)
             
+            sesion_updated = get_sesion(telefono)
+            if not imo_nombre_sheet:
+                nm_updated = sesion_updated.get("nombre_prospecto")
+                nombre_mostrar = f"CONTACTO: {nm_updated}" if nm_updated else "NUEVO CONTACTO"
+
+            respuesta_enviada = _respuestas_enviadas.pop(str(telefono), "")
+            if respuesta_enviada:
+                registrar_en_sheets(telefono, nombre_mostrar, texto, respuesta_enviada[:500], "BOT")
+
         elif tipo in ("audio","image","document","video","sticker"):
             enviar_mensaje(telefono, "Comprendido. Por favor responde con texto o el número de la opción deseada para poder apoyarte.", "")
     except Exception as e: 
@@ -985,13 +928,10 @@ def recibir_mensaje():
 def status(): 
     return jsonify({
         "status": "activo", 
-        "version": "v33_panel_sync_fixed",
+        "version": "v34_necesidad_coordinadoras_smart_routing",
         "gemini": "disponible" if GEMINI_DISPONIBLE else "no instalado",
         "qwen": "disponible" if QWEN_DISPONIBLE else "no instalado"
     }), 200
-
-# Arrancar sincronización inicial (funciona en servidores simples)
-threading.Thread(target=forzar_sincronizacion_sheets, daemon=True).start()
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
