@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V47: IA Optimizada (Psicología de Ventas, Respuestas Profundas y Cero Monotonía)
+✅ Versión V48: Motor CRM con Match Inteligente de Teléfonos (Ignora +51 y ceros)
 """
 
 import os, re, json, time, csv, io, random, logging
@@ -41,13 +41,21 @@ app = Flask(__name__)
 # ══════════════════════════════════════════════════════════════════════════
 # 1. CONFIGURACIÓN Y CONSTANTES
 # ══════════════════════════════════════════════════════════════════════════
+def get_csv_bd_path():
+    """Auto-detecta el archivo de participantes más reciente"""
+    if os.path.exists("base_datos.csv"): return "base_datos.csv"
+    for f in os.listdir("."):
+        if f.startswith("participantes_") and f.endswith(".csv"):
+            return f
+    return "base_datos.csv"
+
 class Config:
     TOKEN = os.environ.get("WA_TOKEN", "")
     PHONE_ID = os.environ.get("WA_PHONE_ID", "")
     VERIFY_TOKEN = os.environ.get("WA_VERIFY_TOKEN", "cpsl2026")
     
     EXCEL_PATH = os.environ.get("EXCEL_PATH", "campana_imos_c1_e27.xlsx")
-    CSV_BD_PATH = os.environ.get("CSV_BD_PATH", "participantes_2026-04-04.csv" if os.path.exists("participantes_2026-04-04.csv") else "base_datos.csv") 
+    CSV_BD_PATH = os.environ.get("CSV_BD_PATH", get_csv_bd_path())
     SESSIONS_PATH = os.environ.get("SESSIONS_PATH", "sesiones.json")
     HISTORIAL_PATH = "historial_chat.json"
     
@@ -122,7 +130,7 @@ class SessionManager:
             except Exception as e: pass
 
     @staticmethod
-    def forzar_sincronizacion(leer_sheet_func, norm_tel_func):
+    def forzar_sincronizacion(leer_sheet_func, limpiar_numero_func):
         rows = leer_sheet_func()
         if not rows: return
         with FileLock(Config.HISTORIAL_PATH + ".lock"):
@@ -134,7 +142,7 @@ class SessionManager:
                 existing = set(f"{m.get('telefono','')}_{m.get('texto','')}" for m in local_hist)
                 for row in rows[1:]:
                     if len(row) < 4: continue
-                    hora = str(row[0]).strip(); tel = norm_tel_func(str(row[1]).strip())
+                    hora = str(row[0]).strip(); tel = limpiar_numero_func(str(row[1]).strip())
                     imo_n = str(row[2]).strip() if len(row) > 2 else ""
                     msg_in = str(row[3]).strip() if len(row) > 3 else ""
                     msg_out = str(row[4]).strip() if len(row) > 4 else ""
@@ -153,7 +161,7 @@ def get_sesion(tel): return SessionManager.get_sesion(tel)
 def set_sesion(tel, d): SessionManager.set_sesion(tel, d)
 def borrar_sesion(tel): SessionManager.borrar_sesion(tel)
 def append_historial(tel, nom, txt, tipo): SessionManager.append_historial(tel, nom, txt, tipo)
-def forzar_sincronizacion_sheets(): SessionManager.forzar_sincronizacion(leer_sheet, norm_tel)
+def forzar_sincronizacion_sheets(): SessionManager.forzar_sincronizacion(leer_sheet, limpiar_numero)
 def get_historial():
     try:
         if os.path.exists(Config.HISTORIAL_PATH):
@@ -187,7 +195,7 @@ def ejecutar_watchdog_inactividad():
                     json.dump(sesiones, f, ensure_ascii=False, indent=2)
         except: pass
     for tel in sesiones_vencidas:
-        msg = "⏳ Hola. Por inactividad hemos finalizado esta sesión.\n\n_Si necesitas realizar otra consulta, simplemente escribe la palabra *MENU* para volver a empezar. ¡Que tengas un día extraordinario! ✨_"
+        msg = "⏳ Hola. Por inactividad hemos finalizado esta sesión para proteger tus datos.\n\n_Si necesitas realizar otra consulta, simplemente escribe la palabra *MENU* para volver a empezar. ¡Que tengas un día extraordinario! ✨_"
         WhatsAppAPI.enviar_mensaje(tel, msg, "SISTEMA", registrar_sheets=True, mensaje_usuario="[CIERRE AUTOMÁTICO DE SESIÓN]")
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -289,7 +297,6 @@ COORDINADORAS_CONTACTOS = {
 COORDINADORAS_LISTA = "\n• Diana Moscoso: +51 912 379 744\n• Joyce Marin: +51 933 599 903\n• Leyla Pasquel: +51 919 502 385\n• Zuley Urteaga: +51 933 599 864"
 COORDINADORAS = f"Coordinadoras C1 y C2:{COORDINADORAS_LISTA}"
 
-# 🧠 ¡EL NUEVO CEREBRO! Más persuasivo, profundo y menos monótono.
 KNOWLEDGE_BASE = """
 🔥 IDENTIDAD Y FILOSOFÍA DE 'CREAR PODER SIN LÍMITES PERÚ':
 - Misión: Impactar a la máxima cantidad de seres humanos a vivir una vida extraordinaria. No somos un simple cursito, somos un centro de entrenamiento de Alto Rendimiento.
@@ -417,14 +424,33 @@ def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre, necesidad_
     return coord_nombre
 
 # ══════════════════════════════════════════════════════════════════════════
-# 6. UTILIDADES, RECONOCIMIENTO CRM Y EXCEL IMO
+# 6. UTILIDADES, COINCIDENCIA DE TELÉFONOS (MATCH INTELIGENTE) Y EXCEL IMO
 # ══════════════════════════════════════════════════════════════════════════
-def norm_tel(tel):
-    t = str(tel).strip().replace("+","").replace(" ","").replace("-","")
-    if t.startswith("51") and len(t) == 11: t = t[2:]
-    elif t.startswith("0") and len(t) == 10: t = t[1:]
-    elif len(t) > 10 and not t.startswith("9"): t = t[-9:]
-    return t
+def limpiar_numero(tel):
+    """Extrae solo los dígitos de cualquier string"""
+    return re.sub(r'\D', '', str(tel))
+
+def son_mismo_numero(tel1, tel2):
+    """
+    Compara dos números de teléfono de atrás hacia adelante para ignorar
+    códigos de país (+51, 57, etc) o ceros iniciales en Excel.
+    """
+    t1 = limpiar_numero(tel1)
+    t2 = limpiar_numero(tel2)
+    if not t1 or not t2: return False
+    if t1 == t2: return True
+    
+    min_len = min(len(t1), len(t2))
+    # Validamos con los últimos 8 dígitos para evitar falsos positivos
+    if min_len >= 8:
+        if t1.endswith(t2) or t2.endswith(t1):
+            return True
+            
+    # Caso especial para números mal guardados con ceros en Excel (Ej: 0999... vs 593999...)
+    if t1.startswith("0") and t2.endswith(t1[1:]): return True
+    if t2.startswith("0") and t1.endswith(t2[1:]): return True
+    
+    return False
 
 def normalizar(texto):
     t = texto.lower().strip()
@@ -436,19 +462,20 @@ def nombre_pila(s):
     return partes[0].title() if partes else s.strip().title()
 
 def cargar_px_del_imo(telefono):
+    """Busca usando coincidencia flexible"""
     with FileLock(Config.EXCEL_PATH + ".lock"):
         try:
             wb = load_workbook(Config.EXCEL_PATH, data_only=True, read_only=True)
             ws = wb["DATA"]
             px_list, imo_nombre = [], ""
-            tel_n = norm_tel(telefono)
             for row in ws.iter_rows(min_row=2, values_only=True):
                 if not row or len(row) < 7: continue
                 imo_n  = str(row[0] or "").strip()
-                imo_t  = norm_tel(str(row[3] or ""))
+                imo_t  = str(row[3] or "")
                 px_n   = str(row[4] or "").strip()
                 estado = str(row[6] or "").strip().upper()
-                if imo_t == tel_n:
+                
+                if son_mismo_numero(imo_t, telefono):
                     if not imo_nombre: imo_nombre = imo_n
                     if estado in ("PENDIENTE","ENVIADO","") and px_n:
                         px_list.append(px_n)
@@ -457,9 +484,9 @@ def cargar_px_del_imo(telefono):
         except: return "", []
 
 def obtener_perfil_crm(telefono):
-    tel_n = norm_tel(telefono)
+    """Motor de reconocimiento. Soporta diferencias de código de país."""
     perfil = {"rol": "PROSPECTO", "nombre": None, "pendiente": None, "imo_nombre": None, "imo_tel": None}
-    imo_nom, px_list = cargar_px_del_imo(tel_n)
+    imo_nom, px_list = cargar_px_del_imo(telefono)
     if imo_nom:
         perfil["rol"] = "IMO"
         perfil["nombre"] = imo_nom
@@ -487,7 +514,10 @@ def obtener_perfil_crm(telefono):
                     if tel_key:
                         for row in reader:
                             if not row or not row.get(tel_key): continue
-                            if norm_tel(str(row.get(tel_key, ""))) == tel_n:
+                            tel_csv = str(row.get(tel_key, ""))
+                            
+                            # USAMOS COINCIDENCIA FLEXIBLE (A prueba de +51 / Ceros)
+                            if son_mismo_numero(tel_csv, telefono):
                                 nombre_base = str(row.get(nom_key, "")).strip()
                                 apellido_base = str(row.get(ape_key, "")).strip() if ape_key else ""
                                 nombre_completo = f"{nombre_base.split()[0]} {apellido_base.split()[0]}".title() if nombre_base and apellido_base else nombre_pila(nombre_base)
@@ -504,12 +534,13 @@ def obtener_perfil_crm(telefono):
                                 perfil["nombre"] = nombre_completo
                                 perfil["pendiente"] = pendiente
                                 perfil["imo_nombre"] = nombre_pila(str(row.get(imo_nom_key, "Tu líder")).strip()) if imo_nom_key else "Tu líder"
-                                perfil["imo_tel"] = norm_tel(str(row.get(imo_tel_key, ""))) if imo_tel_key else ""
+                                perfil["imo_tel"] = limpiar_numero(str(row.get(imo_tel_key, ""))) if imo_tel_key else ""
                                 return perfil
     except Exception as e: pass
     return perfil
 
 def buscar_pendientes_imo_csv(telefono):
+    """Busca a los alumnos del IMO con C1 o C2 en NO (Match Inteligente)"""
     try:
         if not os.path.exists(Config.CSV_BD_PATH): return []
         pendientes = []
@@ -527,10 +558,11 @@ def buscar_pendientes_imo_csv(telefono):
 
             if not imo_tel_key: return []
 
-            tel_buscado = norm_tel(telefono)
             for row in reader:
                 if not row or not row.get(imo_tel_key): continue
-                if norm_tel(str(row.get(imo_tel_key, ""))) == tel_buscado:
+                imo_t = str(row.get(imo_tel_key, ""))
+                
+                if son_mismo_numero(imo_t, telefono):
                     c1_stat = str(row.get(c1_key, "NO")).strip().upper() if c1_key else "NO"
                     c2_stat = str(row.get(c2_key, "NO")).strip().upper() if c2_key else "NO"
 
@@ -551,17 +583,17 @@ def buscar_pendientes_imo_csv(telefono):
 
 def actualizar_excel(resultados, telefono_imo):
     hoy = datetime.now().strftime("%d/%m/%Y %H:%M")
-    tel_n = norm_tel(telefono_imo)
-    if not tel_n: return
     with FileLock(Config.EXCEL_PATH + ".lock"):
         try:
             wb = load_workbook(Config.EXCEL_PATH)
             ws = wb["DATA"]
             for row in ws.iter_rows(min_row=2):
                 if not row or len(row) < 7: continue
-                imo_t = norm_tel(str(row[3].value or ""))
+                imo_t = str(row[3].value or "")
                 px_c = str(row[4].value or "").strip()
-                if imo_t != tel_n: continue
+                
+                if not son_mismo_numero(imo_t, telefono_imo): continue
+                
                 for r in resultados:
                     if r["px"].split()[0].lower() in px_c.lower():
                         row[6].value = r["estatus"]; row[7].value = hoy; break
@@ -569,20 +601,22 @@ def actualizar_excel(resultados, telefono_imo):
         except: pass
 
 def marcar_stop(telefono):
+    hoy = datetime.now().strftime("%d/%m/%Y %H:%M")
     with FileLock(Config.EXCEL_PATH + ".lock"):
         try:
             wb = load_workbook(Config.EXCEL_PATH)
             for row in wb["DATA"].iter_rows(min_row=2):
-                if row and len(row) >= 7 and norm_tel(str(row[3].value or "")) == norm_tel(telefono): 
-                    row[6].value = "STOP"; row[7].value = datetime.now().strftime("%d/%m/%Y %H:%M")
+                if row and len(row) >= 7:
+                    imo_t = str(row[3].value or "")
+                    if son_mismo_numero(imo_t, telefono):
+                        row[6].value = "STOP"; row[7].value = hoy
             wb.save(Config.EXCEL_PATH); wb.close()
         except: pass
 
 # ══════════════════════════════════════════════════════════════════════════
-# 7. 🧠 ESTRATEGIA DE IA DUAL (PROMPTS OPTIMIZADOS PARA CERO MONOTONÍA)
+# 7. ESTRATEGIA DE IA DUAL (Coach de Enrolamiento)
 # ══════════════════════════════════════════════════════════════════════════
 def embudo_ventas_ia(mensaje_usuario, nombre_conocido=None, nombre_ya_saludado=False):
-    """Cerebro conversacional entrenado en persuasión y coaching."""
     
     if len(mensaje_usuario.split()) <= 3 and nombre_conocido and not nombre_ya_saludado:
         return f"¡Hola, {nombre_conocido}! Qué gran paso estás dando al comunicarte. 🌟 Creemos firmemente que tienes un potencial ilimitado esperando ser despertado.\n\nA través de nuestra Transformación Cuántica, te acompañamos a romper las barreras que hoy te frenan. Todo esto se vive en el *Capítulo 1*, un entrenamiento vivencial de 3 días para rediseñar tu realidad. ¿Te gustaría conocer detalles de la próxima fecha?"
@@ -596,16 +630,16 @@ def embudo_ventas_ia(mensaje_usuario, nombre_conocido=None, nombre_ya_saludado=F
         Hablas con: "{nombre_conocido if nombre_conocido else 'un contacto'}".
         Mensaje del usuario: "{mensaje_usuario}"
 
-        BASE DE CONOCIMIENTO (BROCHURE):
+        BASE DE CONOCIMIENTO:
         {KNOWLEDGE_BASE}
 
         REGLAS DE ORO (PSICOLOGÍA DE VENTAS):
         1. CONEXIÓN EMPÁTICA: Tu tono es cálido, apasionado y enérgico. NUNCA suenes como robot. Usa emojis sutiles.
-        2. NO SEAS MONÓTONO: Si te preguntan "Qué es", no recites una definición aburrida. Explica la TRANSFORMACIÓN (romper miedos, mejorar relaciones, elevar el liderazgo).
-        3. NO RESPUESTAS VAGAS: Da detalles de valor, pero mantén oraciones de tamaño variado para que suene natural.
+        2. NO SEAS MONÓTONO: Explica la TRANSFORMACIÓN (romper miedos, mejorar relaciones, elevar el liderazgo).
+        3. NO RESPUESTAS VAGAS: Da detalles de valor (como los 100 días o precios).
         4. PALABRAS PROHIBIDAS: "sanar", "terapia", "ayudar", "paciente".
         5. PALABRAS DE PODER: "Transformación cuántica", "salto cuántico", "vida extraordinaria", "acompañar", "potencial".
-        6. PREGUNTA DE CIERRE: Termina SIEMPRE tu respuesta con una pregunta poderosa que invite a la reflexión o acción (Ej: ¿Te hace sentido?, ¿Sientes que es tu momento?).
+        6. PREGUNTA DE CIERRE: Termina SIEMPRE tu respuesta con una pregunta poderosa que invite a la acción (Ej: ¿Te hace sentido?, ¿Sientes que es tu momento?).
         """
 
     try:
@@ -613,13 +647,12 @@ def embudo_ventas_ia(mensaje_usuario, nombre_conocido=None, nombre_ya_saludado=F
         model = genai.GenerativeModel('gemini-2.0-flash') 
         r = model.generate_content(construir_prompt_gemini())
         if r.text: return r.text.strip()
-    except Exception as e: 
-        logger.error(f"Error en IA Gemini: {e}")
+    except Exception as e: pass
 
     return "Para brindarte un apoyo 100% personalizado y humano, te invito a presionar el número de la opción que te derive con una coordinadora."
 
 # ══════════════════════════════════════════════════════════════════════════
-# 8. MÁQUINA DE ESTADOS CRM (NÚCLEO OMNICANAL Y BUSCADOR)
+# 8. MÁQUINA DE ESTADOS CRM (NÚCLEO OMNICANAL)
 # ══════════════════════════════════════════════════════════════════════════
 def procesar_mensaje(telefono, texto):
     sesion = get_sesion(telefono)
@@ -707,6 +740,7 @@ def procesar_mensaje(telefono, texto):
                 px_nombre = perfil["nombre"]
                 imo_tel = perfil["imo_tel"]
                 if imo_tel: threading.Thread(target=actualizar_excel, args=([{"px": px_nombre, "estatus": "CONFIRMADO"}], imo_tel), daemon=True).start()
+                
                 msg_exito = f"¡Extraordinario, {px_nombre}! 🎉\n\nHemos registrado tu asistencia para tu próximo {perfil['pendiente']}. Le avisaremos automáticamente a tu líder {perfil['imo_nombre']} para que esté al tanto.\n\n_Escribe 0 para volver al menú._"
                 enviar_mensaje(telefono, msg_exito, nombre_mostrar)
                 sesion["menu_state"] = "esperando_fecha" 
@@ -720,9 +754,13 @@ def procesar_mensaje(telefono, texto):
                     msg = f"📊 *Reporte de tu Equipo*\n\nEstos son tus participantes de la base de datos que aún NO se han sentado:\n\n{msg_lista}\n\n_Escribe *0* para volver al menú._"
                 else:
                     msg = "¡Felicidades! 🎉 Al parecer todos tus participantes registrados ya se han sentado o no tienes pendientes en la base actual.\n\n_Escribe *0* para volver al menú._"
+                
                 enviar_mensaje(telefono, msg, nombre_mostrar)
+                
                 hist = sesion.get("menu_history", [])
-                if estado_actual != main_key and (not hist or hist[-1] != estado_actual): hist.append(estado_actual)
+                if estado_actual != main_key and (not hist or hist[-1] != estado_actual):
+                    hist.append(estado_actual)
+                
                 sesion["menu_state"] = "ver_pendientes_imo"
                 sesion["menu_history"] = hist
                 set_sesion(telefono, sesion)
@@ -839,7 +877,7 @@ HTML_CHAT = """
         <div class="sidebar">
             <div class="sidebar-header">
                 <div class="header-top">
-                    <div>💬 Panel V47</div>
+                    <div>💬 Panel V48 (Smart Match)</div>
                     <div class="header-actions">
                         <a href="/api/descargar_respaldo" class="download-btn">📥 Backup</a>
                         <button class="sync-btn" id="syncBtn" onclick="forceSync()">🔄 Excel</button>
@@ -993,7 +1031,6 @@ def api_enviar():
         perfil = sesion.get("perfil")
         if not perfil: perfil = obtener_perfil_crm(tel)
         nombre_mostrar = f"({perfil['rol']}) {perfil['nombre']}" if perfil['nombre'] else "NUEVO CONTACTO"
-        
         WhatsAppAPI.enviar_mensaje(tel, msg, nombre_mostrar, registrar_sheets=True, mensaje_usuario="[ENVIADO DESDE PANEL PRIVADO]")
         return jsonify({"status": "ok"}), 200
     return jsonify({"error": "Faltan datos"}), 400
@@ -1037,7 +1074,7 @@ def recibir_mensaje():
 @app.route("/status", methods=["GET"])
 def status(): 
     return jsonify({
-        "status": "activo", "version": "v47_ia_coach_enrolamiento",
+        "status": "activo", "version": "v48_smart_matching",
         "gemini": "disponible" if GEMINI_DISPONIBLE else "no instalado",
         "qwen": "disponible" if QWEN_DISPONIBLE else "no instalado"
     }), 200
