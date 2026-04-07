@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V41: CRM Exacto y Anti-Caídas para "participantes_2026-04-04.csv"
+✅ Versión V42: Fix Deadlock (Worker Timeout) y Optimización de Concurrencia
 """
 
 import os, re, json, threading, time, csv, io, random, logging
@@ -46,7 +46,6 @@ class Config:
     VERIFY_TOKEN = os.environ.get("WA_VERIFY_TOKEN", "cpsl2026")
     
     EXCEL_PATH = os.environ.get("EXCEL_PATH", "campana_imos_c1_e27.xlsx")
-    # Busca el archivo que subiste, si no está busca "base_datos.csv"
     CSV_BD_PATH = os.environ.get("CSV_BD_PATH", "participantes_2026-04-04.csv" if os.path.exists("participantes_2026-04-04.csv") else "base_datos.csv") 
     SESSIONS_PATH = os.environ.get("SESSIONS_PATH", "sesiones.json")
     HISTORIAL_PATH = "historial_chat.json"
@@ -61,7 +60,7 @@ class Config:
     CREDS_JSON = os.environ.get("GOOGLE_CREDENTIALS", "")
 
 # ══════════════════════════════════════════════════════════════════════════
-# 2. GESTOR DE ESTADO CONCURRENTE
+# 2. GESTOR DE ESTADO CONCURRENTE (ANTI-DEADLOCK)
 # ══════════════════════════════════════════════════════════════════════════
 class SessionManager:
     _session_lock = threading.Lock()
@@ -130,43 +129,47 @@ class SessionManager:
 
     @staticmethod
     def forzar_sincronizacion(leer_sheet_func, norm_tel_func):
-        with SessionManager._history_lock:
-            try:
+        """Descarga de Sheets AFUERA del candado para evitar Timeouts de Gunicorn"""
+        try:
+            # 1. Petición a Internet (Lento) - Sin bloquear el bot
+            rows = leer_sheet_func()
+            if not rows: return
+            
+            # 2. Operación local (Rápida) - Bloqueamos memoria milisegundos
+            with SessionManager._history_lock:
                 local_hist = []
                 if os.path.exists(Config.HISTORIAL_PATH):
                     with open(Config.HISTORIAL_PATH, "r", encoding="utf-8") as f:
                         local_hist = json.load(f)
                         
                 existing = set(f"{m.get('telefono','')}_{m.get('texto','')}" for m in local_hist)
-                rows = leer_sheet_func()
                 
-                if rows:
-                    for row in rows[1:]:
-                        if len(row) < 4: continue
-                        hora = str(row[0]).strip(); tel = norm_tel_func(str(row[1]).strip())
-                        imo_n = str(row[2]).strip() if len(row) > 2 else ""
-                        msg_in, msg_out = "", ""
-                        if len(row) > 3: msg_in  = str(row[3]).strip()
-                        if len(row) > 4: msg_out = str(row[4]).strip()
-                        
-                        if tel:
-                            if msg_in and f"{tel}_{msg_in}" not in existing:
-                                local_hist.append({"telefono": tel, "nombre": imo_n, "texto": msg_in, "tipo": "in", "hora": hora})
-                                existing.add(f"{tel}_{msg_in}")
-                            if msg_out and f"{tel}_{msg_out}" not in existing:
-                                local_hist.append({"telefono": tel, "nombre": imo_n, "texto": msg_out, "tipo": "out", "hora": hora})
-                                existing.add(f"{tel}_{msg_out}")
+                for row in rows[1:]:
+                    if len(row) < 4: continue
+                    hora = str(row[0]).strip(); tel = norm_tel_func(str(row[1]).strip())
+                    imo_n = str(row[2]).strip() if len(row) > 2 else ""
+                    msg_in = str(row[3]).strip() if len(row) > 3 else ""
+                    msg_out = str(row[4]).strip() if len(row) > 4 else ""
                     
-                    with open(Config.HISTORIAL_PATH, "w", encoding="utf-8") as f: 
-                        json.dump(local_hist[-10000:], f, ensure_ascii=False, indent=2) 
-            except Exception as e:
-                logger.error(f"Error restaurando Backup de Sheets: {e}")
+                    if tel:
+                        if msg_in and f"{tel}_{msg_in}" not in existing:
+                            local_hist.append({"telefono": tel, "nombre": imo_n, "texto": msg_in, "tipo": "in", "hora": hora})
+                            existing.add(f"{tel}_{msg_in}")
+                        if msg_out and f"{tel}_{msg_out}" not in existing:
+                            local_hist.append({"telefono": tel, "nombre": imo_n, "texto": msg_out, "tipo": "out", "hora": hora})
+                            existing.add(f"{tel}_{msg_out}")
+                
+                with open(Config.HISTORIAL_PATH, "w", encoding="utf-8") as f: 
+                    json.dump(local_hist[-10000:], f, ensure_ascii=False, indent=2) 
+        except Exception as e:
+            logger.error(f"Error restaurando Backup de Sheets: {e}")
 
 def get_sesion(tel): return SessionManager.get_sesion(tel)
 def set_sesion(tel, d): SessionManager.set_sesion(tel, d)
 def borrar_sesion(tel): SessionManager.borrar_sesion(tel)
 def append_historial(tel, nom, txt, tipo): SessionManager.append_historial(tel, nom, txt, tipo)
 def forzar_sincronizacion_sheets(): SessionManager.forzar_sincronizacion(leer_sheet, norm_tel)
+
 def get_historial():
     try:
         if os.path.exists(Config.HISTORIAL_PATH):
@@ -429,7 +432,7 @@ def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre, necesidad_
     return coord_nombre
 
 # ══════════════════════════════════════════════════════════════════════════
-# 5. UTILIDADES Y CARGA DE EXCEL/CSV
+# 5. UTILIDADES, RECONOCIMIENTO CSV Y EXCEL IMO
 # ══════════════════════════════════════════════════════════════════════════
 def norm_tel(tel):
     t = str(tel).strip().replace("+","").replace(" ","").replace("-","")
@@ -452,7 +455,6 @@ def identificar_contacto_csv(telefono):
     try:
         if not os.path.exists(Config.CSV_BD_PATH): return None
         with open(Config.CSV_BD_PATH, "r", encoding="utf-8-sig") as f:
-            # Detección del delimitador (coma o punto y coma)
             primera_linea = f.readline()
             delimitador = ';' if ';' in primera_linea else ','
             f.seek(0)
@@ -460,7 +462,6 @@ def identificar_contacto_csv(telefono):
             reader = csv.DictReader(f, delimiter=delimitador)
             if not reader.fieldnames: return None
             
-            # Buscar índices de columnas flexibles
             tel_key = next((c for c in reader.fieldnames if c and ("tel" in c.lower() or "cel" in c.lower())), None)
             nom_key = next((c for c in reader.fieldnames if c and ("nombre" in c.lower())), None)
             ape_key = next((c for c in reader.fieldnames if c and ("apellido" in c.lower())), None)
@@ -469,19 +470,13 @@ def identificar_contacto_csv(telefono):
 
             tel_buscado = norm_tel(telefono)
             for row in reader:
-                # Evitar filas vacías
                 if not row or not row.get(tel_key): continue
-                
                 tel_csv = norm_tel(str(row.get(tel_key, "")))
                 if tel_csv == tel_buscado:
                     nombre_base = str(row.get(nom_key, "")).strip()
                     apellido_base = str(row.get(ape_key, "")).strip() if ape_key else ""
-                    
-                    if nombre_base and apellido_base:
-                        nombre_completo = f"{nombre_base.split()[0]} {apellido_base.split()[0]}"
-                        return nombre_completo.title()
-                    elif nombre_base:
-                        return nombre_pila(nombre_base)
+                    if nombre_base and apellido_base: return f"{nombre_base.split()[0]} {apellido_base.split()[0]}".title()
+                    elif nombre_base: return nombre_pila(nombre_base)
     except Exception as e:
         logger.error(f"Error leyendo CSV de BD: {e}")
     return None
@@ -805,42 +800,7 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
         return
 
 # ══════════════════════════════════════════════════════════════════════════
-# 8. SISTEMA DE CIERRE AUTOMÁTICO (WATCHDOG)
-# ══════════════════════════════════════════════════════════════════════════
-def monitor_inactividad():
-    while True:
-        time.sleep(300) 
-        try:
-            sesiones_para_borrar = []
-            with SessionManager._session_lock:
-                if os.path.exists(Config.SESSIONS_PATH):
-                    with open(Config.SESSIONS_PATH, "r", encoding="utf-8") as f:
-                        sesiones = json.load(f)
-                    
-                    for telefono, data in sesiones.items():
-                        if data.get("menu_state") == "esperando_humano": continue
-                            
-                        last_interaction = data.get("last_interaction")
-                        if last_interaction:
-                            try:
-                                last_time = datetime.strptime(last_interaction, "%Y-%m-%d %H:%M:%S")
-                                minutos = (datetime.now() - last_time).total_seconds() / 60.0
-                                if minutos > 30: sesiones_para_borrar.append(telefono)
-                            except: pass
-            
-            for tel in sesiones_para_borrar:
-                nombre = SessionManager.get_sesion(tel).get("nombre_prospecto", "")
-                nombre_str = f", {nombre}" if nombre else ""
-                msg = f"⏳ Hola{nombre_str}. Por inactividad hemos finalizado esta sesión para proteger tus datos.\n\n_Si necesitas realizar otra consulta, simplemente escribe la palabra *MENU* para volver a empezar. ¡Que tengas un día extraordinario! ✨_"
-                
-                WhatsAppAPI.enviar_mensaje(tel, msg, "SISTEMA (Auto-Cierre)", registrar_sheets=True, mensaje_usuario="[CIERRE AUTOMÁTICO DE SESIÓN]")
-                SessionManager.borrar_sesion(tel)
-                logger.info(f"Sesión de {tel} cerrada por inactividad.")
-                
-        except Exception as e: logger.error(f"Error en monitor de inactividad: {e}")
-
-# ══════════════════════════════════════════════════════════════════════════
-# 9. PANEL WEB Y ENDPOINTS DE FLASK
+# 8. PANEL WEB (Buscador Efectivo) Y ENDPOINTS
 # ══════════════════════════════════════════════════════════════════════════
 HTML_CHAT = """
 <!DOCTYPE html>
@@ -1080,6 +1040,7 @@ def recibir_mensaje():
             if not imo_nombre_sheet:
                 nm = sesion_pre.get("nombre_prospecto")
                 
+                # --- RECONOCIMIENTO FACIAL DIGITAL VÍA CSV ---
                 if not nm:
                     nm_csv = identificar_contacto_csv(telefono)
                     if nm_csv:
@@ -1102,13 +1063,13 @@ def recibir_mensaje():
 def status(): 
     return jsonify({
         "status": "activo", 
-        "version": "v41_fix_csv_fallos",
+        "version": "v41_crm_exacto",
         "gemini": "disponible" if GEMINI_DISPONIBLE else "no instalado",
         "qwen": "disponible" if QWEN_DISPONIBLE else "no instalado"
     }), 200
 
+# Arrancador de Hilos Secundarios
 threading.Thread(target=forzar_sincronizacion_sheets, daemon=True).start()
-threading.Thread(target=monitor_inactividad, daemon=True).start()
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
