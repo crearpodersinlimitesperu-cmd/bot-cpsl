@@ -1,10 +1,10 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V55: RESTAURACIÓN TOTAL (Panel Web, Simulador, Sheets Directo y CRM)
+✅ Versión V57 MASTER: CRM Total + IA Alternada (DeepSeek & Gemini) + Cero Qwen
 """
 
-import os, re, json, time, csv, io, random, logging, threading
+import os, re, json, time, csv, io, random, logging, queue, threading
 from flask import Flask, request, jsonify, Response
 from datetime import datetime
 import requests as req_lib
@@ -14,20 +14,13 @@ from http import HTTPStatus
 
 # ── IMPORTS DE LAS IAs ──
 GEMINI_DISPONIBLE = False
-QWEN_DISPONIBLE = False
+DEEPSEEK_DISPONIBLE = True # Usamos API REST directa vía requests
 genai = None
-Generation = None
 
 try:
     import google.generativeai as genai_module
     genai = genai_module
     GEMINI_DISPONIBLE = True
-except ImportError: pass
-
-try:
-    from dashscope import Generation as DashGeneration
-    Generation = DashGeneration
-    QWEN_DISPONIBLE = True
 except ImportError: pass
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -48,21 +41,24 @@ class Config:
     TOKEN = os.environ.get("WA_TOKEN", "")
     PHONE_ID = os.environ.get("WA_PHONE_ID", "")
     VERIFY_TOKEN = os.environ.get("WA_VERIFY_TOKEN", "cpsl2026")
+    
     EXCEL_PATH = os.environ.get("EXCEL_PATH", "campana_imos_c1_e27.xlsx")
     CSV_BD_PATH = os.environ.get("CSV_BD_PATH", get_csv_bd_path())
     SESSIONS_PATH = os.environ.get("SESSIONS_PATH", "sesiones.json")
     HISTORIAL_PATH = "historial_chat.json"
     DATASET_PATH = "dataset_entrenamiento.csv"
+    
+    # 🧠 LLAVES DE INTELIGENCIA ARTIFICIAL
     GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
-    DASHSCOPE_KEY = os.environ.get("DASHSCOPE_API_KEY", "")
-    MODO_IA = os.environ.get("MODO_IA", "fallback").lower() 
-    IA_PRIMARIA = os.environ.get("IA_PRIMARIA", "gemini").lower() 
-    IA_FALLBACK = os.environ.get("IA_FALLBACK", "qwen").lower()
+    DEEPSEEK_KEY = os.environ.get("DEEPSEEK_API_KEY", "sk-b77a476c9e17420aa89a1ee86ff44d6e") # LLAVE INCRUSTADA
+    
+    MODO_IA = os.environ.get("MODO_IA", "alternar").lower() # alternar, deepseek, o gemini
+    
     SHEET_ID = os.environ.get("SHEET_ID", "")
     CREDS_JSON = os.environ.get("GOOGLE_CREDENTIALS", "")
 
 # ══════════════════════════════════════════════════════════════════════════
-# 2. GESTOR DE ESTADO Y ARCHIVOS
+# 2. GESTOR DE ESTADO CONCURRENTE (GUNICORN SAFE)
 # ══════════════════════════════════════════════════════════════════════════
 class SessionManager:
     @staticmethod
@@ -108,36 +104,20 @@ class SessionManager:
             except: pass
 
     @staticmethod
-    def forzar_sincronizacion(leer_sheet_func, norm_tel_func):
-        rows = leer_sheet_func()
-        if not rows: return
-        with FileLock(Config.HISTORIAL_PATH + ".lock"):
+    def guardar_dataset(telefono, mensaje_usuario, respuesta_ia, modelo_usado):
+        with FileLock(Config.DATASET_PATH + ".lock"):
             try:
-                local_hist = []
-                if os.path.exists(Config.HISTORIAL_PATH):
-                    with open(Config.HISTORIAL_PATH, "r", encoding="utf-8") as f: local_hist = json.load(f)
-                existing = set(f"{m.get('telefono','')}_{m.get('texto','')}" for m in local_hist)
-                for row in rows[1:]:
-                    if len(row) < 4: continue
-                    hora = str(row[0]).strip(); tel = norm_tel_func(str(row[1]).strip())
-                    imo_n = str(row[2]).strip() if len(row) > 2 else ""
-                    msg_in = str(row[3]).strip() if len(row) > 3 else ""
-                    msg_out = str(row[4]).strip() if len(row) > 4 else ""
-                    if tel:
-                        if msg_in and f"{tel}_{msg_in}" not in existing:
-                            local_hist.append({"telefono": tel, "nombre": imo_n, "texto": msg_in, "tipo": "in", "hora": hora})
-                            existing.add(f"{tel}_{msg_in}")
-                        if msg_out and f"{tel}_{msg_out}" not in existing:
-                            local_hist.append({"telefono": tel, "nombre": imo_n, "texto": msg_out, "tipo": "out", "hora": hora})
-                            existing.add(f"{tel}_{msg_out}")
-                with open(Config.HISTORIAL_PATH, "w", encoding="utf-8") as f: json.dump(local_hist[-10000:], f, ensure_ascii=False, indent=2) 
+                archivo_existe = os.path.exists(Config.DATASET_PATH)
+                with open(Config.DATASET_PATH, "a", encoding="utf-8-sig", newline="") as f:
+                    writer = csv.writer(f)
+                    if not archivo_existe: writer.writerow(["Fecha", "Telefono", "Mensaje Usuario", "Respuesta IA", "Modelo"])
+                    writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), telefono, mensaje_usuario, respuesta_ia, modelo_usado])
             except: pass
 
 def get_sesion(tel): return SessionManager.get_sesion(tel)
 def set_sesion(tel, d): SessionManager.set_sesion(tel, d)
 def borrar_sesion(tel): SessionManager.borrar_sesion(tel)
 def append_historial(tel, nom, txt, tipo): SessionManager.append_historial(tel, nom, txt, tipo)
-def forzar_sincronizacion_sheets(): SessionManager.forzar_sincronizacion(leer_sheet, norm_tel)
 def get_historial():
     try:
         if os.path.exists(Config.HISTORIAL_PATH):
@@ -146,8 +126,11 @@ def get_historial():
     return []
 
 # ══════════════════════════════════════════════════════════════════════════
-# 3. CONECTORES DE GOOGLE SHEETS Y WHATSAPP API (FIRE-AND-FORGET)
+# 3. SISTEMA DE COLAS (QUEUE) Y GOOGLE SHEETS
 # ══════════════════════════════════════════════════════════════════════════
+cola_mensajes = queue.Queue()
+cola_sheets = queue.Queue()
+
 class GoogleSheetsAPI:
     @classmethod
     def registrar_accion(cls, telefono, imo_nombre, mensaje, respuesta_bot, estado=""):
@@ -175,46 +158,37 @@ class GoogleSheetsAPI:
                 req_lib.post(url, params={"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"}, 
                              json={"values": [[ahora, str(telefono), imo_nombre, mensaje, respuesta_bot, estado, "", ""]]}, 
                              headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=10)
-        except Exception as e: logger.error(f"Error Sheets: {e}")
+        except Exception as e: pass
 
-    @classmethod
-    def leer_sheet(cls):
-        if not Config.SHEET_ID or not Config.CREDS_JSON: return []
+def worker_sheets():
+    while True:
         try:
-            import base64
-            now = int(time.time())
-            creds = json.loads(Config.CREDS_JSON)
-            header = base64.urlsafe_b64encode(json.dumps({"alg":"RS256","typ":"JWT"}).encode()).rstrip(b"=")
-            payload = base64.urlsafe_b64encode(json.dumps({
-                "iss": creds["client_email"], "scope": "https://www.googleapis.com/auth/spreadsheets",
-                "aud": "https://oauth2.googleapis.com/token", "iat": now, "exp": now + 3600
-            }).encode()).rstrip(b"=")
-            msg_jwt = header + b"." + payload
-            from cryptography.hazmat.primitives import hashes, serialization
-            from cryptography.hazmat.primitives.asymmetric import padding
-            pk = serialization.load_pem_private_key(creds["private_key"].encode(), password=None)
-            sig = pk.sign(msg_jwt, padding.PKCS1v15(), hashes.SHA256())
-            jwt = (msg_jwt + b"." + base64.urlsafe_b64encode(sig).rstrip(b"=")).decode()
-            r = req_lib.post("https://oauth2.googleapis.com/token", data={"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": jwt}, timeout=10)
-            if r.status_code == 200:
-                token = r.json()["access_token"]
-                url = f"https://sheets.googleapis.com/v4/spreadsheets/{Config.SHEET_ID}/values/Hoja%201!A:H"
-                r2 = req_lib.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=10)
-                if r2.status_code == 200: return r2.json().get("values", [])
+            tarea = cola_sheets.get()
+            GoogleSheetsAPI.registrar_accion(tarea['tel'], tarea['nom'], tarea['msg'], tarea['resp'], tarea['est'])
         except: pass
-        return []
+        finally: cola_sheets.task_done()
+
+def worker_procesar_mensajes():
+    while True:
+        try:
+            tarea = cola_mensajes.get()
+            procesar_mensaje(tarea["telefono"], tarea["texto"])
+        except Exception as e: logger.error(f"Error Worker Mensajes: {e}")
+        finally: cola_mensajes.task_done()
+
+threading.Thread(target=worker_sheets, daemon=True).start()
+threading.Thread(target=worker_procesar_mensajes, daemon=True).start()
 
 def registrar_en_sheets_async(tel, nom, msg, resp, est=""):
-    """Lanza el guardado en un hilo independiente por cada mensaje (Gunicorn Safe)"""
-    if str(tel).startswith("SIM_"): return # 🛡️ PROTECCIÓN SIMULADOR
-    threading.Thread(target=GoogleSheetsAPI.registrar_accion, args=(tel, nom, msg, resp, est), daemon=True).start()
+    if str(tel).startswith("SIM_"): return 
+    cola_sheets.put({'tel': tel, 'nom': nom, 'msg': msg, 'resp': resp, 'est': est})
 
-def leer_sheet(): return GoogleSheetsAPI.leer_sheet()
-
+# ══════════════════════════════════════════════════════════════════════════
+# 4. CONECTORES DE WHATSAPP API
+# ══════════════════════════════════════════════════════════════════════════
 class WhatsAppAPI:
     @staticmethod
     def enviar_mensaje(telefono, texto, nombre_mostrar="", registrar_sheets=False, mensaje_usuario=""):
-        # 🛡️ INTERCEPTOR DEL SIMULADOR
         if str(telefono).startswith("SIM_"):
             SessionManager.append_historial(telefono, f"🤖 [BOT SIMULADO]", texto, "out")
             return True
@@ -243,7 +217,7 @@ def enviar_mensaje(telefono, texto, nombre_imo="", registrar_sheets=False, msg_u
     return WhatsAppAPI.enviar_mensaje(telefono, texto, nombre_imo, registrar_sheets, msg_user)
 
 # ══════════════════════════════════════════════════════════════════════════
-# 4. UTILIDADES, CSV, CAMBIO DE CUPO Y CRM OMNICANAL
+# 5. UTILIDADES, CSV, CAMBIO DE CUPO Y CRM OMNICANAL
 # ══════════════════════════════════════════════════════════════════════════
 def norm_tel(tel):
     t = re.sub(r'\D', '', str(tel))
@@ -271,7 +245,10 @@ def nombre_pila(s):
     partes = [p.strip() for p in re.split(r'\s+', s.strip()) if len(p.strip()) > 2]
     return partes[0].title() if partes else s.strip().title()
 
-def cargar_px_del_imo(telefono):
+def obtener_perfil_crm(telefono):
+    perfil = {"rol": "PROSPECTO", "nombre": None, "pendiente": None, "imo_nombre": None, "imo_tel": None}
+    es_imo = False
+    
     with FileLock(Config.EXCEL_PATH + ".lock"):
         try:
             wb = load_workbook(Config.EXCEL_PATH, data_only=True, read_only=True)
@@ -285,21 +262,13 @@ def cargar_px_del_imo(telefono):
                 estado = str(row[6] or "").strip().upper()
                 if son_mismo_numero(imo_t, telefono):
                     if not imo_nombre: imo_nombre = imo_n
-                    if estado in ("PENDIENTE","ENVIADO","") and px_n:
-                        px_list.append(px_n)
+                    if estado in ("PENDIENTE","ENVIADO","") and px_n: px_list.append(px_n)
             wb.close()
-            return imo_nombre, px_list
-        except: return "", []
-
-def obtener_perfil_crm(telefono):
-    perfil = {"rol": "PROSPECTO", "nombre": None, "pendiente": None, "imo_nombre": None, "imo_tel": None}
-    es_imo = False
-    
-    imo_nom, px_list = cargar_px_del_imo(telefono)
-    if imo_nom and len(px_list) > 0:
-        es_imo = True
-        perfil["rol"] = "IMO"
-        perfil["nombre"] = imo_nom
+            if imo_nombre and len(px_list) > 0:
+                es_imo = True
+                perfil["rol"] = "IMO"
+                perfil["nombre"] = imo_nombre
+        except: pass
         
     try:
         if os.path.exists(Config.CSV_BD_PATH):
@@ -344,6 +313,7 @@ def obtener_perfil_crm(telefono):
                                 if c1_stat == "SI" and c2_stat == "SI": pendiente = "Maestría (MJ)"
                                 perfil["px_pendiente"] = pendiente
                                 perfil["imo_nombre"] = nombre_pila(str(row.get(imo_nom_key, "Tu líder")).strip()) if imo_nom_key else "Tu líder"
+                                perfil["imo_tel"] = str(row.get(imo_tel_key, "")) if imo_tel_key else ""
                         except IndexError: continue
     except: pass
 
@@ -359,7 +329,6 @@ def obtener_perfil_crm(telefono):
     return perfil
 
 def buscar_pendientes_imo_csv(telefono):
-    """Busca a los alumnos del IMO con C1 o C2 en NO"""
     try:
         if not os.path.exists(Config.CSV_BD_PATH): return []
         pendientes = []
@@ -399,11 +368,9 @@ def buscar_pendientes_imo_csv(telefono):
                         else: continue
                         pendientes.append(f"• {nombre_completo} (Falta {falta})")
         return pendientes
-    except Exception as e: pass
-    return []
+    except: return []
 
 def buscar_todos_imo_csv(telefono):
-    """🧠 AUTO-TRACING: Busca a todos, resuelve Cambios de Cupo y calcula el Estatus Real"""
     try:
         if not os.path.exists(Config.CSV_BD_PATH): return []
         with open(Config.CSV_BD_PATH, "r", encoding="utf-8-sig") as f:
@@ -431,18 +398,15 @@ def buscar_todos_imo_csv(telefono):
             if id_key:
                 for row in all_rows:
                     val_id = str(row.get(id_key, "")).strip()
-                    if val_id and val_id != "-":
-                        participantes_por_id[val_id] = row
+                    if val_id and val_id != "-": participantes_por_id[val_id] = row
 
             resultados = []
-
             for row in all_rows:
                 if not row or not row.get(imo_tel_key): continue
                 imo_t = str(row.get(imo_tel_key, ""))
                 
                 if son_mismo_numero(imo_t, telefono):
                     px_actual = row
-                    
                     if cambio_key:
                         reemplazo_id = str(row.get(cambio_key, "")).strip()
                         if reemplazo_id and reemplazo_id != '-' and reemplazo_id in participantes_por_id:
@@ -466,13 +430,11 @@ def buscar_todos_imo_csv(telefono):
                     else: estatus = "⏳ Rezagado (Falta C1)"
 
                     resultados.append(f"• {nombre_completo} - {estatus}")
-                    
             return resultados
-    except: pass
-    return []
+    except: return []
 
 def actualizar_excel(resultados, telefono_imo):
-    if str(telefono_imo).startswith("SIM_"): return # 🛡️ PROTECCIÓN SIMULADOR
+    if str(telefono_imo).startswith("SIM_"): return
     hoy = datetime.now().strftime("%d/%m/%Y %H:%M")
     with FileLock(Config.EXCEL_PATH + ".lock"):
         try:
@@ -490,7 +452,7 @@ def actualizar_excel(resultados, telefono_imo):
         except: pass
 
 def marcar_stop(telefono):
-    if str(telefono).startswith("SIM_"): return # 🛡️ PROTECCIÓN SIMULADOR
+    if str(telefono).startswith("SIM_"): return 
     hoy = datetime.now().strftime("%d/%m/%Y %H:%M")
     with FileLock(Config.EXCEL_PATH + ".lock"):
         try:
@@ -504,7 +466,110 @@ def marcar_stop(telefono):
         except: pass
 
 # ══════════════════════════════════════════════════════════════════════════
-# 6. ESTRUCTURAS DE MENÚS (NUEVAS OPCIONES DE IMO Y MJ INCLUIDAS)
+# 6. ESTRATEGIA DE IA DUAL (DEEPSEEK & GEMINI) CON ALTERNANCIA
+# ══════════════════════════════════════════════════════════════════════════
+BROCHURE_INFO_MAESTRA = """
+INFORMACIÓN OFICIAL CREAR PODER SIN LÍMITES PERÚ:
+- Misión: Impactar a la máxima cantidad de seres humanos a vivir una vida extraordinaria. No somos un cursito, somos Alto Rendimiento.
+- Los 3 Niveles del Proceso (100 Días):
+  1. Capítulo 1 (C1): Descubrimiento. 3 días para romper paradigmas y darte cuenta de tus barreras.
+  2. Capítulo 2 (C2): Experiencia y Transformación profunda (Usualmente 4 días). Rediseñas cómo te relacionas con el mundo.
+  3. Maestría (MJ): 100 días para integrar lo aprendido. Llevas el liderazgo a la familia y finanzas.
+- Reglas: Exclusivo para MAYORES DE 18 AÑOS. NO es terapia.
+- Inversión: BCP Soles a nombre de CREACIÓN CUÁNTICA E.I.R.L (Cuenta: 1934218307060).
+"""
+
+def llamar_deepseek(prompt_system, prompt_user):
+    """🧠 Integración Directa con la API de DeepSeek"""
+    if not Config.DEEPSEEK_KEY: return None, "deepseek_no_configurado"
+    url = "https://api.deepseek.com/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {Config.DEEPSEEK_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": "deepseek-chat",
+        "messages": [
+            {"role": "system", "content": prompt_system},
+            {"role": "user", "content": prompt_user}
+        ],
+        "temperature": 0.7,
+        "max_tokens": 500
+    }
+    try:
+        response = req_lib.post(url, json=payload, headers=headers, timeout=15)
+        if response.status_code == 200:
+            data = response.json()
+            respuesta = data['choices'][0]['message']['content'].strip()
+            respuesta = re.sub(r'\*\*IA.*?\*\*|<\|.*?\|>|\[.*?\]', '', respuesta)
+            return respuesta, None
+        else:
+            return None, f"deepseek_api_error: {response.status_code}"
+    except Exception as e:
+        return None, f"deepseek_error:{str(e)[:100]}"
+
+def llamar_gemini(prompt_system, prompt_user):
+    if not Config.GEMINI_KEY or not GEMINI_DISPONIBLE: return None, "gemini_no_configurado"
+    try:
+        genai.configure(api_key=Config.GEMINI_KEY)
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        prompt_completo = f"{prompt_system}\n\nContexto del usuario:\n{prompt_user}"
+        r = model.generate_content(prompt_completo)
+        if r.text: return r.text.strip(), None
+    except Exception as e: return None, f"gemini_error:{str(e)[:100]}"
+    return None, "gemini_sin_respuesta"
+
+def embudo_ventas_ia(mensaje_usuario, nombre_conocido=None, nombre_ya_saludado=False, telefono=None):
+    def guardar_y_retornar(respuesta, modelo):
+        if telefono: SessionManager.guardar_dataset(telefono, mensaje_usuario, respuesta, modelo)
+        return respuesta
+
+    msg_len = len(mensaje_usuario.split())
+    if msg_len <= 3 and nombre_conocido and not nombre_ya_saludado:
+        resp = f"¡Hola, {nombre_conocido}! Qué gran paso estás dando al comunicarte. 🌟 Creemos firmemente que tienes un potencial ilimitado esperando ser despertado.\n\nA través de nuestra Transformación Cuántica, te acompañamos a romper las barreras que hoy te frenan. Todo esto se vive en el *Capítulo 1*, un entrenamiento vivencial de 3 días para rediseñar tu realidad. ¿Te gustaría conocer detalles de la próxima fecha?"
+        return guardar_y_retornar(resp, "REGLA_CORTA")
+    
+    prompt_sys = f"""Eres un Coach de Enrolamiento de 'Crear Poder Sin Límites Perú'.
+    BASE DE CONOCIMIENTO: {BROCHURE_INFO_MAESTRA}
+    REGLAS DE ORO:
+    1. CONEXIÓN EMPÁTICA: Tu tono es cálido, apasionado y enérgico. NUNCA suenes como robot. Usa emojis sutiles.
+    2. NO SEAS MONÓTONO: Explica la TRANSFORMACIÓN (romper miedos, mejorar relaciones, elevar el liderazgo).
+    3. PALABRAS PROHIBIDAS: "sanar", "terapia", "ayudar", "paciente".
+    4. PREGUNTA DE CIERRE: Termina SIEMPRE tu respuesta con una pregunta poderosa que invite a la acción."""
+    
+    prompt_usr = f"""Hablas con: "{nombre_conocido if nombre_conocido else 'un contacto'}".
+    Mensaje del usuario: "{mensaje_usuario}" """
+
+    # 🚀 LÓGICA DE ALTERNANCIA (A/B TESTING)
+    modo = Config.MODO_IA
+    if modo == "alternar":
+        modelo_primario = random.choice(["deepseek", "gemini"])
+        modelo_fallback = "gemini" if modelo_primario == "deepseek" else "deepseek"
+    else:
+        modelo_primario = Config.IA_PRIMARIA
+        modelo_fallback = Config.IA_FALLBACK
+
+    # Intento 1
+    if modelo_primario == "deepseek":
+        respuesta, error = llamar_deepseek(prompt_sys, prompt_usr)
+    else:
+        respuesta, error = llamar_gemini(prompt_sys, prompt_usr)
+        
+    if respuesta: return guardar_y_retornar(respuesta, modelo_primario.upper())
+
+    # Intento 2 (Fallback)
+    logger.warning(f"Fallo en {modelo_primario}. Usando {modelo_fallback}...")
+    if modelo_fallback == "deepseek":
+        respuesta, error = llamar_deepseek(prompt_sys, prompt_usr)
+    else:
+        respuesta, error = llamar_gemini(prompt_sys, prompt_usr)
+        
+    if respuesta: return guardar_y_retornar(respuesta, f"FALLBACK_{modelo_fallback.upper()}")
+
+    return guardar_y_retornar("Para brindarte un apoyo 100% personalizado y humano, te invito a presionar el número de la opción que te derive con una coordinadora.", "FALLBACK_ERROR")
+
+# ══════════════════════════════════════════════════════════════════════════
+# 7. ESTRUCTURAS DE MENÚ Y MÁQUINA DE ESTADOS
 # ══════════════════════════════════════════════════════════════════════════
 COORDINADORAS_CONTACTOS = {"Diana Moscoso": "51912379744", "Joyce Marín": "51933599903", "Leyla Pasquel": "51919502385", "Zuley Urteaga": "51933599864"}
 COORDINADORAS = f"Coordinadoras C1 y C2:\n• Diana Moscoso: +51 912 379 744\n• Joyce Marin: +51 933 599 903\n• Leyla Pasquel: +51 919 502 385\n• Zuley Urteaga: +51 933 599 864"
@@ -572,17 +637,15 @@ def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre, necesidad)
     enviar_mensaje(coord_tel, msg, f"COORDINADORA: {coord_nombre}")
     return coord_nombre
 
-# ══════════════════════════════════════════════════════════════════════════
-# 7. PROCESADOR DE ESTADOS (MÁQUINA PRINCIPAL)
-# ══════════════════════════════════════════════════════════════════════════
 def procesar_mensaje(telefono, texto):
     sesion = get_sesion(telefono)
     texto_limpio = str(texto).strip().upper()
     
-    # AUTO-REFRESCO: Si escribe MENU o 0, obligamos a buscarlo en el CSV de nuevo
     if texto_limpio in ["0", "MENU", "MENÚ", "INICIO"] or "perfil" not in sesion:
         perfil = obtener_perfil_crm(telefono)
-        sesion["perfil"] = perfil
+        if perfil["rol"] == "PROSPECTO" and len(texto.split()) <= 3 and len(texto) > 2 and not texto_limpio.isnumeric():
+            perfil["nombre"] = nombre_pila(texto)
+        sesion["perfil"] = perfil; set_sesion(telefono, sesion)
     else:
         perfil = sesion.get("perfil")
         
@@ -591,7 +654,7 @@ def procesar_mensaje(telefono, texto):
     if sesion.get("menu_state") == "esperando_encuesta":
         if texto_limpio in ["1", "2", "3", "4", "5"]:
             registrar_en_sheets_async(telefono, nombre_mostrar, "Calificación", f"{texto_limpio} Estrellas", "CSAT")
-            enviar_mensaje(telefono, "¡Gracias por tu calificación! 🌟 Valoramos mucho tu opinión para seguir mejorando.\n\n_Escribe MENU para reiniciar._", nombre_mostrar)
+            enviar_mensaje(telefono, "¡Gracias por tu calificación! 🌟 Valoramos mucho tu opinión.\n\n_Escribe MENU para reiniciar._", nombre_mostrar)
             borrar_sesion(telefono)
         else: enviar_mensaje(telefono, "Por favor califica con un número del 1 al 5.", nombre_mostrar)
         return
@@ -645,7 +708,7 @@ def procesar_mensaje(telefono, texto):
             sesion["menu_errors"] = 0
             
             if siguiente_estado == "px_confirma":
-                msg_exito = f"¡Extraordinario, {perfil['nombre']}! 🎉\nHemos registrado tu confirmación. Le avisaremos a tu líder {perfil['imo_nombre']}.\n\n_Escribe 0 para volver al menú._"
+                msg_exito = f"¡Extraordinario, {perfil['nombre']}! 🎉\nHemos registrado tu confirmación. Le avisaremos automáticamente a tu líder {perfil['imo_nombre']} para que esté al tanto.\n\n_Escribe 0 para volver al menú._"
                 enviar_mensaje(telefono, msg_exito, nombre_mostrar)
                 if perfil["imo_tel"]: threading.Thread(target=actualizar_excel, args=([{"px": perfil["nombre"], "estatus": "CONFIRMADO"}], perfil["imo_tel"]), daemon=True).start()
                 sesion["menu_state"] = "esperando_fecha"; set_sesion(telefono, sesion)
@@ -694,7 +757,9 @@ def procesar_mensaje(telefono, texto):
         else:
             if not texto_limpio.isnumeric() and len(texto.split()) > 1:
                 sesion["menu_state"] = "chat_libre_ia"; set_sesion(telefono, sesion)
-                enviar_mensaje(telefono, "Respuesta automática de IA en desarrollo...\n\n_(Escribe *0* para volver al menú)_", nombre_mostrar)
+                resp_ia = embudo_ventas_ia(texto, perfil["nombre"], sesion.get("nombre_saludado", False), telefono)
+                if "potencial ilimitado" in resp_ia: sesion["nombre_saludado"] = True; set_sesion(telefono, sesion)
+                enviar_mensaje(telefono, resp_ia + "\n\n_(Escribe *0* para volver al menú)_", nombre_mostrar)
                 return
             errores = sesion.get("menu_errors", 0) + 1
             sesion["menu_errors"] = errores
@@ -708,7 +773,11 @@ def procesar_mensaje(telefono, texto):
             set_sesion(telefono, sesion)
 
     elif estado_actual in ["action_imo", "chat_libre_ia"]:
-        enviar_mensaje(telefono, f"Mensaje recibido. Procesando...\n\n_Escribe *0* para volver al menú._", nombre_mostrar)
+        if estado_actual == "chat_libre_ia":
+            resp_ia = embudo_ventas_ia(texto, perfil["nombre"], sesion.get("nombre_saludado", False), telefono)
+            enviar_mensaje(telefono, resp_ia, nombre_mostrar)
+        else:
+            enviar_mensaje(telefono, f"Mensaje recibido. Procesando...\n\n_Escribe *0* para volver al menú._", nombre_mostrar)
         
     elif estado_actual in ["esperando_humano", "esperando_fecha", "ver_todos_imo", "ver_pendientes_imo"]:
         set_sesion(telefono, sesion)
@@ -762,10 +831,11 @@ HTML_CHAT = """
         <div class="sidebar">
             <div class="sidebar-header">
                 <div class="header-top">
-                    <div>💬 Panel V55 (Restaurado)</div>
+                    <div>💬 Panel V57 (DeepSeek)</div>
                     <div class="header-actions">
-                        <button class="sim-btn" onclick="iniciarSimulador()">🧪 Simulador</button>
+                        <button class="sim-btn" onclick="iniciarSimulador()">🧪 Simular</button>
                         <a href="/api/descargar_respaldo" class="download-btn">📥 Backup</a>
+                        <a href="/api/descargar_dataset" class="sim-btn" style="background:#5e35b1;">🧠 AI Data</a>
                     </div>
                 </div>
                 <input type="text" id="searchBox" class="search-box" placeholder="🔍 Buscar nombre, número o mensaje..." onkeyup="filtrarChats()">
@@ -815,7 +885,7 @@ HTML_CHAT = """
         }
 
         function iniciarSimulador() {
-            let num = prompt("Ingresa el número a simular (Si está en el CSV, el bot lo tratará con ese rol):\\nEj: 999888777");
+            let num = prompt("Ingresa el número a simular:\\nEj: 999888777");
             if (!num) return;
             num = num.replace(/\\D/g, '');
             let simTel = "SIM_" + num;
@@ -918,6 +988,13 @@ def descargar_respaldo():
         writer.writerow([m.get("hora", ""), m.get("telefono", ""), m.get("nombre", ""), tipo_str, m.get("texto", "")])
     return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=Respaldo_Chats.csv"})
 
+@app.route("/api/descargar_dataset", methods=["GET"])
+def descargar_dataset():
+    if os.path.exists(Config.DATASET_PATH):
+        with open(Config.DATASET_PATH, "r", encoding="utf-8-sig") as f: data = f.read()
+    else: data = "Fecha,Telefono,Mensaje Usuario,Respuesta IA,Modelo\nSin datos aun"
+    return Response(data, mimetype="text/csv", headers={"Content-Disposition":f"attachment;filename=Dataset_Entrenamiento.csv"})
+
 @app.route("/api/enviar", methods=["POST"])
 def api_enviar():
     data = request.json; tel = data.get("telefono"); msg = data.get("mensaje")
@@ -932,15 +1009,12 @@ def api_enviar():
 
 @app.route("/api/mensaje_simulador", methods=["POST"])
 def mensaje_simulador():
-    """🧪 Endpoint del Simulador Sandbox (Restaurado)"""
     data = request.json; tel = data.get("telefono"); texto = data.get("texto")
     if not tel or not texto: return jsonify({"error": "Faltan datos"}), 400
-    
     procesar_mensaje(tel, texto)
     sesion = get_sesion(tel)
     perfil = sesion.get("perfil", {})
     nombre_mostrar = f"({perfil.get('rol', 'PROSPECTO')}) {perfil.get('nombre', 'Simulado')}" if perfil.get('nombre') else "SIMULACIÓN"
-    
     append_historial(tel, nombre_mostrar, texto, "in")
     return jsonify({"status": "ok"}), 200
 
@@ -965,13 +1039,11 @@ def recibir_mensaje():
         if tipo == "text":
             texto = str(msg["text"]["body"]).replace("=", "").replace("+", "").replace("@", "")
             
-            # FIRMA CORREGIDA (2 Parámetros)
             procesar_mensaje(telefono, texto)
             
             sesion = get_sesion(telefono)
             perfil = sesion.get("perfil", {})
             nombre_mostrar = f"({perfil.get('rol', 'PROSPECTO')}) {perfil.get('nombre', 'Nuevo')}" if perfil.get('nombre') else "NUEVO CONTACTO"
-            
             append_historial(telefono, nombre_mostrar, texto, "in")
 
         elif tipo in ("audio","image","document","video","sticker"):
@@ -979,10 +1051,6 @@ def recibir_mensaje():
             
     except Exception as e: logger.error(f"Error Webhook: {e}", exc_info=True)
     return jsonify({"status":"ok"}), 200
-
-@app.route("/status", methods=["GET"])
-def status(): 
-    return jsonify({"status": "activo", "version": "v55_restauracion_total"}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
