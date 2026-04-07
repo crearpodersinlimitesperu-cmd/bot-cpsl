@@ -1,16 +1,17 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V42: Fix Deadlock (Worker Timeout) y Optimización de Concurrencia
+✅ Versión V43: Arquitectura Multi-Proceso (Gunicorn Safe), Watchdog Integrado y CRM
 """
 
-import os, re, json, threading, time, csv, io, random, logging
+import os, re, json, time, csv, io, random, logging
 from flask import Flask, request, jsonify, Response
 from datetime import datetime
 import requests as req_lib
 from openpyxl import load_workbook
 from filelock import FileLock
 from http import HTTPStatus
+import threading
 
 # ── IMPORTS DE LAS IAs ──
 GEMINI_DISPONIBLE = False
@@ -32,7 +33,7 @@ try:
 except ImportError:
     pass
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("BotCrear")
 
 app = Flask(__name__)
@@ -60,27 +61,23 @@ class Config:
     CREDS_JSON = os.environ.get("GOOGLE_CREDENTIALS", "")
 
 # ══════════════════════════════════════════════════════════════════════════
-# 2. GESTOR DE ESTADO CONCURRENTE (ANTI-DEADLOCK)
+# 2. GESTOR DE ESTADO CONCURRENTE (GUNICORN SAFE)
 # ══════════════════════════════════════════════════════════════════════════
 class SessionManager:
-    _session_lock = threading.Lock()
-    _history_lock = threading.Lock()
-
     @staticmethod
     def get_sesion(telefono):
-        with SessionManager._session_lock:
+        with FileLock(Config.SESSIONS_PATH + ".lock"):
             try:
                 if os.path.exists(Config.SESSIONS_PATH):
                     with open(Config.SESSIONS_PATH, "r", encoding="utf-8") as f:
                         data = json.load(f)
                         return data.get(str(telefono), {})
-            except Exception as e:
-                logger.error(f"Error leyendo sesiones: {e}")
+            except Exception as e: pass
             return {}
 
     @staticmethod
     def set_sesion(telefono, data_dict):
-        with SessionManager._session_lock:
+        with FileLock(Config.SESSIONS_PATH + ".lock"):
             try:
                 data = {}
                 if os.path.exists(Config.SESSIONS_PATH):
@@ -89,13 +86,12 @@ class SessionManager:
                 data[str(telefono)] = data_dict
                 with open(Config.SESSIONS_PATH, "w", encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False, indent=2)
-            except Exception as e:
-                logger.error(f"Error guardando sesión para {telefono}: {e}")
+            except Exception as e: pass
 
     @staticmethod
     def borrar_sesion(telefono):
         tel_str = str(telefono)
-        with SessionManager._session_lock:
+        with FileLock(Config.SESSIONS_PATH + ".lock"):
             try:
                 if os.path.exists(Config.SESSIONS_PATH):
                     with open(Config.SESSIONS_PATH, "r", encoding="utf-8") as f:
@@ -104,12 +100,11 @@ class SessionManager:
                         del data[tel_str]
                         with open(Config.SESSIONS_PATH, "w", encoding="utf-8") as f:
                             json.dump(data, f, ensure_ascii=False, indent=2)
-            except Exception as e:
-                logger.error(f"Error borrando sesión {telefono}: {e}")
+            except Exception as e: pass
 
     @staticmethod
     def append_historial(telefono, nombre, texto, tipo):
-        with SessionManager._history_lock:
+        with FileLock(Config.HISTORIAL_PATH + ".lock"):
             try:
                 h = []
                 if os.path.exists(Config.HISTORIAL_PATH):
@@ -124,19 +119,16 @@ class SessionManager:
                 })
                 with open(Config.HISTORIAL_PATH, "w", encoding="utf-8") as f:
                     json.dump(h[-10000:], f, ensure_ascii=False, indent=2)
-            except Exception as e:
-                logger.error(f"Error escribiendo en historial: {e}")
+            except Exception as e: pass
 
     @staticmethod
     def forzar_sincronizacion(leer_sheet_func, norm_tel_func):
-        """Descarga de Sheets AFUERA del candado para evitar Timeouts de Gunicorn"""
-        try:
-            # 1. Petición a Internet (Lento) - Sin bloquear el bot
-            rows = leer_sheet_func()
-            if not rows: return
-            
-            # 2. Operación local (Rápida) - Bloqueamos memoria milisegundos
-            with SessionManager._history_lock:
+        # Esta función se llama bajo demanda para evitar bloqueos
+        rows = leer_sheet_func()
+        if not rows: return
+        
+        with FileLock(Config.HISTORIAL_PATH + ".lock"):
+            try:
                 local_hist = []
                 if os.path.exists(Config.HISTORIAL_PATH):
                     with open(Config.HISTORIAL_PATH, "r", encoding="utf-8") as f:
@@ -148,8 +140,9 @@ class SessionManager:
                     if len(row) < 4: continue
                     hora = str(row[0]).strip(); tel = norm_tel_func(str(row[1]).strip())
                     imo_n = str(row[2]).strip() if len(row) > 2 else ""
-                    msg_in = str(row[3]).strip() if len(row) > 3 else ""
-                    msg_out = str(row[4]).strip() if len(row) > 4 else ""
+                    msg_in, msg_out = "", ""
+                    if len(row) > 3: msg_in  = str(row[3]).strip()
+                    if len(row) > 4: msg_out = str(row[4]).strip()
                     
                     if tel:
                         if msg_in and f"{tel}_{msg_in}" not in existing:
@@ -161,8 +154,7 @@ class SessionManager:
                 
                 with open(Config.HISTORIAL_PATH, "w", encoding="utf-8") as f: 
                     json.dump(local_hist[-10000:], f, ensure_ascii=False, indent=2) 
-        except Exception as e:
-            logger.error(f"Error restaurando Backup de Sheets: {e}")
+            except Exception as e: pass
 
 def get_sesion(tel): return SessionManager.get_sesion(tel)
 def set_sesion(tel, d): SessionManager.set_sesion(tel, d)
@@ -179,7 +171,42 @@ def get_historial():
     return []
 
 # ══════════════════════════════════════════════════════════════════════════
-# 3. CONECTORES DE API (WhatsApp y Google Sheets)
+# 3. WATCHDOG PARÁSITO (Cierre de Inactividad sin hilos extra)
+# ══════════════════════════════════════════════════════════════════════════
+def ejecutar_watchdog_inactividad():
+    """Revisa si hay sesiones inactivas > 30 min y las cierra. Se ejecuta durante las peticiones web."""
+    sesiones_vencidas = []
+    with FileLock(Config.SESSIONS_PATH + ".lock"):
+        if not os.path.exists(Config.SESSIONS_PATH): return
+        try:
+            with open(Config.SESSIONS_PATH, "r", encoding="utf-8") as f:
+                sesiones = json.load(f)
+            
+            for telefono, data in sesiones.items():
+                if data.get("menu_state") == "esperando_humano": continue
+                last_interaction = data.get("last_interaction")
+                if last_interaction:
+                    try:
+                        last_time = datetime.strptime(last_interaction, "%Y-%m-%d %H:%M:%S")
+                        if (datetime.now() - last_time).total_seconds() / 60.0 > 30:
+                            sesiones_vencidas.append(telefono)
+                    except: pass
+            
+            # Borramos del JSON las vencidas
+            if sesiones_vencidas:
+                for tel in sesiones_vencidas:
+                    del sesiones[tel]
+                with open(Config.SESSIONS_PATH, "w", encoding="utf-8") as f:
+                    json.dump(sesiones, f, ensure_ascii=False, indent=2)
+        except Exception as e: pass
+        
+    # Enviar mensajes fuera del Lock para no atascar
+    for tel in sesiones_vencidas:
+        msg = "⏳ Hola. Por inactividad hemos finalizado esta sesión para proteger tus datos.\n\n_Si necesitas realizar otra consulta, simplemente escribe la palabra *MENU* para volver a empezar. ¡Que tengas un día extraordinario! ✨_"
+        WhatsAppAPI.enviar_mensaje(tel, msg, "SISTEMA", registrar_sheets=True, mensaje_usuario="[CIERRE AUTOMÁTICO DE SESIÓN]")
+
+# ══════════════════════════════════════════════════════════════════════════
+# 4. CONECTORES DE API (WhatsApp y Google Sheets)
 # ══════════════════════════════════════════════════════════════════════════
 class WhatsAppAPI:
     @staticmethod
@@ -195,17 +222,14 @@ class WhatsAppAPI:
             if r.status_code == 200:
                 SessionManager.append_historial(telefono, nombre_mostrar, texto, "out")
                 if registrar_sheets:
-                    sesion = get_sesion(telefono)
-                    ultimo_msg = sesion.get("ultimo_mensaje_usuario", mensaje_usuario or "[Bot Autónomo]")
-                    estado_actual = sesion.get("menu_state", "BOT")
+                    estado_actual = "EMBUDO/SISTEMA"
                     threading.Thread(
                         target=registrar_en_sheets, 
-                        args=(telefono, nombre_mostrar, ultimo_msg, texto[:500], estado_actual),
+                        args=(telefono, nombre_mostrar, mensaje_usuario or "[Bot Autónomo]", texto[:500], estado_actual),
                         daemon=True
                     ).start()
                 return True
-        except Exception as e:
-            logger.error(f"Fallo al enviar mensaje a {telefono}: {e}")
+        except Exception as e: pass
         return False
 
 def enviar_mensaje(telefono, texto, nombre_imo="", registrar_sheets=False, msg_user=""):
@@ -219,62 +243,58 @@ def enviar_mensaje(telefono, texto, nombre_imo="", registrar_sheets=False, msg_u
     return WhatsAppAPI.enviar_mensaje(telefono, texto, nombre_imo, registrar_sheets, msg_user)
 
 class GoogleSheetsAPI:
-    _token_cache = {"token": None, "exp": 0}
-    _token_lock = threading.Lock()
-
-    @classmethod
-    def get_token(cls):
-        import base64
-        now = int(time.time())
-        with cls._token_lock:
-            if cls._token_cache["token"] and now < cls._token_cache["exp"] - 60:
-                return cls._token_cache["token"]
-            if not Config.CREDS_JSON: return None
-            
-            try:
-                creds = json.loads(Config.CREDS_JSON)
-                header = base64.urlsafe_b64encode(json.dumps({"alg":"RS256","typ":"JWT"}).encode()).rstrip(b"=")
-                payload = base64.urlsafe_b64encode(json.dumps({
-                    "iss": creds["client_email"], "scope": "https://www.googleapis.com/auth/spreadsheets",
-                    "aud": "https://oauth2.googleapis.com/token", "iat": now, "exp": now + 3600
-                }).encode()).rstrip(b"=")
-                msg = header + b"." + payload
-                from cryptography.hazmat.primitives import hashes, serialization
-                from cryptography.hazmat.primitives.asymmetric import padding
-                pk = serialization.load_pem_private_key(creds["private_key"].encode(), password=None)
-                sig = pk.sign(msg, padding.PKCS1v15(), hashes.SHA256())
-                jwt = (msg + b"." + base64.urlsafe_b64encode(sig).rstrip(b"=")).decode()
-                r = req_lib.post("https://oauth2.googleapis.com/token", data={"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": jwt}, timeout=10)
-                if r.status_code == 200:
-                    d = r.json()
-                    cls._token_cache = {"token": d["access_token"], "exp": now + d.get("expires_in", 3600)}
-                    return d["access_token"]
-            except Exception as e: logger.error(f"Error generando JWT Sheets: {e}")
-            return None
-
     @classmethod
     def registrar_accion(cls, telefono, imo_nombre, mensaje, respuesta_bot, estado=""):
-        if not Config.SHEET_ID: return
-        token = cls.get_token()
-        if not token: return
-        url = f"https://sheets.googleapis.com/v4/spreadsheets/{Config.SHEET_ID}/values/Hoja%201!A:H:append"
-        ahora = datetime.now().strftime("%d/%m/%Y %H:%M")
+        if not Config.SHEET_ID or not Config.CREDS_JSON: return
+        import base64
+        now = int(time.time())
         try:
-            req_lib.post(url, 
-                params={"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"}, 
-                json={"values": [[ahora, str(telefono), imo_nombre, mensaje, respuesta_bot, estado, "", ""]]}, 
-                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=10)
-        except Exception as e: logger.error(f"Error guardando en Sheets: {e}")
+            creds = json.loads(Config.CREDS_JSON)
+            header = base64.urlsafe_b64encode(json.dumps({"alg":"RS256","typ":"JWT"}).encode()).rstrip(b"=")
+            payload = base64.urlsafe_b64encode(json.dumps({
+                "iss": creds["client_email"], "scope": "https://www.googleapis.com/auth/spreadsheets",
+                "aud": "https://oauth2.googleapis.com/token", "iat": now, "exp": now + 3600
+            }).encode()).rstrip(b"=")
+            msg = header + b"." + payload
+            from cryptography.hazmat.primitives import hashes, serialization
+            from cryptography.hazmat.primitives.asymmetric import padding
+            pk = serialization.load_pem_private_key(creds["private_key"].encode(), password=None)
+            sig = pk.sign(msg, padding.PKCS1v15(), hashes.SHA256())
+            jwt = (msg + b"." + base64.urlsafe_b64encode(sig).rstrip(b"=")).decode()
+            r = req_lib.post("https://oauth2.googleapis.com/token", data={"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": jwt}, timeout=10)
+            if r.status_code == 200:
+                token = r.json()["access_token"]
+                url = f"https://sheets.googleapis.com/v4/spreadsheets/{Config.SHEET_ID}/values/Hoja%201!A:H:append"
+                ahora = datetime.now().strftime("%d/%m/%Y %H:%M")
+                req_lib.post(url, params={"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"}, 
+                             json={"values": [[ahora, str(telefono), imo_nombre, mensaje, respuesta_bot, estado, "", ""]]}, 
+                             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=10)
+        except Exception as e: pass
             
     @classmethod
     def leer_sheet(cls):
-        if not Config.SHEET_ID: return []
-        token = cls.get_token()
-        if not token: return []
-        url = f"https://sheets.googleapis.com/v4/spreadsheets/{Config.SHEET_ID}/values/Hoja%201!A:H"
+        if not Config.SHEET_ID or not Config.CREDS_JSON: return []
+        import base64
+        now = int(time.time())
         try:
-            r = req_lib.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=10)
-            if r.status_code == 200: return r.json().get("values", [])
+            creds = json.loads(Config.CREDS_JSON)
+            header = base64.urlsafe_b64encode(json.dumps({"alg":"RS256","typ":"JWT"}).encode()).rstrip(b"=")
+            payload = base64.urlsafe_b64encode(json.dumps({
+                "iss": creds["client_email"], "scope": "https://www.googleapis.com/auth/spreadsheets",
+                "aud": "https://oauth2.googleapis.com/token", "iat": now, "exp": now + 3600
+            }).encode()).rstrip(b"=")
+            msg = header + b"." + payload
+            from cryptography.hazmat.primitives import hashes, serialization
+            from cryptography.hazmat.primitives.asymmetric import padding
+            pk = serialization.load_pem_private_key(creds["private_key"].encode(), password=None)
+            sig = pk.sign(msg, padding.PKCS1v15(), hashes.SHA256())
+            jwt = (msg + b"." + base64.urlsafe_b64encode(sig).rstrip(b"=")).decode()
+            r = req_lib.post("https://oauth2.googleapis.com/token", data={"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": jwt}, timeout=10)
+            if r.status_code == 200:
+                token = r.json()["access_token"]
+                url = f"https://sheets.googleapis.com/v4/spreadsheets/{Config.SHEET_ID}/values/Hoja%201!A:H"
+                r2 = req_lib.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=10)
+                if r2.status_code == 200: return r2.json().get("values", [])
         except: pass
         return []
 
@@ -282,7 +302,7 @@ def registrar_en_sheets(tel, nom, msg, resp, est=""): GoogleSheetsAPI.registrar_
 def leer_sheet(): return GoogleSheetsAPI.leer_sheet()
 
 # ══════════════════════════════════════════════════════════════════════════
-# 4. DATOS MAESTROS Y MENÚS
+# 5. DATOS MAESTROS Y MENÚS
 # ══════════════════════════════════════════════════════════════════════════
 COORDINADORAS_CONTACTOS = {
     "Diana Moscoso": "51912379744", "Joyce Marín": "51933599903", 
@@ -428,11 +448,10 @@ def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre, necesidad_
     set_sesion(coord_tel, sesion_coord)
     nombre_mostrar_coord = f"COORDINADORA: {coord_nombre}"
     enviar_mensaje(coord_tel, msg_coord, nombre_mostrar_coord)
-    registrar_en_sheets(coord_tel, nombre_mostrar_coord, f"Alerta generada por Contacto: {prospecto_tel}", msg_coord, "ALERTA LEAD")
     return coord_nombre
 
 # ══════════════════════════════════════════════════════════════════════════
-# 5. UTILIDADES, RECONOCIMIENTO CSV Y EXCEL IMO
+# 6. UTILIDADES, RECONOCIMIENTO CSV Y EXCEL IMO
 # ══════════════════════════════════════════════════════════════════════════
 def norm_tel(tel):
     t = str(tel).strip().replace("+","").replace(" ","").replace("-","")
@@ -451,14 +470,12 @@ def nombre_pila(s):
     return partes[0].title() if partes else s.strip().title()
 
 def identificar_contacto_csv(telefono):
-    """Busca al usuario en la base de datos CSV de forma robusta"""
     try:
         if not os.path.exists(Config.CSV_BD_PATH): return None
         with open(Config.CSV_BD_PATH, "r", encoding="utf-8-sig") as f:
             primera_linea = f.readline()
             delimitador = ';' if ';' in primera_linea else ','
             f.seek(0)
-            
             reader = csv.DictReader(f, delimiter=delimitador)
             if not reader.fieldnames: return None
             
@@ -477,13 +494,11 @@ def identificar_contacto_csv(telefono):
                     apellido_base = str(row.get(ape_key, "")).strip() if ape_key else ""
                     if nombre_base and apellido_base: return f"{nombre_base.split()[0]} {apellido_base.split()[0]}".title()
                     elif nombre_base: return nombre_pila(nombre_base)
-    except Exception as e:
-        logger.error(f"Error leyendo CSV de BD: {e}")
+    except Exception as e: pass
     return None
 
 def cargar_px_del_imo(telefono):
-    lock = FileLock(Config.EXCEL_PATH + ".lock")
-    with lock:
+    with FileLock(Config.EXCEL_PATH + ".lock"):
         try:
             wb = load_workbook(Config.EXCEL_PATH, data_only=True, read_only=True)
             ws = wb["DATA"]
@@ -519,7 +534,7 @@ def marcar_stop(telefono):
         except: pass
 
 # ══════════════════════════════════════════════════════════════════════════
-# 6. ESTRATEGIA DE IA DUAL (GEMINI + QWEN)
+# 7. ESTRATEGIA DE IA DUAL (GEMINI + QWEN)
 # ══════════════════════════════════════════════════════════════════════════
 def embudo_ventas_ia(mensaje_usuario, nombre_conocido=None, nombre_ya_saludado=False):
     cfg = {"gemini_key": Config.GEMINI_KEY, "dashscope_key": Config.DASHSCOPE_KEY, "modo_ia": Config.MODO_IA, "ia_primaria": Config.IA_PRIMARIA, "ia_fallback": Config.IA_FALLBACK}
@@ -542,11 +557,8 @@ def embudo_ventas_ia(mensaje_usuario, nombre_conocido=None, nombre_ya_saludado=F
             (["comida", "almuerzo", "refrigerio", "comer", "desayuno", "cena", "snacks"], "No se permiten alimentos ni bebidas externas al salón. Contaremos con los tiempos adecuados para que puedas salir a almorzar y compartir por la zona."),
             (["coordinadora", "asesor", "humano", "persona", "llamar", "contactar", "hablar", "queja"], "Para brindarte un apoyo 100% personalizado con una coordinadora humana, por favor responde únicamente con el número *3*.")
         ]
-        
         for palabras_clave, respuesta in banco_preguntas:
-            if any(kw in msg_norm for kw in palabras_clave):
-                return respuesta
-        
+            if any(kw in msg_norm for kw in palabras_clave): return respuesta
         if nombre_conocido: return f"¡Comprendido, {nombre_conocido}! Para resolver tu consulta a detalle sobre nuestro proceso, por favor responde con el número *3* y una coordinadora se comunicará contigo."
         else: return f"En Crear Poder Sin Límites creemos en acompañarte hacia tu mejor versión. Para apoyarte de forma humana y precisa, responde con el número *3* para enlazarte con una coordinadora."
 
@@ -565,12 +577,6 @@ def embudo_ventas_ia(mensaje_usuario, nombre_conocido=None, nombre_ya_saludado=F
         5. BREVEDAD: Responde en máximo 3 oraciones y termina con una pregunta persuasiva.
         """
 
-    def construir_prompt_qwen():
-        return [
-            {"role": "system", "content": "Eres un Asesor Experto de 'Crear Poder Sin Límites Perú'. Responde usando SOLO el brochure oficial. Eres humano, directo y empático. Máximo 3 oraciones."},
-            {"role": "user", "content": f"Contacto: {nombre_conocido if nombre_conocido else 'No registrado'}\nMensaje: '{mensaje_usuario}'\nBrochure:\n{BROCHURE_INFO_MAESTRA}\nResponde:"}
-        ]
-
     def llamar_gemini():
         if not GEMINI_DISPONIBLE or not cfg.get("gemini_key"): return None, "gemini_no_configurado"
         try:
@@ -584,7 +590,10 @@ def embudo_ventas_ia(mensaje_usuario, nombre_conocido=None, nombre_ya_saludado=F
     def llamar_qwen():
         if not QWEN_DISPONIBLE or not cfg.get("dashscope_key"): return None, "qwen_no_configurado"
         try:
-            response = Generation.call(model="qwen-turbo", messages=construir_prompt_qwen(), api_key=cfg["dashscope_key"], result_format="message", max_tokens=500, temperature=0.7)
+            response = Generation.call(model="qwen-turbo", messages=[
+                {"role": "system", "content": "Eres un Asesor Experto de 'Crear Poder Sin Límites Perú'. Responde usando SOLO el brochure oficial. Eres humano, directo y empático. Máximo 3 oraciones."},
+                {"role": "user", "content": f"Contacto: {nombre_conocido if nombre_conocido else 'No registrado'}\nMensaje: '{mensaje_usuario}'\nBrochure:\n{BROCHURE_INFO_MAESTRA}\nResponde:"}
+            ], api_key=cfg["dashscope_key"], result_format="message", max_tokens=500, temperature=0.7)
             if response.status_code == HTTPStatus.OK and response.output and response.output.choices:
                 respuesta = response.output.choices[0].message.content.strip()
                 respuesta = re.sub(r'\*\*IA.*?\*\*|<\|.*?\|>|\[.*?\]', '', respuesta)
@@ -606,7 +615,7 @@ def embudo_ventas_ia(mensaje_usuario, nombre_conocido=None, nombre_ya_saludado=F
     return respuesta
 
 # ══════════════════════════════════════════════════════════════════════════
-# 7. PROCESADOR PRINCIPAL DE MENSAJES (MÁQUINA DE ESTADOS)
+# 8. PROCESADOR PRINCIPAL DE MENSAJES (MÁQUINA DE ESTADOS)
 # ══════════════════════════════════════════════════════════════════════════
 def procesar_mensaje(telefono, texto, imo_nombre_completo):
     sesion = get_sesion(telefono)
@@ -628,13 +637,6 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
         else: enviar_mensaje(telefono, "Por favor, para finalizar califica respondiendo *únicamente con un número del 1 al 5*.", nombre_mostrar)
         return
 
-    try:
-        if sesion.get("last_interaction"):
-            last_time = datetime.strptime(sesion.get("last_interaction"), "%Y-%m-%d %H:%M:%S")
-            minutos_inactividad = (datetime.now() - last_time).total_seconds() / 60.0
-        else: minutos_inactividad = 9999
-    except: minutos_inactividad = 9999
-
     sesion["last_interaction"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     if texto_limpio == "STOP":
@@ -642,7 +644,7 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
         enviar_mensaje(telefono, "Listo. Has sido dado de baja de este canal. No recibirás más mensajes.\n\n*Crear Poder Sin Límites*", nombre_mostrar)
         return
 
-    if minutos_inactividad > 30 or "menu_state" not in sesion:
+    if "menu_state" not in sesion:
         sesion["menu_state"] = "main"
         sesion["menu_history"] = []
         sesion["menu_errors"] = 0
@@ -732,8 +734,6 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
                         sesion["menu_state"] = "main"
                         set_sesion(telefono, sesion)
                         enviar_mensaje(telefono, "⚠️ Nuestro sistema indica que actualmente no tienes participantes pendientes vinculados a este número.\n\n_Si crees que esto es un error, selecciona la opción *6* en el menú para hablar con una coordinadora._", nombre_mostrar)
-                        time.sleep(1)
-                        enviar_mensaje(telefono, MENU_STRUCTURE["main"]["text"], nombre_mostrar)
 
         else:
             if not texto_limpio.isnumeric() and len(texto.split()) > 1:
@@ -757,8 +757,7 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
             if errores >= 3:
                 sesion["menu_errors"] = 0
                 nm = sesion.get("nombre_prospecto")
-                necesidad = f"El usuario se atascó en el menú enviando múltiples respuestas inválidas. Último intento: '{texto}'"
-                coord_asignada = notificar_coordinadora_aleatoria(telefono, nm, necesidad)
+                coord_asignada = notificar_coordinadora_aleatoria(telefono, nm, f"El usuario se atascó en el menú.")
                 enviar_mensaje(telefono, f"Noto que estamos teniendo problemas de comunicación. 🤖\n\nNo te preocupes, he notificado a nuestra coordinadora *{coord_asignada}* para que te asista personalmente de manera humana.\n\n_Escribe *0* si prefieres volver a ver el menú principal._", nombre_mostrar)
                 sesion["menu_state"] = "esperando_humano"
             else:
@@ -777,8 +776,7 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
 
     elif estado_actual == "chat_libre_ia":
         if texto_limpio == "3":
-            necesidad = "Solicitó un humano tras conversar libremente con la IA."
-            coord_asignada = notificar_coordinadora_aleatoria(telefono, sesion.get("nombre_prospecto"), necesidad)
+            coord_asignada = notificar_coordinadora_aleatoria(telefono, sesion.get("nombre_prospecto"), "Solicitó un humano tras conversar libremente con la IA.")
             enviar_mensaje(telefono, f"¡Comprendido! He notificado a nuestra coordinadora *{coord_asignada}*. Ella te escribirá por aquí en breve para apoyarte personalmente. 🚀\n\n_Escribe *0* si deseas cancelar y volver al menú principal._", nombre_mostrar)
             sesion["menu_state"] = "esperando_humano"
             set_sesion(telefono, sesion)
@@ -800,7 +798,7 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
         return
 
 # ══════════════════════════════════════════════════════════════════════════
-# 8. PANEL WEB (Buscador Efectivo) Y ENDPOINTS
+# 9. PANEL WEB (HTML), ENDPOINTS Y WATCHDOG
 # ══════════════════════════════════════════════════════════════════════════
 HTML_CHAT = """
 <!DOCTYPE html>
@@ -847,7 +845,7 @@ HTML_CHAT = """
         <div class="sidebar">
             <div class="sidebar-header">
                 <div class="header-top">
-                    <div>💬 Panel V41 (CRM Seguro)</div>
+                    <div>💬 Panel V43</div>
                     <div class="header-actions">
                         <a href="/api/descargar_respaldo" class="download-btn">📥 Backup</a>
                         <button class="sync-btn" id="syncBtn" onclick="forceSync()">🔄 Excel</button>
@@ -974,8 +972,39 @@ HTML_CHAT = """
 @app.route("/chat", methods=["GET"])
 def panel_chat(): return HTML_CHAT
 
+def ejecutar_watchdog_inactividad():
+    """El Watchdog ahora se ejecuta de forma segura acoplado al polling del Panel Web (cada 3 seg)"""
+    sesiones_vencidas = []
+    with FileLock(Config.SESSIONS_PATH + ".lock"):
+        if not os.path.exists(Config.SESSIONS_PATH): return
+        try:
+            with open(Config.SESSIONS_PATH, "r", encoding="utf-8") as f:
+                sesiones = json.load(f)
+            
+            for telefono, data in list(sesiones.items()):
+                if data.get("menu_state") == "esperando_humano": continue
+                last_interaction = data.get("last_interaction")
+                if last_interaction:
+                    try:
+                        last_time = datetime.strptime(last_interaction, "%Y-%m-%d %H:%M:%S")
+                        if (datetime.now() - last_time).total_seconds() / 60.0 > 30:
+                            sesiones_vencidas.append(telefono)
+                            del sesiones[telefono]
+                    except: pass
+            
+            if sesiones_vencidas:
+                with open(Config.SESSIONS_PATH, "w", encoding="utf-8") as f:
+                    json.dump(sesiones, f, ensure_ascii=False, indent=2)
+        except: pass
+        
+    for tel in sesiones_vencidas:
+        msg = "⏳ Hola. Por inactividad hemos finalizado esta sesión para proteger tus datos.\n\n_Si necesitas realizar otra consulta, simplemente escribe la palabra *MENU* para volver a empezar. ¡Que tengas un día extraordinario! ✨_"
+        WhatsAppAPI.enviar_mensaje(tel, msg, "SISTEMA", registrar_sheets=True, mensaje_usuario="[CIERRE AUTOMÁTICO DE SESIÓN]")
+
 @app.route("/api/historial", methods=["GET"])
-def api_historial(): return jsonify(get_historial()), 200
+def api_historial(): 
+    threading.Thread(target=ejecutar_watchdog_inactividad, daemon=True).start()
+    return jsonify(get_historial()), 200
 
 @app.route("/api/force_sync", methods=["POST"])
 def force_sync():
@@ -1039,14 +1068,11 @@ def recibir_mensaje():
             
             if not imo_nombre_sheet:
                 nm = sesion_pre.get("nombre_prospecto")
-                
-                # --- RECONOCIMIENTO FACIAL DIGITAL VÍA CSV ---
                 if not nm:
                     nm_csv = identificar_contacto_csv(telefono)
                     if nm_csv:
                         nm = nm_csv
                         sesion_pre["nombre_prospecto"] = nm
-                        
                 set_sesion(telefono, sesion_pre)
                 nombre_mostrar = f"CONTACTO: {nm}" if nm else "NUEVO CONTACTO"
             
@@ -1063,15 +1089,11 @@ def recibir_mensaje():
 def status(): 
     return jsonify({
         "status": "activo", 
-        "version": "v41_crm_exacto",
+        "version": "v43_gunicorn_safe",
         "gemini": "disponible" if GEMINI_DISPONIBLE else "no instalado",
         "qwen": "disponible" if QWEN_DISPONIBLE else "no instalado"
     }), 200
 
-# Arrancador de Hilos Secundarios
-threading.Thread(target=forzar_sincronizacion_sheets, daemon=True).start()
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    logger.info(f"🚀 Iniciando bot en puerto {port}...")
     app.run(host="0.0.0.0", port=port, debug=False)
