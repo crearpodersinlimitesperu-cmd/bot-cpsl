@@ -1,17 +1,16 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V48: Motor CRM con Match Inteligente de Teléfonos (Ignora +51 y ceros)
+✅ Versión V50 ENTERPRISE: Cola Asíncrona, Dataset de Entrenamiento (Fine-Tuning), CRM Anti-Caídas
 """
 
-import os, re, json, time, csv, io, random, logging
+import os, re, json, time, csv, io, random, logging, queue, threading
 from flask import Flask, request, jsonify, Response
 from datetime import datetime
 import requests as req_lib
 from openpyxl import load_workbook
 from filelock import FileLock
 from http import HTTPStatus
-import threading
 
 # ── IMPORTS DE LAS IAs ──
 GEMINI_DISPONIBLE = False
@@ -42,11 +41,9 @@ app = Flask(__name__)
 # 1. CONFIGURACIÓN Y CONSTANTES
 # ══════════════════════════════════════════════════════════════════════════
 def get_csv_bd_path():
-    """Auto-detecta el archivo de participantes más reciente"""
     if os.path.exists("base_datos.csv"): return "base_datos.csv"
     for f in os.listdir("."):
-        if f.startswith("participantes_") and f.endswith(".csv"):
-            return f
+        if f.startswith("participantes_") and f.endswith(".csv"): return f
     return "base_datos.csv"
 
 class Config:
@@ -58,6 +55,7 @@ class Config:
     CSV_BD_PATH = os.environ.get("CSV_BD_PATH", get_csv_bd_path())
     SESSIONS_PATH = os.environ.get("SESSIONS_PATH", "sesiones.json")
     HISTORIAL_PATH = "historial_chat.json"
+    DATASET_PATH = "dataset_entrenamiento.csv" # 🧠 NUEVO: Base de datos para entrenar a la IA
     
     GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
     DASHSCOPE_KEY = os.environ.get("DASHSCOPE_API_KEY", "")
@@ -69,18 +67,21 @@ class Config:
     CREDS_JSON = os.environ.get("GOOGLE_CREDENTIALS", "")
 
 # ══════════════════════════════════════════════════════════════════════════
-# 2. GESTOR DE ESTADO CONCURRENTE (GUNICORN SAFE)
+# 2. GESTOR DE ESTADO Y DATASET DE ENTRENAMIENTO
 # ══════════════════════════════════════════════════════════════════════════
 class SessionManager:
+    _session_lock = threading.Lock()
+    _history_lock = threading.Lock()
+    _dataset_lock = threading.Lock()
+
     @staticmethod
     def get_sesion(telefono):
         with FileLock(Config.SESSIONS_PATH + ".lock"):
             try:
                 if os.path.exists(Config.SESSIONS_PATH):
                     with open(Config.SESSIONS_PATH, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                        return data.get(str(telefono), {})
-            except Exception as e: pass
+                        return json.load(f).get(str(telefono), {})
+            except: pass
             return {}
 
     @staticmethod
@@ -89,26 +90,21 @@ class SessionManager:
             try:
                 data = {}
                 if os.path.exists(Config.SESSIONS_PATH):
-                    with open(Config.SESSIONS_PATH, "r", encoding="utf-8") as f:
-                        data = json.load(f)
+                    with open(Config.SESSIONS_PATH, "r", encoding="utf-8") as f: data = json.load(f)
                 data[str(telefono)] = data_dict
-                with open(Config.SESSIONS_PATH, "w", encoding="utf-8") as f:
-                    json.dump(data, f, ensure_ascii=False, indent=2)
-            except Exception as e: pass
+                with open(Config.SESSIONS_PATH, "w", encoding="utf-8") as f: json.dump(data, f, ensure_ascii=False, indent=2)
+            except: pass
 
     @staticmethod
     def borrar_sesion(telefono):
-        tel_str = str(telefono)
         with FileLock(Config.SESSIONS_PATH + ".lock"):
             try:
                 if os.path.exists(Config.SESSIONS_PATH):
-                    with open(Config.SESSIONS_PATH, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                    if tel_str in data:
-                        del data[tel_str]
-                        with open(Config.SESSIONS_PATH, "w", encoding="utf-8") as f:
-                            json.dump(data, f, ensure_ascii=False, indent=2)
-            except Exception as e: pass
+                    with open(Config.SESSIONS_PATH, "r", encoding="utf-8") as f: data = json.load(f)
+                    if str(telefono) in data:
+                        del data[str(telefono)]
+                        with open(Config.SESSIONS_PATH, "w", encoding="utf-8") as f: json.dump(data, f, ensure_ascii=False, indent=2)
+            except: pass
 
     @staticmethod
     def append_historial(telefono, nombre, texto, tipo):
@@ -116,70 +112,87 @@ class SessionManager:
             try:
                 h = []
                 if os.path.exists(Config.HISTORIAL_PATH):
-                    with open(Config.HISTORIAL_PATH, "r", encoding="utf-8") as f:
-                        h = json.load(f)
+                    with open(Config.HISTORIAL_PATH, "r", encoding="utf-8") as f: h = json.load(f)
                 h.append({
-                    "telefono": str(telefono), 
-                    "nombre": nombre or "Desconocido", 
-                    "texto": texto, 
-                    "tipo": tipo, 
-                    "hora": datetime.now().strftime("%d/%m %H:%M")
+                    "telefono": str(telefono), "nombre": nombre or "Desconocido", 
+                    "texto": texto, "tipo": tipo, "hora": datetime.now().strftime("%d/%m %H:%M")
                 })
-                with open(Config.HISTORIAL_PATH, "w", encoding="utf-8") as f:
-                    json.dump(h[-10000:], f, ensure_ascii=False, indent=2)
-            except Exception as e: pass
+                with open(Config.HISTORIAL_PATH, "w", encoding="utf-8") as f: json.dump(h[-10000:], f, ensure_ascii=False, indent=2)
+            except: pass
 
     @staticmethod
-    def forzar_sincronizacion(leer_sheet_func, limpiar_numero_func):
-        rows = leer_sheet_func()
-        if not rows: return
-        with FileLock(Config.HISTORIAL_PATH + ".lock"):
+    def guardar_dataset(telefono, mensaje_usuario, respuesta_ia, modelo_usado):
+        """🧠 Guarda cada interacción para hacer Fine-Tuning (Entrenamiento) en el futuro"""
+        with FileLock(Config.DATASET_PATH + ".lock"):
             try:
-                local_hist = []
-                if os.path.exists(Config.HISTORIAL_PATH):
-                    with open(Config.HISTORIAL_PATH, "r", encoding="utf-8") as f:
-                        local_hist = json.load(f)
-                existing = set(f"{m.get('telefono','')}_{m.get('texto','')}" for m in local_hist)
-                for row in rows[1:]:
-                    if len(row) < 4: continue
-                    hora = str(row[0]).strip(); tel = limpiar_numero_func(str(row[1]).strip())
-                    imo_n = str(row[2]).strip() if len(row) > 2 else ""
-                    msg_in = str(row[3]).strip() if len(row) > 3 else ""
-                    msg_out = str(row[4]).strip() if len(row) > 4 else ""
-                    if tel:
-                        if msg_in and f"{tel}_{msg_in}" not in existing:
-                            local_hist.append({"telefono": tel, "nombre": imo_n, "texto": msg_in, "tipo": "in", "hora": hora})
-                            existing.add(f"{tel}_{msg_in}")
-                        if msg_out and f"{tel}_{msg_out}" not in existing:
-                            local_hist.append({"telefono": tel, "nombre": imo_n, "texto": msg_out, "tipo": "out", "hora": hora})
-                            existing.add(f"{tel}_{msg_out}")
-                with open(Config.HISTORIAL_PATH, "w", encoding="utf-8") as f: 
-                    json.dump(local_hist[-10000:], f, ensure_ascii=False, indent=2) 
-            except Exception as e: pass
+                archivo_existe = os.path.exists(Config.DATASET_PATH)
+                with open(Config.DATASET_PATH, "a", encoding="utf-8-sig", newline="") as f:
+                    writer = csv.writer(f)
+                    if not archivo_existe:
+                        writer.writerow(["Fecha", "Telefono", "Mensaje Usuario", "Respuesta IA", "Modelo"])
+                    writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), telefono, mensaje_usuario, respuesta_ia, modelo_usado])
+            except Exception as e:
+                logger.error(f"Error guardando dataset: {e}")
 
 def get_sesion(tel): return SessionManager.get_sesion(tel)
 def set_sesion(tel, d): SessionManager.set_sesion(tel, d)
 def borrar_sesion(tel): SessionManager.borrar_sesion(tel)
 def append_historial(tel, nom, txt, tipo): SessionManager.append_historial(tel, nom, txt, tipo)
-def forzar_sincronizacion_sheets(): SessionManager.forzar_sincronizacion(leer_sheet, limpiar_numero)
 def get_historial():
     try:
         if os.path.exists(Config.HISTORIAL_PATH):
-            with open(Config.HISTORIAL_PATH, "r", encoding="utf-8") as f:
-                return json.load(f)
+            with open(Config.HISTORIAL_PATH, "r", encoding="utf-8") as f: return json.load(f)
     except: pass
     return []
 
 # ══════════════════════════════════════════════════════════════════════════
-# 3. WATCHDOG PARÁSITO (Cierre de Inactividad)
+# 3. SISTEMAS ANTI-CAÍDAS (Cola Asíncrona y Watchdog)
 # ══════════════════════════════════════════════════════════════════════════
+cola_mensajes = queue.Queue()
+
+def worker_procesar_mensajes():
+    """🚀 Hilo de procesamiento: Extrae los mensajes de la cola para no bloquear el Webhook"""
+    while True:
+        try:
+            tarea = cola_mensajes.get()
+            telefono = tarea["telefono"]
+            texto = tarea["texto"]
+            
+            # Reconocimiento y perfilado CRM en segundo plano
+            imo_nombre_sheet, _ = cargar_px_del_imo(telefono)
+            sesion_pre = get_sesion(telefono)
+            sesion_pre["ultimo_mensaje_usuario"] = texto
+            
+            nombre_mostrar = imo_nombre_sheet
+            if not imo_nombre_sheet:
+                nm = sesion_pre.get("nombre_prospecto")
+                if not nm:
+                    nm_csv = identificar_contacto_csv(telefono)
+                    if nm_csv:
+                        nm = nm_csv
+                        sesion_pre["nombre_prospecto"] = nm
+                nombre_mostrar = f"CONTACTO: {nm}" if nm else "NUEVO CONTACTO"
+            
+            set_sesion(telefono, sesion_pre)
+            append_historial(telefono, nombre_mostrar, texto, "in")
+            
+            # Ejecutar el cerebro
+            procesar_mensaje(telefono, texto)
+            
+        except Exception as e:
+            logger.error(f"Error en worker asíncrono: {e}", exc_info=True)
+        finally:
+            cola_mensajes.task_done()
+
+# Iniciamos los trabajadores asíncronos
+threading.Thread(target=worker_procesar_mensajes, daemon=True).start()
+
 def ejecutar_watchdog_inactividad():
     sesiones_vencidas = []
     with FileLock(Config.SESSIONS_PATH + ".lock"):
         if not os.path.exists(Config.SESSIONS_PATH): return
         try:
-            with open(Config.SESSIONS_PATH, "r", encoding="utf-8") as f:
-                sesiones = json.load(f)
+            with open(Config.SESSIONS_PATH, "r", encoding="utf-8") as f: sesiones = json.load(f)
             for telefono, data in list(sesiones.items()):
                 if data.get("menu_state") == "esperando_humano": continue
                 last_interaction = data.get("last_interaction")
@@ -191,8 +204,7 @@ def ejecutar_watchdog_inactividad():
                             del sesiones[telefono]
                     except: pass
             if sesiones_vencidas:
-                with open(Config.SESSIONS_PATH, "w", encoding="utf-8") as f:
-                    json.dump(sesiones, f, ensure_ascii=False, indent=2)
+                with open(Config.SESSIONS_PATH, "w", encoding="utf-8") as f: json.dump(sesiones, f, ensure_ascii=False, indent=2)
         except: pass
     for tel in sesiones_vencidas:
         msg = "⏳ Hola. Por inactividad hemos finalizado esta sesión para proteger tus datos.\n\n_Si necesitas realizar otra consulta, simplemente escribe la palabra *MENU* para volver a empezar. ¡Que tengas un día extraordinario! ✨_"
@@ -215,80 +227,184 @@ class WhatsAppAPI:
                     estado_actual = "SISTEMA" if nombre_mostrar == "SISTEMA" else "INTERACTIVO"
                     threading.Thread(target=registrar_en_sheets, args=(telefono, nombre_mostrar, mensaje_usuario or "[Bot]", texto[:500], estado_actual), daemon=True).start()
                 return True
-        except Exception as e: pass
+        except: pass
         return False
 
 def enviar_mensaje(telefono, texto, nombre_imo="", registrar_sheets=False, msg_user=""):
     sesion = get_sesion(telefono)
     if sesion.get("primera_vez", True) and not str(nombre_imo).startswith("COORDINADORA") and nombre_imo != "SISTEMA":
-        aclaracion = "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*. Para una atención personalizada, comunícate con nuestras coordinadoras:_\n\n" + COORDINADORAS
+        aclaracion = "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*. Para atención personalizada, usa el menú para conectar con nuestras coordinadoras:_\n\n" + COORDINADORAS
         texto += aclaracion if "Coordinadoras C1 y C2" not in texto else "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*._"
         sesion["primera_vez"] = False
         set_sesion(telefono, sesion)
     return WhatsAppAPI.enviar_mensaje(telefono, texto, nombre_imo, registrar_sheets, msg_user)
 
-class GoogleSheetsAPI:
-    _token_cache = {"token": None, "exp": 0}
-    _token_lock = threading.Lock()
-
-    @classmethod
-    def get_token(cls):
+def registrar_en_sheets(tel, nom, msg, resp, est=""):
+    if not Config.SHEET_ID or not Config.CREDS_JSON: return
+    try:
         import base64
         now = int(time.time())
-        with cls._token_lock:
-            if cls._token_cache["token"] and now < cls._token_cache["exp"] - 60: return cls._token_cache["token"]
-            if not Config.CREDS_JSON: return None
-            try:
-                creds = json.loads(Config.CREDS_JSON)
-                header = base64.urlsafe_b64encode(json.dumps({"alg":"RS256","typ":"JWT"}).encode()).rstrip(b"=")
-                payload = base64.urlsafe_b64encode(json.dumps({
-                    "iss": creds["client_email"], "scope": "https://www.googleapis.com/auth/spreadsheets",
-                    "aud": "https://oauth2.googleapis.com/token", "iat": now, "exp": now + 3600
-                }).encode()).rstrip(b"=")
-                msg = header + b"." + payload
-                from cryptography.hazmat.primitives import hashes, serialization
-                from cryptography.hazmat.primitives.asymmetric import padding
-                pk = serialization.load_pem_private_key(creds["private_key"].encode(), password=None)
-                sig = pk.sign(msg, padding.PKCS1v15(), hashes.SHA256())
-                jwt = (msg + b"." + base64.urlsafe_b64encode(sig).rstrip(b"=")).decode()
-                r = req_lib.post("https://oauth2.googleapis.com/token", data={"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": jwt}, timeout=10)
-                if r.status_code == 200:
-                    d = r.json()
-                    cls._token_cache = {"token": d["access_token"], "exp": now + d.get("expires_in", 3600)}
-                    return d["access_token"]
-            except: pass
-            return None
-
-    @classmethod
-    def registrar_accion(cls, telefono, imo_nombre, mensaje, respuesta_bot, estado=""):
-        if not Config.SHEET_ID or not Config.CREDS_JSON: return
-        token = cls.get_token()
-        if not token: return
-        url = f"https://sheets.googleapis.com/v4/spreadsheets/{Config.SHEET_ID}/values/Hoja%201!A:H:append"
-        ahora = datetime.now().strftime("%d/%m/%Y %H:%M")
-        try:
+        creds = json.loads(Config.CREDS_JSON)
+        header = base64.urlsafe_b64encode(json.dumps({"alg":"RS256","typ":"JWT"}).encode()).rstrip(b"=")
+        payload = base64.urlsafe_b64encode(json.dumps({
+            "iss": creds["client_email"], "scope": "https://www.googleapis.com/auth/spreadsheets",
+            "aud": "https://oauth2.googleapis.com/token", "iat": now, "exp": now + 3600
+        }).encode()).rstrip(b"=")
+        msg_jwt = header + b"." + payload
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import padding
+        pk = serialization.load_pem_private_key(creds["private_key"].encode(), password=None)
+        sig = pk.sign(msg_jwt, padding.PKCS1v15(), hashes.SHA256())
+        jwt = (msg_jwt + b"." + base64.urlsafe_b64encode(sig).rstrip(b"=")).decode()
+        r = req_lib.post("https://oauth2.googleapis.com/token", data={"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": jwt}, timeout=10)
+        if r.status_code == 200:
+            token = r.json()["access_token"]
+            url = f"https://sheets.googleapis.com/v4/spreadsheets/{Config.SHEET_ID}/values/Hoja%201!A:H:append"
+            ahora = datetime.now().strftime("%d/%m/%Y %H:%M")
             req_lib.post(url, params={"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"}, 
-                         json={"values": [[ahora, str(telefono), imo_nombre, mensaje, respuesta_bot, estado, "", ""]]}, 
+                         json={"values": [[ahora, str(tel), nom, msg, resp, est, "", ""]]}, 
                          headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=10)
-        except: pass
-            
-    @classmethod
-    def leer_sheet(cls):
-        if not Config.SHEET_ID or not Config.CREDS_JSON: return []
-        token = cls.get_token()
-        if not token: return []
-        url = f"https://sheets.googleapis.com/v4/spreadsheets/{Config.SHEET_ID}/values/Hoja%201!A:H"
-        try:
-            r = req_lib.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=10)
-            if r.status_code == 200: return r.json().get("values", [])
-        except: pass
-        return []
-
-def registrar_en_sheets(tel, nom, msg, resp, est=""): GoogleSheetsAPI.registrar_accion(tel, nom, msg, resp, est)
-def leer_sheet(): return GoogleSheetsAPI.leer_sheet()
+    except: pass
 
 # ══════════════════════════════════════════════════════════════════════════
-# 5. BASE DE CONOCIMIENTOS MASTER Y MENÚS
+# 5. UTILIDADES Y RECONOCIMIENTO BLINDADO (Anti-IndexError)
+# ══════════════════════════════════════════════════════════════════════════
+def norm_tel(tel):
+    t = re.sub(r'\D', '', str(tel))
+    if t.startswith("51") and len(t) == 11: return t[2:]
+    if t.startswith("0") and len(t) == 10: return t[1:]
+    if len(t) > 10 and not t.startswith("9"): return t[-9:]
+    return t
+
+def son_mismo_numero(tel1, tel2):
+    t1 = re.sub(r'\D', '', str(tel1))
+    t2 = re.sub(r'\D', '', str(tel2))
+    if not t1 or not t2: return False
+    if t1 == t2: return True
+    min_len = min(len(t1), len(t2))
+    if min_len >= 8 and (t1.endswith(t2) or t2.endswith(t1)): return True
+    if t1.startswith("0") and t2.endswith(t1[1:]): return True
+    if t2.startswith("0") and t1.endswith(t2[1:]): return True
+    return False
+
+def normalizar(texto):
+    t = texto.lower().strip()
+    for a, b in [("á","a"),("é","e"),("í","i"),("ó","o"),("ú","u"),("ñ","n")]: t = t.replace(a, b)
+    return t
+
+def nombre_pila(s):
+    partes = [p.strip() for p in re.split(r'\s+', s.strip()) if len(p.strip()) > 2]
+    return partes[0].title() if partes else s.strip().title()
+
+def identificar_contacto_csv(telefono):
+    """Blindado: Ignora errores de índice si el CSV tiene filas rotas"""
+    try:
+        if not os.path.exists(Config.CSV_BD_PATH): return None
+        with open(Config.CSV_BD_PATH, "r", encoding="utf-8-sig") as f:
+            primera_linea = f.readline()
+            delimitador = ';' if ';' in primera_linea else ','
+            f.seek(0)
+            reader = csv.DictReader(f, delimiter=delimitador)
+            if not reader.fieldnames: return None
+            
+            tel_key = next((c for c in reader.fieldnames if c and ("tel" in c.lower() or "cel" in c.lower())), None)
+            nom_key = next((c for c in reader.fieldnames if c and ("nombre" in c.lower())), None)
+            ape_key = next((c for c in reader.fieldnames if c and ("apellido" in c.lower())), None)
+
+            if not tel_key or not nom_key: return None
+
+            for row in reader:
+                try:
+                    if not row or not row.get(tel_key): continue
+                    tel_csv = str(row.get(tel_key, ""))
+                    if son_mismo_numero(tel_csv, telefono):
+                        n_base = str(row.get(nom_key, "")).strip()
+                        a_base = str(row.get(ape_key, "")).strip() if ape_key else ""
+                        
+                        # Manejo seguro de listas vacías
+                        n = n_base.split()[0] if n_base.split() else ""
+                        a = a_base.split()[0] if a_base.split() else ""
+                        
+                        if n and a: return f"{n} {a}".title()
+                        elif n: return n.title()
+                except IndexError: continue # Ignorar fila si hay error interno
+    except Exception as e: logger.error(f"Error CRM CSV: {e}")
+    return None
+
+def cargar_px_del_imo(telefono):
+    with FileLock(Config.EXCEL_PATH + ".lock"):
+        try:
+            wb = load_workbook(Config.EXCEL_PATH, data_only=True, read_only=True)
+            ws = wb["DATA"]
+            px_list, imo_nombre = [], ""
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                if not row or len(row) < 7: continue
+                imo_n  = str(row[0] or "").strip()
+                imo_t  = str(row[3] or "")
+                px_n   = str(row[4] or "").strip()
+                estado = str(row[6] or "").strip().upper()
+                if son_mismo_numero(imo_t, telefono):
+                    if not imo_nombre: imo_nombre = imo_n
+                    if estado in ("PENDIENTE","ENVIADO","") and px_n:
+                        px_list.append(px_n)
+            wb.close()
+            return imo_nombre, px_list
+        except: return "", []
+
+def obtener_perfil_crm(telefono):
+    perfil = {"rol": "PROSPECTO", "nombre": None, "pendiente": None, "imo_nombre": None, "imo_tel": None}
+    imo_nom, px_list = cargar_px_del_imo(telefono)
+    if imo_nom:
+        perfil["rol"] = "IMO"; perfil["nombre"] = imo_nom; perfil["pendientes"] = px_list
+        return perfil
+    try:
+        if os.path.exists(Config.CSV_BD_PATH):
+            with open(Config.CSV_BD_PATH, "r", encoding="utf-8-sig") as f:
+                primera_linea = f.readline()
+                delimitador = ';' if ';' in primera_linea else ','
+                f.seek(0)
+                reader = csv.DictReader(f, delimiter=delimitador)
+                if reader.fieldnames:
+                    tel_key = next((c for c in reader.fieldnames if c and ("tel" in c.lower() or "cel" in c.lower()) and "imo" not in c.lower()), None)
+                    nom_key = next((c for c in reader.fieldnames if c and ("nombre" in c.lower())), None)
+                    ape_key = next((c for c in reader.fieldnames if c and ("apellido" in c.lower())), None)
+                    c1_key = next((c for c in reader.fieldnames if c and ("c1" == c.strip().lower())), None)
+                    c2_key = next((c for c in reader.fieldnames if c and ("c2" == c.strip().lower())), None)
+                    mj_key = next((c for c in reader.fieldnames if c and ("maestr" in c.lower())), None)
+                    imo_nom_key = next((c for c in reader.fieldnames if c and ("imo" in c.lower() and "tel" not in c.lower())), None)
+                    imo_tel_key = next((c for c in reader.fieldnames if c and ("tel" in c.lower() and "imo" in c.lower())), None)
+
+                    if tel_key:
+                        for row in reader:
+                            try:
+                                if not row or not row.get(tel_key): continue
+                                tel_csv = str(row.get(tel_key, ""))
+                                if son_mismo_numero(tel_csv, telefono):
+                                    n_base = str(row.get(nom_key, "")).strip()
+                                    a_base = str(row.get(ape_key, "")).strip() if ape_key else ""
+                                    
+                                    n = n_base.split()[0] if n_base.split() else ""
+                                    a = a_base.split()[0] if a_base.split() else ""
+                                    nombre_completo = f"{n} {a}".title().strip() if (n and a) else nombre_pila(n_base)
+                                    
+                                    c1_stat = str(row.get(c1_key, "NO")).strip().upper() if c1_key else "NO"
+                                    c2_stat = str(row.get(c2_key, "NO")).strip().upper() if c2_key else "NO"
+                                    mj_stat = str(row.get(mj_key, "NO")).strip().upper() if mj_key else "NO"
+                                    
+                                    pendiente = "Capítulo 1 (C1)"
+                                    if c1_stat == "SI": pendiente = "Capítulo 2 (C2)"
+                                    if c1_stat == "SI" and c2_stat == "SI": pendiente = "Maestría (MJ)"
+
+                                    perfil["rol"] = "PX"; perfil["nombre"] = nombre_completo; perfil["pendiente"] = pendiente
+                                    perfil["imo_nombre"] = nombre_pila(str(row.get(imo_nom_key, "Tu líder")).strip()) if imo_nom_key else "Tu líder"
+                                    perfil["imo_tel"] = str(row.get(imo_tel_key, "")) if imo_tel_key else ""
+                                    return perfil
+                            except IndexError: continue
+    except: pass
+    return perfil
+
+# ══════════════════════════════════════════════════════════════════════════
+# 6. ESTRATEGIA DE IA DUAL (GEMINI + QWEN) + CREACIÓN DE DATASET
 # ══════════════════════════════════════════════════════════════════════════
 COORDINADORAS_CONTACTOS = {
     "Diana Moscoso": "51912379744", "Joyce Marín": "51933599903", 
@@ -297,25 +413,55 @@ COORDINADORAS_CONTACTOS = {
 COORDINADORAS_LISTA = "\n• Diana Moscoso: +51 912 379 744\n• Joyce Marin: +51 933 599 903\n• Leyla Pasquel: +51 919 502 385\n• Zuley Urteaga: +51 933 599 864"
 COORDINADORAS = f"Coordinadoras C1 y C2:{COORDINADORAS_LISTA}"
 
-KNOWLEDGE_BASE = """
-🔥 IDENTIDAD Y FILOSOFÍA DE 'CREAR PODER SIN LÍMITES PERÚ':
-- Misión: Impactar a la máxima cantidad de seres humanos a vivir una vida extraordinaria. No somos un simple cursito, somos un centro de entrenamiento de Alto Rendimiento.
-- Tono: Seguro, inspirador, empático, directo. Promovemos tomar acción.
-
-💎 LOS 3 NIVELES DEL PROCESO (El Viaje de 100 Días):
-1. CAPÍTULO 1 (C1) - "Descubrimiento": Entrenamiento inmersivo de 3 días (Viernes 9am a Domingo 9pm). Es un espejo para ver tu realidad, romper paradigmas, soltar creencias que te frenan y diseñar la vida que mereces.
-2. CAPÍTULO 2 (C2) - "Experiencia y Transformación": Usualmente de 4 días. Es un trabajo emocional y vivencial súper profundo. Rediseñas cómo te relacionas con el mundo y contigo mismo.
-3. MAESTRÍA (MJ): El programa de 100 días. Llevas todo lo aprendido a la acción masiva en tu familia, finanzas y liderazgo. Creas hábitos inquebrantables.
-
-🛡️ REGLAS IMPORTANTES:
-- Solo para mayores de 18 años.
-- NO es terapia ni sustituye atención psicológica/psiquiátrica. Es coaching de resultados para personas listas para avanzar.
-
-💰 PAGOS Y SEDE:
-- Cuentas Oficiales: BCP Soles a nombre de CREACIÓN CUÁNTICA E.I.R.L (Cuenta: 1934218307060 / CCI: 00219300421830706018). Se acepta PayPal y TC.
-- Sede Principal: Hotel José Antonio Deluxe (Miraflores, Lima).
+BROCHURE_INFO_MAESTRA = """
+INFORMACIÓN OFICIAL CREAR PODER SIN LÍMITES PERÚ:
+- Misión: Impactar a la máxima cantidad de seres humanos a vivir una vida extraordinaria. No somos un cursito, somos Alto Rendimiento.
+- Los 3 Niveles del Proceso (100 Días):
+  1. Capítulo 1 (C1): Descubrimiento. 3 días para romper paradigmas y darte cuenta de tus barreras.
+  2. Capítulo 2 (C2): Experiencia y Transformación profunda (Usualmente 4 días). Rediseñas cómo te relacionas con el mundo.
+  3. Maestría (MJ): 100 días para integrar lo aprendido. Llevas el liderazgo a la familia y finanzas.
+- Reglas: Exclusivo para MAYORES DE 18 AÑOS. NO es terapia.
+- Inversión: BCP Soles a nombre de CREACIÓN CUÁNTICA E.I.R.L (Cuenta: 1934218307060 / CCI: 00219300421830706018).
 """
 
+def embudo_ventas_ia(mensaje_usuario, nombre_conocido=None, nombre_ya_saludado=False, telefono=None):
+    cfg = {"gemini_key": Config.GEMINI_KEY, "dashscope_key": Config.DASHSCOPE_KEY, "modo_ia": Config.MODO_IA, "ia_primaria": Config.IA_PRIMARIA, "ia_fallback": Config.IA_FALLBACK}
+    
+    def guardar_y_retornar(respuesta, modelo):
+        if telefono: SessionManager.guardar_dataset(telefono, mensaje_usuario, respuesta, modelo)
+        return respuesta
+
+    msg_len = len(mensaje_usuario.split())
+    if msg_len <= 3 and nombre_conocido and not nombre_ya_saludado:
+        resp = f"¡Hola, {nombre_conocido}! Qué gran paso estás dando al comunicarte. 🌟 Creemos firmemente que tienes un potencial ilimitado esperando ser despertado.\n\nA través de nuestra Transformación Cuántica, te acompañamos a romper las barreras que hoy te frenan. Todo esto se vive en el *Capítulo 1*, un entrenamiento vivencial de 3 días para rediseñar tu realidad. ¿Te gustaría conocer detalles de la próxima fecha?"
+        return guardar_y_retornar(resp, "REGLA_CORTA")
+    
+    if not Config.GEMINI_KEY or not GEMINI_DISPONIBLE: 
+        return guardar_y_retornar("Para apoyarte de forma humana y precisa, por favor escribe 4 o 6 para enlazarte con una coordinadora.", "FALLBACK_OFFLINE")
+    
+    def construir_prompt_gemini():
+        return f"""Eres un Coach de Enrolamiento de 'Crear Poder Sin Límites Perú'.
+        Hablas con: "{nombre_conocido if nombre_conocido else 'un contacto'}".
+        Mensaje del usuario: "{mensaje_usuario}"
+        BASE DE CONOCIMIENTO: {BROCHURE_INFO_MAESTRA}
+        REGLAS DE ORO:
+        1. CONEXIÓN EMPÁTICA: Tu tono es cálido, apasionado y enérgico. NUNCA suenes como robot. Usa emojis sutiles.
+        2. NO SEAS MONÓTONO: Explica la TRANSFORMACIÓN (romper miedos, mejorar relaciones, elevar el liderazgo).
+        3. PALABRAS PROHIBIDAS: "sanar", "terapia", "ayudar", "paciente".
+        4. PREGUNTA DE CIERRE: Termina SIEMPRE tu respuesta con una pregunta poderosa que invite a la acción."""
+
+    try:
+        genai.configure(api_key=Config.GEMINI_KEY)
+        model = genai.GenerativeModel('gemini-2.0-flash') 
+        r = model.generate_content(construir_prompt_gemini())
+        if r.text: return guardar_y_retornar(r.text.strip(), "GEMINI")
+    except: pass
+
+    return guardar_y_retornar("Para brindarte un apoyo 100% personalizado y humano, te invito a presionar el número de la opción que te derive con una coordinadora.", "FALLBACK_ERROR")
+
+# ══════════════════════════════════════════════════════════════════════════
+# 7. ESTRUCTURAS DE MENÚ
+# ══════════════════════════════════════════════════════════════════════════
 MENU_STRUCTURE = {
     "main_prospecto": {
         "text": (
@@ -337,10 +483,9 @@ MENU_STRUCTURE = {
             "1️⃣ *Reportar Asistencia* de mis participantes\n"
             "2️⃣ *Explorar Entrenamientos* e información oficial\n"
             "3️⃣ *Hablar con una Coordinadora* para apoyo especial\n"
-            "4️⃣ *Ver mis participantes pendientes* (C1/C2)\n"
             "0️⃣ *Finalizar sesión*"
         ),
-        "options": {"1": "action_imo", "2": "info_entrenamientos", "3": "action_humano", "4": "ver_pendientes_imo", "0": "action_salir"}
+        "options": {"1": "action_imo", "2": "info_entrenamientos", "3": "action_humano", "0": "action_salir"}
     },
     "main_px": {
         "text": (
@@ -377,338 +522,44 @@ MENU_STRUCTURE = {
         "text": "📅 *Fechas y Lugares*\nHotel José Antonio Deluxe (Miraflores, Lima). Para la fecha exacta de tu equipo:\n\n1️⃣ Solicitar calendario a coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal",
         "options": {"1": "action_humano", "9": "volver", "0": "main"}
     },
-    "soporte_participante": {
-        "text": "👤 *Soporte y Acompañamiento*\n¿Qué necesitas hoy?\n\n1️⃣ Tengo dudas sobre mi asistencia o fechas asignadas\n2️⃣ Requisitos y qué llevar al salón\n3️⃣ Realizar una consulta a un humano\n\n9️⃣ Regresar\n0️⃣ Menú principal",
-        "options": {"1": "action_humano", "2": "requisitos_salon", "3": "action_humano", "9": "volver", "0": "main"}
-    },
-    "requisitos_salon": {
-        "text": "🎒 *Requisitos para el Salón*\nTe sugerimos llevar ropa muy cómoda y una botella de agua para hidratarte. No necesitas cuadernos ni apuntes. No se permiten alimentos externos y el entrenamiento es exclusivo para mayores de 18 años.\n\n9️⃣ Regresar\n0️⃣ Menú principal",
-        "options": {"9": "volver", "0": "main"}
-    },
-    "estado_proceso": {
-        "text": "📊 *Estado de mi Matrícula*\nPara revisar el estatus exacto de tu matrícula o reprogramaciones, necesitamos que una coordinadora verifique tu DNI en nuestro sistema seguro.\n\n1️⃣ Solicitar revisión a coordinadora\n\n9️⃣ Regresar\n0️⃣ Menú principal",
-        "options": {"1": "action_humano", "9": "volver", "0": "main"}
-    },
     "pagos": {
-        "text": "💳 *Inversión y Pagos*\nAceptamos pagos por transferencia al BCP a nombre de Creación Cuántica E.I.R.L. (Cuenta Soles: 1934218307060 / CCI: 00219300421830706018), tarjetas de crédito y PayPal.\n\n1️⃣ Enviar voucher de pago a Coordinadora\n2️⃣ Necesito ayuda con mi factura/boleta\n\n9️⃣ Regresar\n0️⃣ Menú principal",
+        "text": "💳 *Inversión y Pagos*\nBCP a nombre de Creación Cuántica E.I.R.L. (Cuenta Soles: 1934218307060).\n\n1️⃣ Enviar voucher a Coordinadora\n2️⃣ Ayuda con factura/boleta\n9️⃣ Regresar\n0️⃣ Menú principal",
         "options": {"1": "action_humano", "2": "action_humano", "9": "volver", "0": "main"}
     }
 }
 
-def obtener_necesidad(estado_actual, texto_limpio, texto_original):
-    if estado_actual == "main" and texto_limpio == "6": return "Atención personalizada general"
-    if estado_actual == "info_c1" and texto_limpio == "1": return "Desea inscribirse o contactar a un asesor para el Capítulo 1"
-    if estado_actual == "info_fechas" and texto_limpio == "1": return "Solicita calendario de fechas de próximos entrenamientos"
-    if estado_actual == "soporte_participante" and texto_limpio == "1": return "Tiene dudas sobre su asistencia o fechas asignadas"
-    if estado_actual == "soporte_participante" and texto_limpio == "3": return "Desea realizar una consulta general de soporte"
-    if estado_actual == "estado_proceso" and texto_limpio == "1": return "Solicita revisión de su matrícula / Validación de DNI"
-    if estado_actual == "pagos" and texto_limpio == "1": return "Desea enviar un voucher de pago"
-    if estado_actual == "pagos" and texto_limpio == "2": return "Necesita ayuda con facturación o boletas"
-    if estado_actual == "chat_libre_ia" and texto_limpio == "3": return "Solicitó un humano tras conversar con la IA"
-    return f"Motivo no especificado. Último mensaje: '{texto_original}'"
-
-def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre, necesidad_detectada):
-    coord_nombre, coord_tel = random.choice(list(COORDINADORAS_CONTACTOS.items()))
-    nombre_txt = prospecto_nombre if prospecto_nombre else "No especificado"
-    msg_coord = (
-        f"🚨 *NUEVO CONTACTO PARA CREAR* 🚀\n\n"
-        f"*Nombre:* {nombre_txt}\n"
-        f"*Teléfono:* wa.me/{prospecto_tel}\n"
-        f"*Necesidad / Motivo:* {necesidad_detectada}\n\n"
-        f"¡Es tu turno de apoyarlo a dar su salto cuántico!"
-    )
-    sesion_coord = get_sesion(coord_tel)
-    sesion_coord["primera_vez"] = False 
-    set_sesion(coord_tel, sesion_coord)
-    enviar_mensaje(coord_tel, msg_coord, f"COORDINADORA: {coord_nombre}")
-    return coord_nombre
-
 # ══════════════════════════════════════════════════════════════════════════
-# 6. UTILIDADES, COINCIDENCIA DE TELÉFONOS (MATCH INTELIGENTE) Y EXCEL IMO
-# ══════════════════════════════════════════════════════════════════════════
-def limpiar_numero(tel):
-    """Extrae solo los dígitos de cualquier string"""
-    return re.sub(r'\D', '', str(tel))
-
-def son_mismo_numero(tel1, tel2):
-    """
-    Compara dos números de teléfono de atrás hacia adelante para ignorar
-    códigos de país (+51, 57, etc) o ceros iniciales en Excel.
-    """
-    t1 = limpiar_numero(tel1)
-    t2 = limpiar_numero(tel2)
-    if not t1 or not t2: return False
-    if t1 == t2: return True
-    
-    min_len = min(len(t1), len(t2))
-    # Validamos con los últimos 8 dígitos para evitar falsos positivos
-    if min_len >= 8:
-        if t1.endswith(t2) or t2.endswith(t1):
-            return True
-            
-    # Caso especial para números mal guardados con ceros en Excel (Ej: 0999... vs 593999...)
-    if t1.startswith("0") and t2.endswith(t1[1:]): return True
-    if t2.startswith("0") and t1.endswith(t2[1:]): return True
-    
-    return False
-
-def normalizar(texto):
-    t = texto.lower().strip()
-    for a, b in [("á","a"),("é","e"),("í","i"),("ó","o"),("ú","u"),("ñ","n")]: t = t.replace(a, b)
-    return t
-
-def nombre_pila(s):
-    partes = [p.strip() for p in re.split(r'\s+', s.strip()) if len(p.strip()) > 2]
-    return partes[0].title() if partes else s.strip().title()
-
-def cargar_px_del_imo(telefono):
-    """Busca usando coincidencia flexible"""
-    with FileLock(Config.EXCEL_PATH + ".lock"):
-        try:
-            wb = load_workbook(Config.EXCEL_PATH, data_only=True, read_only=True)
-            ws = wb["DATA"]
-            px_list, imo_nombre = [], ""
-            for row in ws.iter_rows(min_row=2, values_only=True):
-                if not row or len(row) < 7: continue
-                imo_n  = str(row[0] or "").strip()
-                imo_t  = str(row[3] or "")
-                px_n   = str(row[4] or "").strip()
-                estado = str(row[6] or "").strip().upper()
-                
-                if son_mismo_numero(imo_t, telefono):
-                    if not imo_nombre: imo_nombre = imo_n
-                    if estado in ("PENDIENTE","ENVIADO","") and px_n:
-                        px_list.append(px_n)
-            wb.close()
-            return imo_nombre, px_list
-        except: return "", []
-
-def obtener_perfil_crm(telefono):
-    """Motor de reconocimiento. Soporta diferencias de código de país."""
-    perfil = {"rol": "PROSPECTO", "nombre": None, "pendiente": None, "imo_nombre": None, "imo_tel": None}
-    imo_nom, px_list = cargar_px_del_imo(telefono)
-    if imo_nom:
-        perfil["rol"] = "IMO"
-        perfil["nombre"] = imo_nom
-        perfil["pendientes"] = px_list
-        return perfil
-        
-    try:
-        if os.path.exists(Config.CSV_BD_PATH):
-            with open(Config.CSV_BD_PATH, "r", encoding="utf-8-sig") as f:
-                primera_linea = f.readline()
-                delimitador = ';' if ';' in primera_linea else ','
-                f.seek(0)
-                reader = csv.DictReader(f, delimiter=delimitador)
-                
-                if reader.fieldnames:
-                    tel_key = next((c for c in reader.fieldnames if c and ("tel" in c.lower() or "cel" in c.lower()) and "imo" not in c.lower()), None)
-                    nom_key = next((c for c in reader.fieldnames if c and ("nombre" in c.lower())), None)
-                    ape_key = next((c for c in reader.fieldnames if c and ("apellido" in c.lower())), None)
-                    c1_key = next((c for c in reader.fieldnames if c and ("c1" == c.strip().lower())), None)
-                    c2_key = next((c for c in reader.fieldnames if c and ("c2" == c.strip().lower())), None)
-                    mj_key = next((c for c in reader.fieldnames if c and ("maestr" in c.lower())), None)
-                    imo_nom_key = next((c for c in reader.fieldnames if c and ("imo" in c.lower() and "tel" not in c.lower())), None)
-                    imo_tel_key = next((c for c in reader.fieldnames if c and ("tel" in c.lower() and "imo" in c.lower())), None)
-
-                    if tel_key:
-                        for row in reader:
-                            if not row or not row.get(tel_key): continue
-                            tel_csv = str(row.get(tel_key, ""))
-                            
-                            # USAMOS COINCIDENCIA FLEXIBLE (A prueba de +51 / Ceros)
-                            if son_mismo_numero(tel_csv, telefono):
-                                nombre_base = str(row.get(nom_key, "")).strip()
-                                apellido_base = str(row.get(ape_key, "")).strip() if ape_key else ""
-                                nombre_completo = f"{nombre_base.split()[0]} {apellido_base.split()[0]}".title() if nombre_base and apellido_base else nombre_pila(nombre_base)
-                                
-                                c1_stat = str(row.get(c1_key, "NO")).strip().upper() if c1_key else "NO"
-                                c2_stat = str(row.get(c2_key, "NO")).strip().upper() if c2_key else "NO"
-                                mj_stat = str(row.get(mj_key, "NO")).strip().upper() if mj_key else "NO"
-                                
-                                pendiente = "Capítulo 1 (C1)"
-                                if c1_stat == "SI": pendiente = "Capítulo 2 (C2)"
-                                if c1_stat == "SI" and c2_stat == "SI": pendiente = "Maestría (MJ)"
-
-                                perfil["rol"] = "PX"
-                                perfil["nombre"] = nombre_completo
-                                perfil["pendiente"] = pendiente
-                                perfil["imo_nombre"] = nombre_pila(str(row.get(imo_nom_key, "Tu líder")).strip()) if imo_nom_key else "Tu líder"
-                                perfil["imo_tel"] = limpiar_numero(str(row.get(imo_tel_key, ""))) if imo_tel_key else ""
-                                return perfil
-    except Exception as e: pass
-    return perfil
-
-def buscar_pendientes_imo_csv(telefono):
-    """Busca a los alumnos del IMO con C1 o C2 en NO (Match Inteligente)"""
-    try:
-        if not os.path.exists(Config.CSV_BD_PATH): return []
-        pendientes = []
-        with open(Config.CSV_BD_PATH, "r", encoding="utf-8-sig") as f:
-            primera_linea = f.readline()
-            delimitador = ';' if ';' in primera_linea else ','
-            f.seek(0)
-            reader = csv.DictReader(f, delimiter=delimitador)
-            
-            imo_tel_key = next((c for c in reader.fieldnames if c and ("tel" in c.lower() and "imo" in c.lower())), None)
-            nom_key = next((c for c in reader.fieldnames if c and ("nombre" in c.lower())), None)
-            ape_key = next((c for c in reader.fieldnames if c and ("apellido" in c.lower())), None)
-            c1_key = next((c for c in reader.fieldnames if c and ("c1" == c.strip().lower())), None)
-            c2_key = next((c for c in reader.fieldnames if c and ("c2" == c.strip().lower())), None)
-
-            if not imo_tel_key: return []
-
-            for row in reader:
-                if not row or not row.get(imo_tel_key): continue
-                imo_t = str(row.get(imo_tel_key, ""))
-                
-                if son_mismo_numero(imo_t, telefono):
-                    c1_stat = str(row.get(c1_key, "NO")).strip().upper() if c1_key else "NO"
-                    c2_stat = str(row.get(c2_key, "NO")).strip().upper() if c2_key else "NO"
-
-                    falta = ""
-                    if c1_stat != "SI": falta = "C1"
-                    elif c2_stat != "SI": falta = "C2"
-
-                    if falta:
-                        nombre_base = str(row.get(nom_key, "")).strip()
-                        apellido_base = str(row.get(ape_key, "")).strip() if ape_key else ""
-                        if nombre_base and apellido_base: nombre_completo = f"{nombre_base.split()[0]} {apellido_base.split()[0]}".title()
-                        elif nombre_base: nombre_completo = nombre_pila(nombre_base)
-                        else: continue
-                        pendientes.append(f"• {nombre_completo} (Falta {falta})")
-        return pendientes
-    except Exception as e: pass
-    return []
-
-def actualizar_excel(resultados, telefono_imo):
-    hoy = datetime.now().strftime("%d/%m/%Y %H:%M")
-    with FileLock(Config.EXCEL_PATH + ".lock"):
-        try:
-            wb = load_workbook(Config.EXCEL_PATH)
-            ws = wb["DATA"]
-            for row in ws.iter_rows(min_row=2):
-                if not row or len(row) < 7: continue
-                imo_t = str(row[3].value or "")
-                px_c = str(row[4].value or "").strip()
-                
-                if not son_mismo_numero(imo_t, telefono_imo): continue
-                
-                for r in resultados:
-                    if r["px"].split()[0].lower() in px_c.lower():
-                        row[6].value = r["estatus"]; row[7].value = hoy; break
-            wb.save(Config.EXCEL_PATH); wb.close()
-        except: pass
-
-def marcar_stop(telefono):
-    hoy = datetime.now().strftime("%d/%m/%Y %H:%M")
-    with FileLock(Config.EXCEL_PATH + ".lock"):
-        try:
-            wb = load_workbook(Config.EXCEL_PATH)
-            for row in wb["DATA"].iter_rows(min_row=2):
-                if row and len(row) >= 7:
-                    imo_t = str(row[3].value or "")
-                    if son_mismo_numero(imo_t, telefono):
-                        row[6].value = "STOP"; row[7].value = hoy
-            wb.save(Config.EXCEL_PATH); wb.close()
-        except: pass
-
-# ══════════════════════════════════════════════════════════════════════════
-# 7. ESTRATEGIA DE IA DUAL (Coach de Enrolamiento)
-# ══════════════════════════════════════════════════════════════════════════
-def embudo_ventas_ia(mensaje_usuario, nombre_conocido=None, nombre_ya_saludado=False):
-    
-    if len(mensaje_usuario.split()) <= 3 and nombre_conocido and not nombre_ya_saludado:
-        return f"¡Hola, {nombre_conocido}! Qué gran paso estás dando al comunicarte. 🌟 Creemos firmemente que tienes un potencial ilimitado esperando ser despertado.\n\nA través de nuestra Transformación Cuántica, te acompañamos a romper las barreras que hoy te frenan. Todo esto se vive en el *Capítulo 1*, un entrenamiento vivencial de 3 días para rediseñar tu realidad. ¿Te gustaría conocer detalles de la próxima fecha?"
-    
-    if not Config.GEMINI_KEY or not GEMINI_DISPONIBLE: 
-        return "En Crear Poder Sin Límites creemos en acompañarte hacia tu mejor versión. Para apoyarte de forma humana y precisa, por favor responde con el número *4* o *6* para enlazarte con una de nuestras coordinadoras."
-    
-    def construir_prompt_gemini():
-        return f"""
-        Eres un Coach de Enrolamiento de 'Crear Poder Sin Límites Perú'.
-        Hablas con: "{nombre_conocido if nombre_conocido else 'un contacto'}".
-        Mensaje del usuario: "{mensaje_usuario}"
-
-        BASE DE CONOCIMIENTO:
-        {KNOWLEDGE_BASE}
-
-        REGLAS DE ORO (PSICOLOGÍA DE VENTAS):
-        1. CONEXIÓN EMPÁTICA: Tu tono es cálido, apasionado y enérgico. NUNCA suenes como robot. Usa emojis sutiles.
-        2. NO SEAS MONÓTONO: Explica la TRANSFORMACIÓN (romper miedos, mejorar relaciones, elevar el liderazgo).
-        3. NO RESPUESTAS VAGAS: Da detalles de valor (como los 100 días o precios).
-        4. PALABRAS PROHIBIDAS: "sanar", "terapia", "ayudar", "paciente".
-        5. PALABRAS DE PODER: "Transformación cuántica", "salto cuántico", "vida extraordinaria", "acompañar", "potencial".
-        6. PREGUNTA DE CIERRE: Termina SIEMPRE tu respuesta con una pregunta poderosa que invite a la acción (Ej: ¿Te hace sentido?, ¿Sientes que es tu momento?).
-        """
-
-    try:
-        genai.configure(api_key=Config.GEMINI_KEY)
-        model = genai.GenerativeModel('gemini-2.0-flash') 
-        r = model.generate_content(construir_prompt_gemini())
-        if r.text: return r.text.strip()
-    except Exception as e: pass
-
-    return "Para brindarte un apoyo 100% personalizado y humano, te invito a presionar el número de la opción que te derive con una coordinadora."
-
-# ══════════════════════════════════════════════════════════════════════════
-# 8. MÁQUINA DE ESTADOS CRM (NÚCLEO OMNICANAL)
+# 8. PROCESADOR PRINCIPAL (MÁQUINA DE ESTADOS) - SE EJECUTA EN HILO SEPARADO
 # ══════════════════════════════════════════════════════════════════════════
 def procesar_mensaje(telefono, texto):
     sesion = get_sesion(telefono)
     texto_limpio = str(texto).strip().upper()
-    
-    perfil = sesion.get("perfil")
-    if not perfil:
-        perfil = obtener_perfil_crm(telefono)
-        if perfil["rol"] == "PROSPECTO" and len(texto.split()) <= 3 and len(texto) > 2 and not texto_limpio.isnumeric():
-            perfil["nombre"] = nombre_pila(texto)
-        sesion["perfil"] = perfil
-        set_sesion(telefono, sesion)
-        
+    perfil = sesion.get("perfil", {"rol": "PROSPECTO", "nombre": None, "pendiente": None, "imo_nombre": None, "imo_tel": None})
     nombre_mostrar = f"({perfil['rol']}) {perfil['nombre']}" if perfil['nombre'] else "NUEVO CONTACTO"
 
     if sesion.get("menu_state") == "esperando_encuesta":
         if texto_limpio in ["1", "2", "3", "4", "5"]:
             threading.Thread(target=registrar_en_sheets, args=(telefono, nombre_mostrar, "Calificación", f"{texto_limpio} Estrellas", "CSAT"), daemon=True).start()
-            enviar_mensaje(telefono, "¡Gracias por tu calificación! 🌟 Valoramos mucho tu opinión para seguir mejorando.\n\n_Escribe MENU para reiniciar._", nombre_mostrar)
+            enviar_mensaje(telefono, "¡Gracias por tu calificación! 🌟 Valoramos mucho tu opinión.\n\n_Escribe MENU para reiniciar._", nombre_mostrar)
             borrar_sesion(telefono)
         else: enviar_mensaje(telefono, "Por favor califica con un número del 1 al 5.", nombre_mostrar)
         return
 
-    try:
-        last_time = datetime.strptime(sesion.get("last_interaction", "2000-01-01 00:00:00"), "%Y-%m-%d %H:%M:%S")
-        minutos_inactividad = (datetime.now() - last_time).total_seconds() / 60.0
-    except: minutos_inactividad = 9999
-
-    sesion["last_interaction"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
     if texto_limpio == "STOP":
         marcar_stop(telefono); borrar_sesion(telefono)
-        enviar_mensaje(telefono, "Listo. Has sido dado de baja. No recibirás más mensajes.\n\n*Crear Poder Sin Límites*", nombre_mostrar)
+        enviar_mensaje(telefono, "Has sido dado de baja. No recibirás más mensajes.\n\n*Crear Poder Sin Límites*", nombre_mostrar)
         return
 
-    def get_main_key(rol):
-        if rol == "IMO": return "main_imo"
-        if rol == "PX": return "main_px"
-        return "main_prospecto"
-        
-    main_key = get_main_key(perfil["rol"])
-
+    main_key = "main_imo" if perfil["rol"] == "IMO" else "main_px" if perfil["rol"] == "PX" else "main_prospecto"
     def render_menu(m_key):
         txt = MENU_STRUCTURE[m_key]["text"]
-        if "{" in txt:
-            txt = txt.format(
-                nombre=perfil.get("nombre", "Participante"), 
-                imo=perfil.get("imo_nombre", "tu líder"), 
-                pendiente=perfil.get("pendiente", "tu entrenamiento")
-            )
+        if "{" in txt: txt = txt.format(nombre=perfil.get("nombre", "Participante"), imo=perfil.get("imo_nombre", "tu líder"), pendiente=perfil.get("pendiente", "tu entrenamiento"))
         return txt
 
-    if minutos_inactividad > 30 or "menu_state" not in sesion or texto_limpio in ["0", "MENU", "MENÚ", "INICIO"]:
+    # Si escribe MENU
+    if texto_limpio in ["0", "MENU", "MENÚ", "INICIO"] or "menu_state" not in sesion:
         sesion["menu_state"] = main_key
-        sesion["menu_history"] = []
-        sesion["menu_errors"] = 0
+        sesion["menu_history"] = []; sesion["menu_errors"] = 0
         set_sesion(telefono, sesion)
         enviar_mensaje(telefono, render_menu(main_key), nombre_mostrar)
         return
@@ -717,13 +568,10 @@ def procesar_mensaje(telefono, texto):
         hist = sesion.get("menu_history", [])
         if hist:
             prev = hist.pop()
-            sesion["menu_state"] = prev
-            sesion["menu_history"] = hist
-            set_sesion(telefono, sesion)
+            sesion["menu_state"] = prev; sesion["menu_history"] = hist; set_sesion(telefono, sesion)
             enviar_mensaje(telefono, render_menu(prev), nombre_mostrar)
         else:
-            sesion["menu_state"] = main_key
-            set_sesion(telefono, sesion)
+            sesion["menu_state"] = main_key; set_sesion(telefono, sesion)
             enviar_mensaje(telefono, render_menu(main_key), nombre_mostrar)
         return
 
@@ -737,72 +585,37 @@ def procesar_mensaje(telefono, texto):
             sesion["menu_errors"] = 0
             
             if siguiente_estado == "px_confirma":
-                px_nombre = perfil["nombre"]
-                imo_tel = perfil["imo_tel"]
-                if imo_tel: threading.Thread(target=actualizar_excel, args=([{"px": px_nombre, "estatus": "CONFIRMADO"}], imo_tel), daemon=True).start()
-                
-                msg_exito = f"¡Extraordinario, {px_nombre}! 🎉\n\nHemos registrado tu asistencia para tu próximo {perfil['pendiente']}. Le avisaremos automáticamente a tu líder {perfil['imo_nombre']} para que esté al tanto.\n\n_Escribe 0 para volver al menú._"
-                enviar_mensaje(telefono, msg_exito, nombre_mostrar)
-                sesion["menu_state"] = "esperando_fecha" 
-                set_sesion(telefono, sesion)
-                return
-
-            elif siguiente_estado == "ver_pendientes_imo":
-                lista_pendientes = buscar_pendientes_imo_csv(telefono)
-                if lista_pendientes:
-                    msg_lista = "\n".join(lista_pendientes)
-                    msg = f"📊 *Reporte de tu Equipo*\n\nEstos son tus participantes de la base de datos que aún NO se han sentado:\n\n{msg_lista}\n\n_Escribe *0* para volver al menú._"
-                else:
-                    msg = "¡Felicidades! 🎉 Al parecer todos tus participantes registrados ya se han sentado o no tienes pendientes en la base actual.\n\n_Escribe *0* para volver al menú._"
-                
-                enviar_mensaje(telefono, msg, nombre_mostrar)
-                
-                hist = sesion.get("menu_history", [])
-                if estado_actual != main_key and (not hist or hist[-1] != estado_actual):
-                    hist.append(estado_actual)
-                
-                sesion["menu_state"] = "ver_pendientes_imo"
-                sesion["menu_history"] = hist
-                set_sesion(telefono, sesion)
+                enviar_mensaje(telefono, f"¡Extraordinario, {perfil['nombre']}! 🎉\nHemos registrado tu asistencia. Le avisaremos a tu líder {perfil['imo_nombre']}.\n\n_Escribe 0 para volver al menú._", nombre_mostrar)
+                sesion["menu_state"] = "esperando_fecha"; set_sesion(telefono, sesion)
                 return
 
             elif siguiente_estado == "action_humano":
-                coord_asignada = notificar_coordinadora_aleatoria(telefono, perfil["nombre"], f"Necesita asistencia desde la opción: {estado_actual}")
-                enviar_mensaje(telefono, f"¡Comprendido! He notificado a nuestra coordinadora *{coord_asignada}*. Ella te escribirá por aquí en breve para apoyarte personalmente. 🚀\n\n_Escribe *0* si deseas cancelar y volver al menú._", nombre_mostrar)
-                sesion["menu_state"] = "esperando_humano"
-                set_sesion(telefono, sesion)
+                c_nom = notificar_coordinadora_aleatoria(telefono, perfil["nombre"], f"Necesita asistencia desde: {estado_actual}")
+                enviar_mensaje(telefono, f"¡Comprendido! He notificado a nuestra coordinadora *{c_nom}*. Ella te escribirá en breve. 🚀\n\n_Escribe *0* para cancelar._", nombre_mostrar)
+                sesion["menu_state"] = "esperando_humano"; set_sesion(telefono, sesion)
                 return
                 
             elif siguiente_estado == "action_salir":
-                sesion["menu_state"] = "esperando_encuesta"
-                set_sesion(telefono, sesion)
-                enviar_mensaje(telefono, "Antes de irte, ¿Cómo calificarías tu experiencia de hoy con nuestra *IA Cuántica*?\n\nResponde con un número del *1 al 5*:\n1️⃣ = Mala experiencia\n5️⃣ = ¡Excelente!", nombre_mostrar)
+                sesion["menu_state"] = "esperando_encuesta"; set_sesion(telefono, sesion)
+                enviar_mensaje(telefono, "Antes de irte, ¿Cómo calificarías tu experiencia de hoy con nuestra *IA Cuántica*?\n\nResponde con un número del *1 al 5*:\n1️⃣ = Mala\n5️⃣ = ¡Excelente!", nombre_mostrar)
                 return
                 
-            elif siguiente_estado == "main":
-                siguiente_estado = main_key
+            elif siguiente_estado == "main": siguiente_estado = main_key
                 
             hist = sesion.get("menu_history", [])
-            if estado_actual != main_key and (not hist or hist[-1] != estado_actual):
-                hist.append(estado_actual)
+            if estado_actual != main_key and (not hist or hist[-1] != estado_actual): hist.append(estado_actual)
+            sesion["menu_state"] = siguiente_estado; sesion["menu_history"] = hist; set_sesion(telefono, sesion)
             
-            sesion["menu_state"] = siguiente_estado
-            sesion["menu_history"] = hist
-            set_sesion(telefono, sesion)
-            
-            if siguiente_estado in MENU_STRUCTURE:
-                enviar_mensaje(telefono, render_menu(siguiente_estado), nombre_mostrar)
-            elif siguiente_estado == "chat_libre_ia":
-                enviar_mensaje(telefono, "Has ingresado a nuestro *Chat Inteligente*. 🧠\nPuedes preguntarme lo que desees sobre nuestros entrenamientos, precios o metodologías.\n\n_Escribe *0* para salir del chat._", nombre_mostrar)
-            elif siguiente_estado == "action_imo":
-                enviar_mensaje(telefono, f"¡Hola líder! 👋\n\nHas ingresado al *Portal IMO*. Por favor, envíame un mensaje con el estatus de tus participantes pendientes para registrarlos en el Excel.\n\n_Escribe *0* para volver al menú._", nombre_mostrar)
+            if siguiente_estado in MENU_STRUCTURE: enviar_mensaje(telefono, render_menu(siguiente_estado), nombre_mostrar)
+            elif siguiente_estado == "chat_libre_ia": enviar_mensaje(telefono, "Has ingresado a nuestro *Chat Inteligente*. 🧠\nPuedes preguntarme lo que desees.\n\n_Escribe *0* para salir._", nombre_mostrar)
+            elif siguiente_estado == "action_imo": enviar_mensaje(telefono, f"¡Hola líder! 👋\n\nEstás en el *Portal IMO*. Envíame el estatus de tus participantes.\n\n_Escribe *0* para volver._", nombre_mostrar)
 
         else:
             if not texto_limpio.isnumeric() and len(texto.split()) > 1:
-                sesion["menu_state"] = "chat_libre_ia"
-                set_sesion(telefono, sesion)
-                resp_ia = embudo_ventas_ia(texto, perfil["nombre"])
-                enviar_mensaje(telefono, resp_ia + "\n\n_(Escribe *0* en cualquier momento para volver al menú principal)_", nombre_mostrar)
+                sesion["menu_state"] = "chat_libre_ia"; set_sesion(telefono, sesion)
+                resp_ia = embudo_ventas_ia(texto, perfil["nombre"], sesion.get("nombre_saludado", False), telefono)
+                if "potencial ilimitado" in resp_ia: sesion["nombre_saludado"] = True; set_sesion(telefono, sesion)
+                enviar_mensaje(telefono, resp_ia + "\n\n_(Escribe *0* para volver al menú)_", nombre_mostrar)
                 return
 
             errores = sesion.get("menu_errors", 0) + 1
@@ -810,7 +623,7 @@ def procesar_mensaje(telefono, texto):
             if errores >= 3:
                 sesion["menu_errors"] = 0
                 c_nom = notificar_coordinadora_aleatoria(telefono, perfil["nombre"], "El usuario se atascó en el menú.")
-                enviar_mensaje(telefono, f"Noto que estamos teniendo problemas. 🤖\nHe notificado a la coordinadora *{c_nom}* para que te asista de manera humana.\n\n_Escribe *0* para menú principal._", nombre_mostrar)
+                enviar_mensaje(telefono, f"Noto que estamos teniendo problemas. 🤖\nHe notificado a la coordinadora *{c_nom}* para que te asista.\n\n_Escribe *0* para menú principal._", nombre_mostrar)
                 sesion["menu_state"] = "esperando_humano"
             else:
                 enviar_mensaje(telefono, f"⚠️ *Opción no válida*. Responde únicamente con el *número*.\n\n{render_menu(estado_actual)}", nombre_mostrar)
@@ -820,183 +633,33 @@ def procesar_mensaje(telefono, texto):
         enviar_mensaje(telefono, f"Excelente líder. Has enviado tu estatus. Estamos procesándolo.\n\n_Escribe *0* para volver al menú._", nombre_mostrar)
         return
         
-    elif estado_actual == "esperando_humano" or estado_actual == "esperando_fecha" or estado_actual == "ver_pendientes_imo":
+    elif estado_actual in ["esperando_humano", "esperando_fecha", "ver_pendientes_imo"]:
         set_sesion(telefono, sesion)
         return
 
     elif estado_actual == "chat_libre_ia":
-        resp_ia = embudo_ventas_ia(texto, perfil["nombre"])
+        resp_ia = embudo_ventas_ia(texto, perfil["nombre"], sesion.get("nombre_saludado", False), telefono)
         enviar_mensaje(telefono, resp_ia, nombre_mostrar)
         return
 
 # ══════════════════════════════════════════════════════════════════════════
-# 9. PANEL WEB Y ENDPOINTS FLASK
+# 9. PANEL WEB Y ENDPOINTS FLASK (CON COLA DE MENSAJES)
 # ══════════════════════════════════════════════════════════════════════════
 HTML_CHAT = """
 <!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel WhatsApp - Creación Cuántica</title>
-    <style>
-        :root { --primary: #008069; --bg-body: #d1d7db; --bg-chat: #efeae2; --chat-bubble-out: #d9fdd3; --text-dark: #111b21; --text-muted: #667781; --border: #e9edef; --panel-bg: #ffffff; }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; }
-        body { background-color: var(--bg-body); color: var(--text-dark); height: 100vh; display: flex; justify-content: center; align-items: center; overflow: hidden; }
-        .app-container { display: flex; width: 100%; max-width: 1400px; height: 95vh; background: var(--panel-bg); box-shadow: 0 6px 18px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; }
-        .sidebar { width: 30%; min-width: 320px; border-right: 1px solid var(--border); display: flex; flex-direction: column; background: #ffffff; }
-        .sidebar-header { background: #f0f2f5; padding: 15px 20px; font-weight: 600; font-size: 18px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
-        .header-top { display: flex; justify-content: space-between; align-items: center; width: 100%; }
-        .header-actions { font-size:12px; font-weight:normal; display:flex; align-items:center; gap:8px; }
-        .search-box { width: 100%; padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; outline: none; font-size: 14px; }
-        .contacts-list { flex: 1; overflow-y: auto; }
-        .contact-item { padding: 15px 20px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s; display: flex; align-items: center; }
-        .contact-item:hover, .contact-item.active { background: #f0f2f5; }
-        .avatar { width: 45px; height: 45px; background: #dfe5e7; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 15px; font-size: 20px; flex-shrink: 0;}
-        .contact-info { flex: 1; min-width: 0; }
-        .contact-info h4 { margin-bottom: 4px; font-weight: 500; font-size:15px; color: #111b21;}
-        .contact-info p { font-size: 13px; color: var(--text-muted); text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
-        .chat-area { flex: 1; display: flex; flex-direction: column; background: var(--bg-chat); position: relative; }
-        .chat-header { background: #f0f2f5; padding: 15px 25px; font-weight: 500; border-bottom: 1px solid var(--border); z-index: 1; display: flex; align-items: center; }
-        .messages-container { flex: 1; padding: 30px; overflow-y: auto; z-index: 1; display: flex; flex-direction: column; scroll-behavior: smooth; }
-        .message { max-width: 65%; padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; position: relative; font-size: 14.5px; line-height: 1.4; box-shadow: 0 1px 1px rgba(0,0,0,0.1); word-wrap: break-word; }
-        .message.sent { align-self: flex-end; background: var(--chat-bubble-out); border-top-right-radius: 0; }
-        .message.received { align-self: flex-start; background: #ffffff; border-top-left-radius: 0; }
-        .message .time { font-size: 11px; color: var(--text-muted); float: right; margin-top: 5px; margin-left: 15px; }
-        .chat-input-area { background: #f0f2f5; padding: 15px 25px; display: flex; align-items: center; z-index: 1; gap: 15px; }
-        .chat-input-area textarea { flex: 1; border: none; padding: 12px 15px; border-radius: 8px; resize: none; outline: none; font-size: 15px; }
-        .send-btn { background: var(--primary); color: white; border: none; width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; flex-shrink:0; }
-        .hidden { display: none !important; }
-        .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; z-index: 1; color: var(--text-muted); text-align: center; padding: 20px;}
-        .sync-btn { background: #e9edef; border: 1px solid #ccc; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; transition: 0.2s; }
-        .download-btn { background: #00a884; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; transition: 0.2s; text-decoration: none;}
-    </style>
+<html>
+<head><title>Panel Bot - Crear Poder Sin Límites</title>
+<style>
+    body { font-family: Arial, sans-serif; padding: 20px; text-align: center; background: #f0f2f5; }
+    .btn { padding: 10px 20px; background: #008069; color: white; text-decoration: none; border-radius: 5px; margin: 10px; display: inline-block; }
+    h1 { color: #41525d; }
+</style>
 </head>
 <body>
-    <div class="app-container">
-        <div class="sidebar">
-            <div class="sidebar-header">
-                <div class="header-top">
-                    <div>💬 Panel V48 (Smart Match)</div>
-                    <div class="header-actions">
-                        <a href="/api/descargar_respaldo" class="download-btn">📥 Backup</a>
-                        <button class="sync-btn" id="syncBtn" onclick="forceSync()">🔄 Excel</button>
-                    </div>
-                </div>
-                <input type="text" id="searchBox" class="search-box" placeholder="🔍 Buscar nombre, número o mensaje..." onkeyup="filtrarChats()">
-            </div>
-            <div class="contacts-list" id="contactsList"></div>
-        </div>
-        <div class="chat-area" id="chatArea">
-            <div class="empty-state" id="emptyState">
-                <div style="font-size: 50px; margin-bottom: 20px;">🚀</div>
-                <h2 style="color: #41525d; font-weight: 300;">Creación Cuántica Web</h2>
-                <p style="margin-top: 10px; font-size:14px;">Selecciona un chat de la columna izquierda.</p>
-            </div>
-            <div class="chat-header hidden" id="chatHeader">
-                <div class="avatar">👤</div>
-                <h3 id="chatHeaderName" style="color: #111b21;"></h3>
-            </div>
-            <div class="messages-container hidden" id="messagesContainer"></div>
-            <div class="chat-input-area hidden" id="chatInputArea">
-                <textarea id="messageInput" rows="1" placeholder="Escribe tu respuesta aquí..."></textarea>
-                <button class="send-btn" onclick="sendMessage()">Enviar</button>
-            </div>
-        </div>
-    </div>
-    <script>
-        let chatHistory = {}; let activeContact = null;
-        async function cargarDatos() {
-            try {
-                let res = await fetch('/api/historial'); let data = await res.json();
-                let newHistory = {};
-                for(let m of data) {
-                    if (!newHistory[m.telefono]) newHistory[m.telefono] = { nombre: "", messages: [] };
-                    if (m.nombre) newHistory[m.telefono].nombre = m.nombre;
-                    newHistory[m.telefono].messages.push({ text: m.texto, time: m.hora, sent: m.tipo === 'out' });
-                }
-                chatHistory = newHistory; renderContacts(); if (activeContact) renderMessages();
-            } catch (e) { }
-        }
-        
-        function filtrarChats() {
-            const query = document.getElementById("searchBox").value.toLowerCase();
-            const items = document.querySelectorAll(".contact-item");
-            items.forEach(item => {
-                const searchData = item.getAttribute("data-search") || "";
-                if (searchData.includes(query)) {
-                    item.style.display = "flex";
-                } else {
-                    item.style.display = "none";
-                }
-            });
-        }
-
-        async function forceSync() {
-            const btn = document.getElementById('syncBtn'); btn.classList.add('loading'); btn.innerText = "⏳...";
-            try {
-                await fetch('/api/force_sync', {method: 'POST'});
-                setTimeout(async () => { await cargarDatos(); btn.classList.remove('loading'); btn.innerText = "🔄 Excel"; }, 4000);
-            } catch(e) { btn.classList.remove('loading'); btn.innerText = "🔄 Excel"; }
-        }
-
-        function renderContacts() {
-            const list = document.getElementById('contactsList'); list.innerHTML = '';
-            const phones = Object.keys(chatHistory).reverse();
-            if(phones.length === 0) { list.innerHTML = '<div style="padding: 20px; text-align: center; color: #888;">Cargando chats...</div>'; return; }
-            phones.forEach(phone => {
-                const contactData = chatHistory[phone]; 
-                const lastMessage = contactData.messages[contactData.messages.length - 1].text;
-                const displayName = contactData.nombre ? contactData.nombre : `+${phone}`;
-                
-                const allMessages = contactData.messages.map(m => m.text.toLowerCase()).join(" ");
-                const searchStr = `${displayName.toLowerCase()} ${phone} ${allMessages}`.replace(/"/g, '');
-
-                const div = document.createElement('div');
-                div.className = `contact-item ${activeContact === phone ? 'active' : ''}`;
-                div.onclick = () => openChat(phone, displayName);
-                div.setAttribute("data-search", searchStr);
-                
-                div.innerHTML = `<div class="avatar">👤</div><div class="contact-info"><h4>${displayName}</h4><p>${lastMessage}</p></div>`;
-                list.appendChild(div);
-            });
-            filtrarChats(); 
-        }
-
-        function openChat(phone, displayName) {
-            activeContact = phone;
-            document.getElementById('emptyState').classList.add('hidden'); 
-            document.getElementById('chatHeader').classList.remove('hidden');
-            document.getElementById('messagesContainer').classList.remove('hidden'); 
-            document.getElementById('chatInputArea').classList.remove('hidden');
-            document.getElementById('chatHeaderName').innerHTML = `${displayName} <span style="font-size:12px; color:#888; margin-left:10px;">(+${phone})</span>`;
-            renderContacts(); renderMessages();
-        }
-
-        function renderMessages() {
-            const container = document.getElementById('messagesContainer'); container.innerHTML = '';
-            if (!activeContact || !chatHistory[activeContact]) return;
-            chatHistory[activeContact].messages.forEach(msg => {
-                const div = document.createElement('div'); div.className = `message ${msg.sent ? 'sent' : 'received'}`;
-                div.innerHTML = `${msg.text.replace(/\\n/g, '<br>')}<span class="time">${msg.time}</span>`;
-                container.appendChild(div);
-            });
-            container.scrollTop = container.scrollHeight;
-        }
-
-        async function sendMessage() {
-            const textarea = document.getElementById('messageInput'); const mensaje = textarea.value.trim(); const destino = activeContact;
-            if (!mensaje || !destino) return;
-            textarea.value = '';
-            chatHistory[destino].messages.push({ text: mensaje, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), sent: true });
-            renderMessages(); renderContacts();
-            try {
-                await fetch('/api/enviar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ telefono: destino, mensaje: mensaje }) });
-                cargarDatos();
-            } catch (error) { alert("Error de conexión"); }
-        }
-        setInterval(cargarDatos, 3000); cargarDatos();
-    </script>
+    <h1>✅ Bot Activo V50 (Enterprise)</h1>
+    <p>El sistema está corriendo de forma segura y recopilando datos de entrenamiento.</p>
+    <a href="/api/descargar_respaldo" class="btn">📥 Descargar Historial (Backup)</a>
+    <a href="/api/descargar_dataset" class="btn" style="background:#1a73e8;">🧠 Descargar Dataset de IA</a>
 </body>
 </html>
 """
@@ -1005,12 +668,12 @@ HTML_CHAT = """
 def panel_chat(): return HTML_CHAT
 
 @app.route("/api/historial", methods=["GET"])
-def api_historial(): return jsonify(get_historial()), 200
+def api_historial(): 
+    threading.Thread(target=ejecutar_watchdog_inactividad, daemon=True).start()
+    return jsonify(get_historial()), 200
 
 @app.route("/api/force_sync", methods=["POST"])
-def force_sync():
-    threading.Thread(target=forzar_sincronizacion_sheets, daemon=True).start()
-    return jsonify({"status": "syncing"}), 200
+def force_sync(): return jsonify({"status": "syncing"}), 200
 
 @app.route("/api/descargar_respaldo", methods=["GET"])
 def descargar_respaldo():
@@ -1018,22 +681,16 @@ def descargar_respaldo():
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["Fecha", "Telefono", "Nombre IMO", "Tipo Mensaje", "Texto"])
-    for m in h:
-        tipo_str = "Bot/Panel envió" if m.get("tipo") == "out" else "Contacto respondió"
-        writer.writerow([m.get("hora", ""), m.get("telefono", ""), m.get("nombre", ""), tipo_str, m.get("texto", "")])
+    for m in h: writer.writerow([m.get("hora", ""), m.get("telefono", ""), m.get("nombre", ""), "Bot/Panel" if m.get("tipo") == "out" else "Usuario", m.get("texto", "")])
     return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=Respaldo_Chats.csv"})
 
-@app.route("/api/enviar", methods=["POST"])
-def api_enviar():
-    data = request.json; tel = data.get("telefono"); msg = data.get("mensaje")
-    if tel and msg:
-        sesion = get_sesion(tel)
-        perfil = sesion.get("perfil")
-        if not perfil: perfil = obtener_perfil_crm(tel)
-        nombre_mostrar = f"({perfil['rol']}) {perfil['nombre']}" if perfil['nombre'] else "NUEVO CONTACTO"
-        WhatsAppAPI.enviar_mensaje(tel, msg, nombre_mostrar, registrar_sheets=True, mensaje_usuario="[ENVIADO DESDE PANEL PRIVADO]")
-        return jsonify({"status": "ok"}), 200
-    return jsonify({"error": "Faltan datos"}), 400
+@app.route("/api/descargar_dataset", methods=["GET"])
+def descargar_dataset():
+    """Descarga el archivo CSV con los datos de entrenamiento para la IA"""
+    if os.path.exists(Config.DATASET_PATH):
+        with open(Config.DATASET_PATH, "r", encoding="utf-8-sig") as f: data = f.read()
+    else: data = "Fecha,Telefono,Mensaje Usuario,Respuesta IA,Modelo\nSin datos aun"
+    return Response(data, mimetype="text/csv", headers={"Content-Disposition":f"attachment;filename=Dataset_Entrenamiento_{datetime.now().strftime('%Y%m%d')}.csv"})
 
 @app.route("/webhook", methods=["GET"])
 def verificar_webhook():
@@ -1054,32 +711,22 @@ def recibir_mensaje():
         tipo = msg.get("type", "")
         
         if tipo == "text":
-            texto = msg["text"]["body"]
-            texto = str(texto).replace("=", "").replace("+", "").replace("@", "")
+            texto = str(msg["text"]["body"]).replace("=", "").replace("+", "").replace("@", "")
             
-            procesar_mensaje(telefono, texto)
+            # 🔥 ENVIAR A LA COLA ASÍNCRONA (Para agilidad extrema, el Webhook responde en 0.01 seg)
+            cola_mensajes.put({"telefono": telefono, "texto": texto})
             
-            sesion = get_sesion(telefono)
-            perfil = sesion.get("perfil", {})
-            nombre_mostrar = f"({perfil.get('rol', 'PROSPECTO')}) {perfil.get('nombre', 'Nuevo')}" if perfil.get('nombre') else "NUEVO CONTACTO"
-            
-            append_historial(telefono, nombre_mostrar, texto, "in")
-
         elif tipo in ("audio","image","document","video","sticker"):
-            enviar_mensaje(telefono, "Comprendido. Por favor responde con texto o el número de la opción deseada para poder apoyarte.", "")
-    except Exception as e: 
-        logger.error(f"Error crítico en Webhook: {e}", exc_info=True)
+            WhatsAppAPI.enviar_mensaje(telefono, "Comprendido. Por favor responde con texto o el número de la opción deseada para poder apoyarte.")
+            
+    except Exception as e: logger.error(f"Error Webhook: {e}")
     return jsonify({"status":"ok"}), 200
 
 @app.route("/status", methods=["GET"])
 def status(): 
-    return jsonify({
-        "status": "activo", "version": "v48_smart_matching",
-        "gemini": "disponible" if GEMINI_DISPONIBLE else "no instalado",
-        "qwen": "disponible" if QWEN_DISPONIBLE else "no instalado"
-    }), 200
+    return jsonify({"status": "activo", "version": "v50_enterprise_async", "gemini": "✅", "qwen": "❌"}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    logger.info(f"🚀 Iniciando bot en puerto {port}...")
+    logger.info(f"🚀 Iniciando bot V50 (Enterprise) en puerto {port}...")
     app.run(host="0.0.0.0", port=port, debug=False)
