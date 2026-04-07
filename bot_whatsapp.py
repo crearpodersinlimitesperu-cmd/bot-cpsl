@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V40: CRM Exacto para "participantes_2026-04-04.csv" (Nombre + Apellido)
+✅ Versión V41: CRM Exacto y Anti-Caídas para "participantes_2026-04-04.csv"
 """
 
 import os, re, json, threading, time, csv, io, random, logging
@@ -207,7 +207,7 @@ class WhatsAppAPI:
 
 def enviar_mensaje(telefono, texto, nombre_imo="", registrar_sheets=False, msg_user=""):
     sesion = get_sesion(telefono)
-    if sesion.get("primera_vez", True) and not str(nombre_imo).startswith("COORDINADORA"):
+    if sesion.get("primera_vez", True) and not str(nombre_imo).startswith("COORDINADORA") and nombre_imo != "SISTEMA":
         aclaracion = "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*. Mis respuestas pueden ser limitadas. Para más información, comunícate con nuestras coordinadoras:_\n\n" + COORDINADORAS
         texto += aclaracion if "Coordinadoras C1 y C2" not in texto else "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*._"
         sesion["primera_vez"] = False
@@ -429,7 +429,7 @@ def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre, necesidad_
     return coord_nombre
 
 # ══════════════════════════════════════════════════════════════════════════
-# 5. UTILIDADES, RECONOCIMIENTO CSV Y EXCEL IMO
+# 5. UTILIDADES Y CARGA DE EXCEL/CSV
 # ══════════════════════════════════════════════════════════════════════════
 def norm_tel(tel):
     t = str(tel).strip().replace("+","").replace(" ","").replace("-","")
@@ -448,10 +448,11 @@ def nombre_pila(s):
     return partes[0].title() if partes else s.strip().title()
 
 def identificar_contacto_csv(telefono):
-    """Busca al usuario en el CSV participantes_2026-04-04.csv por su número"""
+    """Busca al usuario en la base de datos CSV de forma robusta"""
     try:
         if not os.path.exists(Config.CSV_BD_PATH): return None
         with open(Config.CSV_BD_PATH, "r", encoding="utf-8-sig") as f:
+            # Detección del delimitador (coma o punto y coma)
             primera_linea = f.readline()
             delimitador = ';' if ';' in primera_linea else ','
             f.seek(0)
@@ -459,18 +460,22 @@ def identificar_contacto_csv(telefono):
             reader = csv.DictReader(f, delimiter=delimitador)
             if not reader.fieldnames: return None
             
-            tel_key = next((c for c in reader.fieldnames if "tel" in c.lower()), None)
-            nom_key = next((c for c in reader.fieldnames if "nombre" in c.lower()), None)
-            ape_key = next((c for c in reader.fieldnames if "apellido" in c.lower()), None)
+            # Buscar índices de columnas flexibles
+            tel_key = next((c for c in reader.fieldnames if c and ("tel" in c.lower() or "cel" in c.lower())), None)
+            nom_key = next((c for c in reader.fieldnames if c and ("nombre" in c.lower())), None)
+            ape_key = next((c for c in reader.fieldnames if c and ("apellido" in c.lower())), None)
 
             if not tel_key or not nom_key: return None
 
             tel_buscado = norm_tel(telefono)
             for row in reader:
-                tel_csv = norm_tel(row.get(tel_key, ""))
+                # Evitar filas vacías
+                if not row or not row.get(tel_key): continue
+                
+                tel_csv = norm_tel(str(row.get(tel_key, "")))
                 if tel_csv == tel_buscado:
-                    nombre_base = row.get(nom_key, "").strip()
-                    apellido_base = row.get(ape_key, "").strip() if ape_key else ""
+                    nombre_base = str(row.get(nom_key, "")).strip()
+                    apellido_base = str(row.get(ape_key, "")).strip() if ape_key else ""
                     
                     if nombre_base and apellido_base:
                         nombre_completo = f"{nombre_base.split()[0]} {apellido_base.split()[0]}"
@@ -620,7 +625,6 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
             sesion["nombre_prospecto"] = nm
         nombre_mostrar = f"CONTACTO: {nm}" if nm else "NUEVO CONTACTO"
 
-    # -- INTERCEPTOR ENCUESTA CSAT --
     if sesion.get("menu_state") == "esperando_encuesta":
         if texto_limpio in ["1", "2", "3", "4", "5"]:
             threading.Thread(target=registrar_en_sheets, args=(telefono, nombre_mostrar, "Calificación del Asistente", f"{texto_limpio} Estrellas", "ENCUESTA CSAT"), daemon=True).start()
@@ -629,7 +633,6 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
         else: enviar_mensaje(telefono, "Por favor, para finalizar califica respondiendo *únicamente con un número del 1 al 5*.", nombre_mostrar)
         return
 
-    # -- TIMEOUT --
     try:
         if sesion.get("last_interaction"):
             last_time = datetime.strptime(sesion.get("last_interaction"), "%Y-%m-%d %H:%M:%S")
@@ -651,7 +654,6 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
         sesion["nombre_saludado"] = False
         set_sesion(telefono, sesion)
         
-        # SI es un usuario reconocido del CSV, añadimos un saludo ultra-personalizado
         nm_csv = sesion.get("nombre_prospecto")
         if nm_csv:
             saludo_vip = f"¡Qué gusto tenerte de vuelta por aquí, {nm_csv}! ✨\n\n"
@@ -687,7 +689,6 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
 
     estado_actual = sesion.get("menu_state", "main")
 
-    # -- NAVEGACIÓN DEL MENÚ --
     if estado_actual in MENU_STRUCTURE:
         nodo_actual = MENU_STRUCTURE[estado_actual]
         siguiente_estado = nodo_actual.get("options", {}).get(texto_limpio)
@@ -804,7 +805,42 @@ def procesar_mensaje(telefono, texto, imo_nombre_completo):
         return
 
 # ══════════════════════════════════════════════════════════════════════════
-# 8. PANEL WEB (Buscador Efectivo) Y ENDPOINTS
+# 8. SISTEMA DE CIERRE AUTOMÁTICO (WATCHDOG)
+# ══════════════════════════════════════════════════════════════════════════
+def monitor_inactividad():
+    while True:
+        time.sleep(300) 
+        try:
+            sesiones_para_borrar = []
+            with SessionManager._session_lock:
+                if os.path.exists(Config.SESSIONS_PATH):
+                    with open(Config.SESSIONS_PATH, "r", encoding="utf-8") as f:
+                        sesiones = json.load(f)
+                    
+                    for telefono, data in sesiones.items():
+                        if data.get("menu_state") == "esperando_humano": continue
+                            
+                        last_interaction = data.get("last_interaction")
+                        if last_interaction:
+                            try:
+                                last_time = datetime.strptime(last_interaction, "%Y-%m-%d %H:%M:%S")
+                                minutos = (datetime.now() - last_time).total_seconds() / 60.0
+                                if minutos > 30: sesiones_para_borrar.append(telefono)
+                            except: pass
+            
+            for tel in sesiones_para_borrar:
+                nombre = SessionManager.get_sesion(tel).get("nombre_prospecto", "")
+                nombre_str = f", {nombre}" if nombre else ""
+                msg = f"⏳ Hola{nombre_str}. Por inactividad hemos finalizado esta sesión para proteger tus datos.\n\n_Si necesitas realizar otra consulta, simplemente escribe la palabra *MENU* para volver a empezar. ¡Que tengas un día extraordinario! ✨_"
+                
+                WhatsAppAPI.enviar_mensaje(tel, msg, "SISTEMA (Auto-Cierre)", registrar_sheets=True, mensaje_usuario="[CIERRE AUTOMÁTICO DE SESIÓN]")
+                SessionManager.borrar_sesion(tel)
+                logger.info(f"Sesión de {tel} cerrada por inactividad.")
+                
+        except Exception as e: logger.error(f"Error en monitor de inactividad: {e}")
+
+# ══════════════════════════════════════════════════════════════════════════
+# 9. PANEL WEB Y ENDPOINTS DE FLASK
 # ══════════════════════════════════════════════════════════════════════════
 HTML_CHAT = """
 <!DOCTYPE html>
@@ -851,7 +887,7 @@ HTML_CHAT = """
         <div class="sidebar">
             <div class="sidebar-header">
                 <div class="header-top">
-                    <div>💬 Panel V40 (CRM)</div>
+                    <div>💬 Panel V41 (CRM Seguro)</div>
                     <div class="header-actions">
                         <a href="/api/descargar_respaldo" class="download-btn">📥 Backup</a>
                         <button class="sync-btn" id="syncBtn" onclick="forceSync()">🔄 Excel</button>
@@ -1044,7 +1080,6 @@ def recibir_mensaje():
             if not imo_nombre_sheet:
                 nm = sesion_pre.get("nombre_prospecto")
                 
-                # --- RECONOCIMIENTO FACIAL DIGITAL VÍA CSV ---
                 if not nm:
                     nm_csv = identificar_contacto_csv(telefono)
                     if nm_csv:
@@ -1067,12 +1102,13 @@ def recibir_mensaje():
 def status(): 
     return jsonify({
         "status": "activo", 
-        "version": "v40_crm_csv_exacto",
+        "version": "v41_fix_csv_fallos",
         "gemini": "disponible" if GEMINI_DISPONIBLE else "no instalado",
         "qwen": "disponible" if QWEN_DISPONIBLE else "no instalado"
     }), 200
 
 threading.Thread(target=forzar_sincronizacion_sheets, daemon=True).start()
+threading.Thread(target=monitor_inactividad, daemon=True).start()
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
