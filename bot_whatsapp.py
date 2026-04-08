@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V61: Nuevo Panel CRM Avanzado Integrado + IA DeepSeek + Webhook Blindado
+✅ Versión V63: Panel Web Blindado (Cero Regex) + CRM DeepSeek + Anti-Caídas
 """
 
 import os, re, json, time, csv, io, random, logging, queue, threading
@@ -41,21 +41,23 @@ class Config:
     TOKEN = os.environ.get("WA_TOKEN", "")
     PHONE_ID = os.environ.get("WA_PHONE_ID", "")
     VERIFY_TOKEN = os.environ.get("WA_VERIFY_TOKEN", "cpsl2026")
+    
     EXCEL_PATH = os.environ.get("EXCEL_PATH", "campana_imos_c1_e27.xlsx")
     CSV_BD_PATH = os.environ.get("CSV_BD_PATH", get_csv_bd_path())
     SESSIONS_PATH = os.environ.get("SESSIONS_PATH", "sesiones.json")
     HISTORIAL_PATH = "historial_chat.json"
     DATASET_PATH = "dataset_entrenamiento.csv"
     
+    # 🧠 LLAVES DE INTELIGENCIA ARTIFICIAL
     GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
-    DEEPSEEK_KEY = os.environ.get("DEEPSEEK_API_KEY", "") 
+    DEEPSEEK_KEY = os.environ.get("DEEPSEEK_API_KEY", "sk-b77a476c9e17420aa89a1ee86ff44d6e")
     MODO_IA = os.environ.get("MODO_IA", "alternar").lower() 
     
     SHEET_ID = os.environ.get("SHEET_ID", "")
     CREDS_JSON = os.environ.get("GOOGLE_CREDENTIALS", "")
 
 # ══════════════════════════════════════════════════════════════════════════
-# 2. GESTOR DE ESTADO CONCURRENTE
+# 2. GESTOR DE ESTADO CONCURRENTE (GUNICORN SAFE)
 # ══════════════════════════════════════════════════════════════════════════
 class SessionManager:
     @staticmethod
@@ -100,6 +102,17 @@ class SessionManager:
                 with open(Config.HISTORIAL_PATH, "w", encoding="utf-8") as f: json.dump(h[-10000:], f, ensure_ascii=False, indent=2)
             except: pass
 
+    @staticmethod
+    def guardar_dataset(telefono, mensaje_usuario, respuesta_ia, modelo_usado):
+        with FileLock(Config.DATASET_PATH + ".lock"):
+            try:
+                archivo_existe = os.path.exists(Config.DATASET_PATH)
+                with open(Config.DATASET_PATH, "a", encoding="utf-8-sig", newline="") as f:
+                    writer = csv.writer(f)
+                    if not archivo_existe: writer.writerow(["Fecha", "Telefono", "Mensaje Usuario", "Respuesta IA", "Modelo"])
+                    writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), telefono, mensaje_usuario, respuesta_ia, modelo_usado])
+            except: pass
+
 def get_sesion(tel): return SessionManager.get_sesion(tel)
 def set_sesion(tel, d): SessionManager.set_sesion(tel, d)
 def borrar_sesion(tel): SessionManager.borrar_sesion(tel)
@@ -112,7 +125,7 @@ def get_historial():
     return []
 
 # ══════════════════════════════════════════════════════════════════════════
-# 3. SISTEMA DE COLAS (QUEUE) Y GOOGLE SHEETS BLINDADO
+# 3. SISTEMA DE COLAS (QUEUE) Y GOOGLE SHEETS
 # ══════════════════════════════════════════════════════════════════════════
 cola_mensajes = queue.Queue()
 cola_sheets = queue.Queue()
@@ -124,27 +137,35 @@ class GoogleSheetsAPI:
         try:
             import base64
             now = int(time.time())
-            creds = json.loads(Config.CREDS_JSON)
+            creds_text = str(Config.CREDS_JSON).strip()
+            creds = json.loads(creds_text)
+            
             header = base64.urlsafe_b64encode(json.dumps({"alg":"RS256","typ":"JWT"}).encode()).rstrip(b"=")
             payload = base64.urlsafe_b64encode(json.dumps({
                 "iss": creds["client_email"], "scope": "https://www.googleapis.com/auth/spreadsheets",
                 "aud": "https://oauth2.googleapis.com/token", "iat": now, "exp": now + 3600
             }).encode()).rstrip(b"=")
             msg_jwt = header + b"." + payload
+            
             from cryptography.hazmat.primitives import hashes, serialization
             from cryptography.hazmat.primitives.asymmetric import padding
-            pk = serialization.load_pem_private_key(creds["private_key"].encode(), password=None)
+            
+            # Reparación de saltos de línea de las credenciales en Render
+            private_key = creds["private_key"].encode('utf-8').replace(b'\\n', b'\n')
+            pk = serialization.load_pem_private_key(private_key, password=None)
             sig = pk.sign(msg_jwt, padding.PKCS1v15(), hashes.SHA256())
             jwt = (msg_jwt + b"." + base64.urlsafe_b64encode(sig).rstrip(b"=")).decode()
-            r = req_lib.post("https://oauth2.googleapis.com/token", data={"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": jwt}, timeout=10)
+            
+            # Petición a Google con un Timeout largo
+            r = req_lib.post("https://oauth2.googleapis.com/token", data={"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": jwt}, timeout=15)
             if r.status_code == 200:
                 token = r.json()["access_token"]
                 url = f"https://sheets.googleapis.com/v4/spreadsheets/{Config.SHEET_ID}/values/Hoja%201!A:H:append"
                 ahora = datetime.now().strftime("%d/%m/%Y %H:%M")
                 req_lib.post(url, params={"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"}, 
                              json={"values": [[ahora, str(telefono), imo_nombre, mensaje, respuesta_bot, estado, "", ""]]}, 
-                             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=10)
-        except Exception as e: pass
+                             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=15)
+        except Exception as e: logger.error(f"Error Sheets: {e}")
 
 def worker_sheets():
     while True:
@@ -162,6 +183,7 @@ def worker_procesar_mensajes():
         except Exception as e: logger.error(f"Error Worker Mensajes: {e}")
         finally: cola_mensajes.task_done()
 
+# Iniciamos los Hilos Anti-Caídas
 threading.Thread(target=worker_sheets, daemon=True).start()
 threading.Thread(target=worker_procesar_mensajes, daemon=True).start()
 
@@ -170,7 +192,7 @@ def registrar_en_sheets_async(tel, nom, msg, resp, est=""):
     cola_sheets.put({'tel': tel, 'nom': nom, 'msg': msg, 'resp': resp, 'est': est})
 
 # ══════════════════════════════════════════════════════════════════════════
-# 4. CONECTORES DE WHATSAPP API Y LOGGING
+# 4. CONECTORES DE WHATSAPP API
 # ══════════════════════════════════════════════════════════════════════════
 class WhatsAppAPI:
     @staticmethod
@@ -188,16 +210,16 @@ class WhatsAppAPI:
                 append_historial(telefono, nombre_mostrar, texto, "out")
                 if registrar_sheets:
                     estado_actual = "SISTEMA" if nombre_mostrar == "SISTEMA" else "INTERACTIVO"
-                    registrar_en_sheets_async(telefono, nombre_mostrar, mensaje_usuario or "[Navegación]", texto[:500], estado_menu)
+                    registrar_en_sheets_async(telefono, nombre_mostrar, mensaje_usuario or "[Bot]", texto[:500], estado_menu or estado_actual)
                 return True
         except: pass
         return False
 
-def enviar_mensaje(telefono, texto, nombre_imo="", registrar_sheets=True, msg_user="", estado_menu="INTERACTIVO"):
+def enviar_mensaje(telefono, texto, nombre_imo="", registrar_sheets=True, msg_user="", estado_menu=""):
     sesion = get_sesion(telefono)
     if sesion.get("primera_vez", True) and not str(nombre_imo).startswith("COORDINADORA") and nombre_imo != "SISTEMA":
-        aclaracion = "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*. Para atención personalizada, usa el menú para conectar con nuestras coordinadoras:_\n\n"
-        texto += aclaracion if "Coordinadoras" not in texto else "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*._"
+        aclaracion = "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*. Para atención personalizada, usa el menú para conectar con nuestras coordinadoras:_\n\n" + COORDINADORAS
+        texto += aclaracion if "Coordinadoras C1 y C2" not in texto else "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*._"
         sesion["primera_vez"] = False
         set_sesion(telefono, sesion)
     return WhatsAppAPI.enviar_mensaje(telefono, texto, nombre_imo, registrar_sheets, msg_user, estado_menu)
@@ -213,13 +235,11 @@ def norm_tel(tel):
     return t
 
 def son_mismo_numero(tel1, tel2):
-    t1, t2 = re.sub(r'\D', '', str(tel1)), re.sub(r'\D', '', str(tel2))
+    t1, t2 = norm_tel(tel1), norm_tel(tel2)
     if not t1 or not t2: return False
     if t1 == t2: return True
     min_len = min(len(t1), len(t2))
     if min_len >= 8 and (t1.endswith(t2) or t2.endswith(t1)): return True
-    if t1.startswith("0") and t2.endswith(t1[1:]): return True
-    if t2.startswith("0") and t1.endswith(t2[1:]): return True
     return False
 
 def normalizar(texto):
@@ -245,8 +265,7 @@ def cargar_px_del_imo(telefono):
                 estado = str(row[6] or "").strip().upper()
                 if son_mismo_numero(imo_t, telefono):
                     if not imo_nombre: imo_nombre = imo_n
-                    if estado in ("PENDIENTE","ENVIADO","") and px_n:
-                        px_list.append(px_n)
+                    if estado in ("PENDIENTE","ENVIADO","") and px_n: px_list.append(px_n)
             wb.close()
             return imo_nombre, px_list
         except: return "", []
@@ -457,7 +476,7 @@ def marcar_stop(telefono):
         except: pass
 
 # ══════════════════════════════════════════════════════════════════════════
-# 6. ESTRATEGIA DE IA DUAL (DEEPSEEK & GEMINI) CON ALTERNANCIA
+# 6. ESTRATEGIA DE IA DUAL (DEEPSEEK & GEMINI) CON ALTERNANCIA (ANTI-CAÍDAS)
 # ══════════════════════════════════════════════════════════════════════════
 BROCHURE_INFO_MAESTRA = """
 INFORMACIÓN OFICIAL CREAR PODER SIN LÍMITES PERÚ:
@@ -482,7 +501,7 @@ def llamar_deepseek(prompt_system, prompt_user):
             return re.sub(r'\*\*IA.*?\*\*|<\|.*?\|>|\[.*?\]', '', respuesta), None
         return None, f"deepseek_api_error: {response.status_code}"
     except req_lib.exceptions.RequestException as e:
-        logger.warning(f"⏳ Timeout/Saturación en DeepSeek: {e}")
+        logger.warning(f"⏳ Timeout en DeepSeek: {e}")
         return None, "deepseek_timeout"
     except Exception as e: return None, f"deepseek_error:{str(e)[:100]}"
 
@@ -737,9 +756,9 @@ def procesar_mensaje(telefono, texto):
         set_sesion(telefono, sesion)
 
 # ══════════════════════════════════════════════════════════════════════════
-# 9. PANEL WEB (HTML), ENDPOINTS Y SIMULADOR (NUEVA INTERFAZ DESACOPLADA)
+# 9. PANEL WEB Y ENDPOINTS FLASK (CÓDIGO BLINDADO JS)
 # ══════════════════════════════════════════════════════════════════════════
-HTML_CHAT = r"""<!DOCTYPE html>
+HTML_CHAT = """<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -748,8 +767,6 @@ HTML_CHAT = r"""<!DOCTYPE html>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f4f0;color:#1a1a18;height:100vh;overflow:hidden}
-
-/* ── MODAL CONFIG ─────────────────────────────── */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:900}
 .modal{background:#fff;border-radius:12px;padding:28px 32px;width:500px;max-height:90vh;overflow-y:auto}
 .modal h2{font-size:16px;font-weight:600;margin-bottom:4px}
@@ -764,11 +781,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .btn-primary:hover{background:#0F6E56}
 .modal-note{text-align:center;margin-top:10px;font-size:11px;color:#888780}
 .btn-link{background:none;border:none;color:#1D9E75;font-size:11px;cursor:pointer;text-decoration:underline;padding:0}
-
-/* ── APP ──────────────────────────────────────── */
 .app{display:grid;grid-template-columns:300px 1fr;height:100vh}
-
-/* ── SIDEBAR ──────────────────────────────────── */
 .sidebar{border-right:.5px solid #d3d1c7;display:flex;flex-direction:column;background:#f5f4f0;min-width:0}
 .sb-header{padding:12px 14px 10px;border-bottom:.5px solid #d3d1c7}
 .sb-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
@@ -804,17 +817,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .dot-unread{width:7px;height:7px;border-radius:50%;background:#1D9E75;flex-shrink:0}
 .new-btn{margin:10px 14px;padding:8px;width:calc(100% - 28px);background:transparent;border:.5px dashed #b4b2a9;border-radius:8px;font-size:12px;color:#888780;cursor:pointer;text-align:center}
 .new-btn:hover{background:#fff;color:#1a1a18;border-color:#888780}
-
-/* ── BADGES ───────────────────────────────────── */
 .badge{display:inline-block;font-size:10px;padding:2px 6px;border-radius:10px;font-weight:600}
 .b-pendiente{background:#FAEEDA;color:#854F0B}
 .b-confirma{background:#EAF3DE;color:#3B6D11}
-.b-noasiste,.b-no-asiste{background:#FCEBEB;color:#A32D2D}
+.b-noasiste{background:#FCEBEB;color:#A32D2D}
 .b-stop{background:#F1EFE8;color:#5F5E5A}
 .b-cambio{background:#E6F1FB;color:#185FA5}
 .b-externo{background:#EEEDFE;color:#534AB7}
-
-/* ── CHAT ─────────────────────────────────────── */
 .chat{display:flex;flex-direction:column;height:100vh;background:#fff}
 .ch-header{padding:12px 18px;border-bottom:.5px solid #d3d1c7;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .ch-left{display:flex;align-items:center;gap:10px}
@@ -839,8 +848,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .msg-st{font-size:10px;color:#888780;margin-top:2px;text-align:right}
 .date-sep{text-align:center;font-size:10px;color:#b4b2a9;padding:2px 0;flex-shrink:0}
 .empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#888780;gap:8px;font-size:13px}
-
-/* ── FOOTER ───────────────────────────────────── */
 .footer{border-top:.5px solid #d3d1c7;padding:9px 14px 11px;background:#fff;flex-shrink:0}
 .px-row{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:7px;align-items:center}
 .px-lbl{font-size:10px;color:#888780}
@@ -866,7 +873,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="modal">
     <h2>Configurar conexión</h2>
     <p class="sub">Los datos se guardan solo en tu navegador. No salen de tu PC.</p>
-
     <div class="field">
       <label>Sheet ID</label>
       <input id="c-sid" placeholder="1NqEgzCkixVhMn3VLhsy_GVWwYBfwLQ1rwdHVcKTRyjo">
@@ -878,37 +884,28 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
     <div class="field">
       <label>Credenciales Google — JSON completo</label>
-      <textarea id="c-creds" placeholder='{"type":"service_account","project_id":"bot-cpsl","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email":"bot-cpsl-sheets@..."}'></textarea>
-      <div class="hint">Contenido completo de bot-cpsl-7b9f0a22b054.json</div>
+      <textarea id="c-creds" placeholder='{"type":"service_account","project_id":"bot-cpsl","private_key":"...","client_email":"bot-cpsl-sheets@..."}'></textarea>
+      <div class="hint">Contenido completo de bot-cpsl-XXXX.json</div>
     </div>
     <div class="field">
       <label>WA Token</label>
-      <input id="c-watok" type="password" placeholder="EAAxxxxxxx (de Graph Explorer)">
-      <div class="hint">Si no hay token, los mensajes se guardan en el Sheet para que el bot los envíe</div>
+      <input id="c-watok" type="password" placeholder="EAAxxxxxxx">
+      <div class="hint">Token temporal o permanente de Graph API</div>
     </div>
     <div class="field">
       <label>WA Phone Number ID</label>
       <input id="c-wapid" placeholder="1085205258006361">
     </div>
-
     <button class="btn-primary" onclick="guardarCfg()">Conectar y abrir app</button>
-    <p class="modal-note">
-      <button class="btn-link" onclick="usarDemoMode()">Continuar en modo demo (sin conexión real)</button>
-    </p>
+    <p class="modal-note"><button class="btn-link" onclick="usarDemoMode()">Continuar en modo demo (sin conexión real)</button></p>
   </div>
 </div>
 
 <div class="overlay" id="ovl-new" style="display:none">
   <div class="modal" style="width:380px;padding:22px 26px">
     <h2 style="margin-bottom:14px">Nueva conversación</h2>
-    <div class="field">
-      <label>Nombre</label>
-      <input id="n-nombre" placeholder="Nombre completo">
-    </div>
-    <div class="field">
-      <label>Teléfono (con código de país)</label>
-      <input id="n-tel" type="tel" placeholder="51987654321">
-    </div>
+    <div class="field"><label>Nombre</label><input id="n-nombre" placeholder="Nombre completo"></div>
+    <div class="field"><label>Teléfono (con código de país)</label><input id="n-tel" type="tel" placeholder="51987654321"></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button style="flex:1;padding:9px;border:.5px solid #b4b2a9;border-radius:8px;background:transparent;font-size:13px;color:#5f5e5a;cursor:pointer" onclick="cerrarNuevo()">Cancelar</button>
       <button style="flex:1;padding:9px;background:#1D9E75;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer" onclick="crearNuevo()">Iniciar</button>
@@ -959,70 +956,41 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 
 <script>
-// ══════════════════════════════════════════════════════════
-// CONSTANTES
-// ══════════════════════════════════════════════════════════
 const CFG_KEY  = 'cpsl_cfg_v2';
 const DEMO_KEY = 'cpsl_demo_v2';
 
 const QR = [
   {l:'Info C1 E27', t:'Hola, aqui tienes la informacion del Capitulo 1 — Equipo 27:\\n\\nHotel Jose Antonio Deluxe\\nCalle Bellavista 133, Miraflores, Lima\\n\\nViernes 1 mayo: registro 9:00am, inicio 10:00am\\nSabado 2 mayo: ingreso 9:00am, inicio 10:00am\\nDomingo 3 mayo: inicio 9:00am, cierre 9:00pm\\n\\nRopa comoda, botella de agua.\\n\\nCoordinadoras C1/C2:\\nDiana Moscoso: +51 912 379 744\\nJoyce Marin: +51 933 599 903\\nLeyla Pasquel: +51 919 502 385\\nZuley Urteaga: +51 933 599 864\\n\\nComunicaciones Crear Poder Sin Limites Peru'},
-  {l:'Confirmar asistencia', t:'Hola, gracias por informarnos. Confirmacion registrada.\\n\\nLos esperamos en el Hotel Jose Antonio Deluxe, Calle Bellavista 133, Miraflores. Mesa de registro a las 9:00am.\\n\\nComunicaciones Crear Poder Sin Limites Peru'},
-  {l:'No asiste — siguiente', t:'Hola, recibido. La inscripcion sigue activa para el siguiente equipo inmediato.\\n\\nComunicaciones Crear Poder Sin Limites Peru'},
-  {l:'Cambio de nombre', t:'Hola, los cambios de nombre se gestionan con tu coordinadora antes del miercoles previo hasta las 6:00pm.\\n\\nDiana Moscoso: +51 912 379 744\\nJoyce Marin: +51 933 599 903\\n\\nComunicaciones Crear Poder Sin Limites Peru'},
-  {l:'Pedir estatus', t:'Hola, queremos actualizar el registro de tus participantes para el C1 E27 (1, 2 y 3 de mayo).\\n\\nIndicanos el estatus: Confirma / Siguiente equipo / No quiere / No contesta / Pendiente\\n\\nComunicaciones Crear Poder Sin Limites Peru'},
-  {l:'Devolucion', t:'Hola, en Crear Poder Sin Limites no realizamos devoluciones una vez efectuado el pago. El espacio esta reservado desde el momento del compromiso.\\n\\nLa inversion queda activa para el siguiente equipo inmediato.\\n\\nComunicaciones Crear Poder Sin Limites Peru'},
-  {l:'No es de campaña', t:'Hola, te contactamos de Crear Poder Sin Limites Peru.\\n\\nEste canal esta destinado al seguimiento del Capitulo 1 — Equipo 27.\\n\\nSi deseas informacion sobre nuestros entrenamientos de transformacion personal, comunicate con nuestras coordinadoras:\\n\\nDiana Moscoso: +51 912 379 744\\nJoyce Marin: +51 933 599 903\\n\\nComunicaciones Crear Poder Sin Limites Peru'},
+  {l:'Confirmar', t:'Hola, gracias por informarnos. Confirmacion registrada.\\n\\nLos esperamos en el Hotel Jose Antonio Deluxe, Calle Bellavista 133, Miraflores. Mesa de registro a las 9:00am.\\n\\nComunicaciones Crear Poder Sin Limites Peru'},
+  {l:'No asiste', t:'Hola, recibido. La inscripcion sigue activa para el siguiente equipo inmediato.\\n\\nComunicaciones Crear Poder Sin Limites Peru'},
+  {l:'Cambio nombre', t:'Hola, los cambios de nombre se gestionan con tu coordinadora antes del miercoles previo hasta las 6:00pm.\\n\\nDiana Moscoso: +51 912 379 744\\nJoyce Marin: +51 933 599 903\\n\\nComunicaciones Crear Poder Sin Limites Peru'},
+  {l:'Pedir estatus', t:'Hola, queremos actualizar el registro de tus participantes para el C1 E27 (1, 2 y 3 de mayo).\\n\\nIndicanos el estatus: Confirma / Siguiente equipo / No quiere / No contesta / Pendiente\\n\\nComunicaciones Crear Poder Sin Limites Peru'}
 ];
 
-// ══════════════════════════════════════════════════════════
-// ESTADO GLOBAL
-// ══════════════════════════════════════════════════════════
-let CFG = {};
-let DEMO = false;
-let convs = [];        // [{tel, nombre, estado, msgs[], px[], unread, ext, rowNum}]
-let curTel = null;
-let filtro = 'todos';
-let syncing = false;
-let syncTimer = null;
-let rowMap = {};       // tel -> numero fila sheet (1-based)
-let _tok = null;
-let _tokExp = 0;
+let CFG = {}; let DEMO = false; let convs = []; let curTel = null; let filtro = 'todos';
+let syncing = false; let syncTimer = null; let rowMap = {}; let _tok = null; let _tokExp = 0;
 
-// ══════════════════════════════════════════════════════════
-// UTILIDADES
-// ══════════════════════════════════════════════════════════
-function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-function nl2br(s){ return esc(s).replace(/\\n/g,'<br>'); }
+function esc(s){ return String(s).split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;').split('"').join('&quot;').split("'").join('&#39;'); }
+function nl2br(s){ return esc(s).split(String.fromCharCode(10)).join('<br>'); }
 function ini(n){ const p=n.trim().split(' '); return ((p[0]||'')[0]+(p[1]||'')[0]||'').toUpperCase(); }
 function hora(){ return new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'}); }
 function fecha(){ return new Date().toLocaleString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
 
 function badgeClass(estado, ext){
   if(ext) return 'b-externo';
-  const e = (estado||'').toLowerCase().replace(' ','');
+  const e = (estado||'').toLowerCase().split(' ').join('');
   return {confirma:'b-confirma',pendiente:'b-pendiente',noasiste:'b-noasiste',stop:'b-stop',cambio:'b-cambio'}[e] || 'b-pendiente';
 }
 
 function setSyncStatus(tipo, txt){
-  const d = document.getElementById('sdot');
-  const s = document.getElementById('stxt');
-  if(!d) return;
-  d.className = 'sync-dot ' + tipo;
-  s.textContent = txt;
+  const d = document.getElementById('sdot'); const s = document.getElementById('stxt');
+  if(!d) return; d.className = 'sync-dot ' + tipo; s.textContent = txt;
 }
+function setFootStatus(msg){ const el = document.getElementById('fstatus'); if(el) el.textContent = msg; }
 
-function setFootStatus(msg){
-  const el = document.getElementById('fstatus');
-  if(el) el.textContent = msg;
-}
-
-// ══════════════════════════════════════════════════════════
-// CONFIG
-// ══════════════════════════════════════════════════════════
 function cargarCfg(){
-  try { CFG = JSON.parse(localStorage.getItem(CFG_KEY)||'{}'); } catch{ CFG={}; }
-  if(CFG.sid){ document.getElementById('c-sid').value   = CFG.sid; }
+  try { CFG = JSON.parse(localStorage.getItem(CFG_KEY)||'{}'); } catch(e){ CFG={}; }
+  if(CFG.sid){ document.getElementById('c-sid').value = CFG.sid; }
   if(CFG.sname){ document.getElementById('c-sname').value = CFG.sname; }
   if(CFG.watok){ document.getElementById('c-watok').value = CFG.watok; }
   if(CFG.wapid){ document.getElementById('c-wapid').value = CFG.wapid; }
@@ -1063,24 +1031,19 @@ function abrirCfg(){
 }
 
 function usarDemoMode(){
-  DEMO = true;
-  CFG  = {sid:'demo', sname:'Hoja 1', creds:'', watok:'', wapid:''};
+  DEMO = true; CFG = {sid:'demo', sname:'Hoja 1', creds:'', watok:'', wapid:''};
   document.getElementById('ovl-cfg').style.display='none';
   document.getElementById('app').style.display='grid';
-  cargarDemoData();
-  iniciarUI();
+  cargarDemoData(); iniciarUI();
 }
 
 function cargarDemoData(){
   convs = [
     {tel:'51970786474', nombre:'Calle Guizado Naysha', estado:'pendiente', ext:false, unread:true, rowNum:2, px:[], msgs:[{dir:'in',texto:'Buenas noches si van ir ese capitulo 1',h:'01:12',st:''}]},
-    {tel:'51966980142', nombre:'Parra Carhuaz Olga', estado:'confirma', ext:false, unread:false, rowNum:3, px:['Rosa Maria','Camila'], msgs:[{dir:'in',texto:'Si se han sentado',h:'01:19',st:''}]},
+    {tel:'51966980142', nombre:'Parra Carhuaz Olga', estado:'confirma', ext:false, unread:false, rowNum:3, px:['Rosa Maria','Camila'], msgs:[{dir:'in',texto:'Si se han sentado',h:'01:19',st:''}]}
   ];
 }
 
-// ══════════════════════════════════════════════════════════
-// JWT + SHEETS AUTH
-// ══════════════════════════════════════════════════════════
 async function getToken(){
   if(_tok && Date.now() < _tokExp - 60000) return _tok;
   if(DEMO) return null;
@@ -1089,39 +1052,58 @@ async function getToken(){
   if(!credsStr) return null;
 
   let creds;
-  try{ creds = JSON.parse(credsStr); } catch{ setSyncStatus('err','JSON de credenciales inválido'); return null; }
+  try{ creds = JSON.parse(credsStr); } catch(e){ setSyncStatus('err','JSON inválido'); return null; }
 
   try{
     const now = Math.floor(Date.now()/1000);
-    const b64u = s => btoa(s).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=/g,'');
-    const enc  = s => b64u(unescape(encodeURIComponent(JSON.stringify(s))));
+    const b64u = function(s) {
+        let res = btoa(s);
+        res = res.split('+').join('-');
+        res = res.split('/').join('_');
+        res = res.split('=').join('');
+        return res;
+    };
+    const enc = function(s) {
+        return b64u(unescape(encodeURIComponent(JSON.stringify(s))));
+    };
 
     const hdr = enc({alg:'RS256',typ:'JWT'});
     const pld = enc({iss:creds.client_email, scope:'https://www.googleapis.com/auth/spreadsheets', aud:'https://oauth2.googleapis.com/token', iat:now, exp:now+3600});
 
-    const pemBody = creds.private_key.replace(/-----BEGIN PRIVATE KEY-----/g,'').replace(/-----END PRIVATE KEY-----/g,'').replace(/\\s+/g,'');
+    let pemBody = creds.private_key;
+    pemBody = pemBody.split('-----BEGIN PRIVATE KEY-----').join('');
+    pemBody = pemBody.split('-----END PRIVATE KEY-----').join('');
+    pemBody = pemBody.split(String.fromCharCode(10)).join('');
+    pemBody = pemBody.split(String.fromCharCode(13)).join('');
+    pemBody = pemBody.split(' ').join('');
+
     const keyBuf = Uint8Array.from(atob(pemBody), c=>c.charCodeAt(0)).buffer;
     const cryptoKey = await crypto.subtle.importKey('pkcs8', keyBuf, {name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'}, false, ['sign']);
-    const sigBuf = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', cryptoKey, new TextEncoder().encode(`${hdr}.${pld}`));
-    const sig = b64u(String.fromCharCode(...new Uint8Array(sigBuf)));
-    const jwt = `${hdr}.${pld}.${sig}`;
+    const sigBuf = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', cryptoKey, new TextEncoder().encode(hdr + '.' + pld));
+    
+    let sig = String.fromCharCode(...new Uint8Array(sigBuf));
+    sig = b64u(sig);
+    
+    const jwt = hdr + '.' + pld + '.' + sig;
 
-    const r = await fetch('https://oauth2.googleapis.com/token',{ method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:`grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}` });
+    const r = await fetch('https://oauth2.googleapis.com/token',{ 
+        method:'POST', 
+        headers:{'Content-Type':'application/x-www-form-urlencoded'}, 
+        body: 'grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=' + jwt 
+    });
     if(!r.ok) throw new Error('Token HTTP '+r.status);
     const d = await r.json();
     if(!d.access_token) throw new Error(d.error_description||'Sin token');
-    _tok    = d.access_token;
+    _tok = d.access_token;
     _tokExp = Date.now() + (d.expires_in||3600)*1000;
     return _tok;
   } catch(e){
     setSyncStatus('err','Auth: '+e.message);
+    console.error('JWT error:',e);
     return null;
   }
 }
 
-// ══════════════════════════════════════════════════════════
-// SHEETS API
-// ══════════════════════════════════════════════════════════
 async function sheetFetch(url, opts, retries=2){
   for(let i=0; i<=retries; i++){
     try{
@@ -1140,7 +1122,8 @@ async function leerSheet(){
   if(!tok) return null;
   const r = await sheetFetch(shBase(), {headers:{Authorization:`Bearer ${tok}`}});
   if(!r||!r.ok){ setSyncStatus('err','Error leyendo Sheet ('+r?.status+')'); return null; }
-  return (await r.json()).values || [];
+  const data = await r.json();
+  return data.values || [];
 }
 
 async function escribirCelda(fila, col, valor){
@@ -1161,9 +1144,6 @@ async function appendFila(vals){
   return r && r.ok;
 }
 
-// ══════════════════════════════════════════════════════════
-// WHATSAPP
-// ══════════════════════════════════════════════════════════
 async function enviarWA(tel, texto){
   const watok = CFG.watok || '';
   const wapid = CFG.wapid || '';
@@ -1176,9 +1156,6 @@ async function enviarWA(tel, texto){
   } catch(e){ return {ok:false, err:e.message}; }
 }
 
-// ══════════════════════════════════════════════════════════
-// SYNC
-// ══════════════════════════════════════════════════════════
 async function sincronizar(){
   if(syncing||DEMO) return;
   syncing = true;
@@ -1226,9 +1203,6 @@ async function sincronizar(){
   } finally{ syncing=false; }
 }
 
-// ══════════════════════════════════════════════════════════
-// RENDER
-// ══════════════════════════════════════════════════════════
 function renderStats(){
   document.getElementById('st0').textContent = convs.length;
   document.getElementById('st1').textContent = convs.filter(c=>c.estado==='confirma').length;
@@ -1253,11 +1227,11 @@ function renderLista(){
     const prev = last ? last.texto.slice(0,44)+(last.texto.length>44?'…':'') : '—';
     const bc   = badgeClass(c.estado, c.ext);
     const elbl = c.ext ? 'externo' : c.estado;
-    return `<div class="item${curTel===c.tel?' on':''}" onclick="selConv('${c.tel}')">
-      <div class="item-top"><span class="item-name">${esc(c.nombre.split(' ').slice(0,3).join(' '))}</span><span class="item-time">${esc(last?.h||'')}</span></div>
-      <div class="item-prev">${esc(prev)}</div>
-      <div class="item-bot"><span class="badge ${bc}">${esc(elbl)}</span><div style="display:flex;align-items:center;gap:4px"><span style="font-size:10px;color:#b4b2a9">+${esc(c.tel)}</span>${c.unread?'<div class="dot-unread"></div>':''}</div></div>
-    </div>`;
+    return '<div class="item' + (curTel===c.tel?' on':'') + '" onclick="selConv(\\'' + c.tel + '\\')">' +
+      '<div class="item-top"><span class="item-name">' + esc(c.nombre.split(' ').slice(0,3).join(' ')) + '</span><span class="item-time">' + esc(last?.h||'') + '</span></div>' +
+      '<div class="item-prev">' + esc(prev) + '</div>' +
+      '<div class="item-bot"><span class="badge ' + bc + '">' + esc(elbl) + '</span><div style="display:flex;align-items:center;gap:4px"><span style="font-size:10px;color:#b4b2a9">+' + esc(c.tel) + '</span>' + (c.unread?'<div class="dot-unread"></div>':'') + '</div></div>' +
+    '</div>';
   }).join('');
 }
 
@@ -1277,30 +1251,30 @@ function renderChat(){
   const bc = badgeClass(c.estado, c.ext);
   const el = c.ext?'externo / no es IMO de campaña':c.estado;
 
-  document.getElementById('chat').innerHTML = `
-    <div class="ch-header">
-      <div class="ch-left">
-        <div class="avatar ${av}">${esc(ini(c.nombre))}</div>
-        <div><div class="ch-name">${esc(c.nombre)}</div><div class="ch-sub">+${esc(c.tel)} &nbsp;·&nbsp; <span class="badge ${bc}">${esc(el)}</span></div></div>
-      </div>
-      <div class="ch-actions">
-        <button class="btn-s" onclick="setEstado('confirma')">✓ Confirma</button>
-        <button class="btn-s" onclick="setEstado('pendiente')">⏳ Pendiente</button>
-        <button class="btn-s" onclick="setEstado('no asiste')">✗ No asiste</button>
-        <button class="btn-s" onclick="setEstado('cambio')">↔ Cambio</button>
-        <button class="btn-s" onclick="setEstado('stop')">— Stop</button>
-      </div>
-    </div>
-    <div class="messages" id="msgs"></div>
-    <div class="footer">
-      ${c.px.length?`<div class="px-row"><span class="px-lbl">Px:</span>${c.px.map(p=>`<button class="px-chip" onclick="togglePx(this,'${p}')">${esc(p)}</button>`).join('')}</div>`:''}
-      <div class="qr-row">${QR.map((r,i)=>`<button class="qr" onclick="usarQR(${i})">${esc(r.l)}</button>`).join('')}</div>
-      <div class="input-row">
-        <textarea class="tinput" id="tinput" placeholder="Escribe tu respuesta… (Enter = enviar | Shift+Enter = nueva línea)" onkeydown="handleKey(event)" oninput="onInput(this)"></textarea>
-        <button class="send" id="sbtn" onclick="enviar()">Enviar</button>
-      </div>
-      <div class="foot-meta"><span id="fchars">0 caracteres</span><span id="fstatus"></span></div>
-    </div>`;
+  document.getElementById('chat').innerHTML = 
+    '<div class="ch-header">' +
+      '<div class="ch-left">' +
+        '<div class="avatar ' + av + '">' + esc(ini(c.nombre)) + '</div>' +
+        '<div><div class="ch-name">' + esc(c.nombre) + '</div><div class="ch-sub">+' + esc(c.tel) + ' &nbsp;·&nbsp; <span class="badge ' + bc + '">' + esc(el) + '</span></div></div>' +
+      '</div>' +
+      '<div class="ch-actions">' +
+        '<button class="btn-s" onclick="setEstado(\\'confirma\\')">✓ Confirma</button>' +
+        '<button class="btn-s" onclick="setEstado(\\'pendiente\\')">⏳ Pendiente</button>' +
+        '<button class="btn-s" onclick="setEstado(\\'no asiste\\')">✗ No asiste</button>' +
+        '<button class="btn-s" onclick="setEstado(\\'cambio\\')">↔ Cambio</button>' +
+        '<button class="btn-s" onclick="setEstado(\\'stop\\')">— Stop</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="messages" id="msgs"></div>' +
+    '<div class="footer">' +
+      (c.px.length?'<div class="px-row"><span class="px-lbl">Px:</span>'+c.px.map(p=>'<button class="px-chip" onclick="togglePx(this,\\''+p+'\\')">'+esc(p)+'</button>').join('')+'</div>':'') +
+      '<div class="qr-row">' + QR.map((r,i)=>'<button class="qr" onclick="usarQR('+i+')">'+esc(r.l)+'</button>').join('') + '</div>' +
+      '<div class="input-row">' +
+        '<textarea class="tinput" id="tinput" placeholder="Escribe tu respuesta… (Enter = enviar | Shift+Enter = nueva línea)" onkeydown="handleKey(event)" oninput="onInput(this)"></textarea>' +
+        '<button class="send" id="sbtn" onclick="enviar()">Enviar</button>' +
+      '</div>' +
+      '<div class="foot-meta"><span id="fchars">0 caracteres</span><span id="fstatus"></span></div>' +
+    '</div>';
 
   poblarMensajes(c); scrollFin();
   const ti = document.getElementById('tinput'); if(ti) ti.focus();
@@ -1322,8 +1296,8 @@ function poblarMensajes(c){
   if(!c.msgs.length){ el.innerHTML='<div style="text-align:center;font-size:12px;color:#b4b2a9;padding:20px">Sin mensajes registrados</div>'; return; }
   el.innerHTML = c.msgs.map(m=>{
     const quien = m.dir==='in' ? esc(c.nombre.split(' ').slice(0,2).join(' ')) : 'Tu';
-    const st = m.dir==='out' ? `<div class="msg-st">${esc(m.st||'Enviado')}</div>` : '';
-    return `<div class="msg ${m.dir==='in'?'in':'out'}${m.pending?' pending':''}"><div class="msg-who">${quien} · ${esc(m.h)}</div><div class="bubble">${nl2br(m.texto)}</div>${st}</div>`;
+    const st = m.dir==='out' ? '<div class="msg-st">' + esc(m.st||'Enviado') + '</div>' : '';
+    return '<div class="msg ' + (m.dir==='in'?'in':'out') + (m.pending?' pending':'') + '"><div class="msg-who">' + quien + ' · ' + esc(m.h) + '</div><div class="bubble">' + nl2br(m.texto) + '</div>' + st + '</div>';
   }).join('');
 }
 
@@ -1335,9 +1309,6 @@ function onInput(el){
 }
 function handleKey(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); enviar(); } }
 
-// ══════════════════════════════════════════════════════════
-// ENVIAR MENSAJE
-// ══════════════════════════════════════════════════════════
 async function enviar(){
   const ti = document.getElementById('tinput');
   const sb = document.getElementById('sbtn');
@@ -1381,9 +1352,6 @@ async function enviar(){
   actualizarMensajes(); renderLista(); sb.disabled = false;
 }
 
-// ══════════════════════════════════════════════════════════
-// ACCIONES Y START
-// ══════════════════════════════════════════════════════════
 async function setEstado(estado){
   const c = convs.find(x=>x.tel===curTel);
   if(!c) return;
@@ -1393,13 +1361,14 @@ async function setEstado(estado){
 }
 
 function usarQR(idx){ const ti = document.getElementById('tinput'); if(!ti) return; ti.value = QR[idx].t; onInput(ti); ti.focus(); }
-function togglePx(btn, px){ btn.classList.toggle('on'); const ti = document.getElementById('tinput'); if(!ti) return; if(btn.classList.contains('on')){ ti.value += (ti.value&&!ti.value.endsWith('\\n')?' ':'')+px; onInput(ti); ti.focus(); } }
+function togglePx(btn, px){ btn.classList.toggle('on'); const ti = document.getElementById('tinput'); if(!ti) return; if(btn.classList.contains('on')){ ti.value += (ti.value&&!ti.value.endsWith(String.fromCharCode(10))?' ':'')+px; onInput(ti); ti.focus(); } }
 
 function abrirNuevo(){ document.getElementById('ovl-new').style.display='flex'; }
 function cerrarNuevo(){ document.getElementById('ovl-new').style.display='none'; }
 async function crearNuevo(){
   const nombre = document.getElementById('n-nombre').value.trim();
-  const tel    = document.getElementById('n-tel').value.trim().replace(/\\D/g,'');
+  const rawTel = document.getElementById('n-tel').value.trim();
+  const tel = rawTel.split('').filter(c => c >= '0' && c <= '9').join('');
   if(!nombre||!tel){ alert('Nombre y teléfono son obligatorios.'); return; }
   const existe = convs.find(c=>c.tel===tel);
   if(existe){ cerrarNuevo(); selConv(tel); return; }
@@ -1423,7 +1392,7 @@ if(savedCreds && savedCfg){
     document.getElementById('ovl-cfg').style.display='none';
     document.getElementById('app').style.display='grid';
     iniciar();
-  } catch{ }
+  } catch(e){ }
 }
 </script>
 </body>
