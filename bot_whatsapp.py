@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V67: Chat Web en Tiempo Real (Cero Pérdida de Mensajes) + CRM DeepSeek
+✅ Versión V68: AI Context Memory + Real-Time Dual Sync (Panel Instantáneo)
 """
 
 import os, re, json, time, csv, io, random, logging, queue, threading
@@ -41,7 +41,6 @@ class Config:
     TOKEN = os.environ.get("WA_TOKEN", "")
     PHONE_ID = os.environ.get("WA_PHONE_ID", "")
     VERIFY_TOKEN = os.environ.get("WA_VERIFY_TOKEN", "cpsl2026")
-    
     EXCEL_PATH = os.environ.get("EXCEL_PATH", "campana_imos_c1_e27.xlsx")
     CSV_BD_PATH = os.environ.get("CSV_BD_PATH", get_csv_bd_path())
     SESSIONS_PATH = os.environ.get("SESSIONS_PATH", "sesiones.json")
@@ -51,7 +50,6 @@ class Config:
     GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
     DEEPSEEK_KEY = os.environ.get("DEEPSEEK_API_KEY", "sk-b77a476c9e17420aa89a1ee86ff44d6e")
     MODO_IA = os.environ.get("MODO_IA", "alternar").lower() 
-    
     SHEET_ID = os.environ.get("SHEET_ID", "")
     CREDS_JSON = os.environ.get("GOOGLE_CREDENTIALS", "")
 
@@ -161,7 +159,7 @@ class GoogleSheetsAPI:
                 req_lib.post(url, params={"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"}, 
                              json={"values": valores}, 
                              headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=10)
-        except Exception as e: logger.error(f"Error Sheets: {e}")
+        except Exception as e: pass
 
 def worker_sheets():
     while True:
@@ -199,7 +197,6 @@ class WhatsAppAPI:
                 append_historial(telefono, nombre_mostrar, texto, "out")
                 if registrar_sheets:
                     estado_actual = "SISTEMA" if nombre_mostrar == "SISTEMA" else "INTERACTIVO"
-                    # 🚀 FIX V67: Se registra SOLO la respuesta del bot para separar el historial cronológicamente
                     registrar_en_sheets_async(telefono, nombre_mostrar, "", texto[:500], estado_menu or estado_actual)
                 return True
         except: pass
@@ -208,7 +205,7 @@ class WhatsAppAPI:
 def enviar_mensaje(telefono, texto, nombre_imo="", registrar_sheets=True, estado_menu="INTERACTIVO"):
     sesion = get_sesion(telefono)
     if sesion.get("primera_vez", True) and not str(nombre_imo).startswith("COORDINADORA") and nombre_imo != "SISTEMA":
-        aclaracion = "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*. Para atención personalizada, usa el menú para conectar con nuestras coordinadoras:_\n\n" + COORDINADORAS
+        aclaracion = "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*. Para atención personalizada, usa el menú para conectar con nuestras coordinadoras:_\n\n"
         texto += aclaracion if "Coordinadoras C1 y C2" not in texto else "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*._"
         sesion["primera_vez"] = False
         set_sesion(telefono, sesion)
@@ -250,8 +247,7 @@ def cargar_px_del_imo(telefono):
                 estado = str(row[6] or "").strip().upper()
                 if son_mismo_numero(imo_t, telefono):
                     if not imo_nombre: imo_nombre = imo_n
-                    if estado in ("PENDIENTE","ENVIADO","") and px_n:
-                        px_list.append(px_n)
+                    if estado in ("PENDIENTE","ENVIADO","") and px_n: px_list.append(px_n)
             wb.close()
             return imo_nombre, px_list
         except: return "", []
@@ -462,7 +458,7 @@ def marcar_stop(telefono):
         except: pass
 
 # ══════════════════════════════════════════════════════════════════════════
-# 6. ESTRATEGIA DE IA DUAL (DEEPSEEK & GEMINI)
+# 6. ESTRATEGIA DE IA DUAL (MEMORIA DE CONTEXTO INCORPORADA)
 # ══════════════════════════════════════════════════════════════════════════
 BROCHURE_INFO_MAESTRA = """
 INFORMACIÓN OFICIAL CREAR PODER SIN LÍMITES PERÚ:
@@ -503,12 +499,36 @@ def embudo_ventas_ia(mensaje_usuario, nombre_conocido=None, nombre_ya_saludado=F
         if telefono: SessionManager.guardar_dataset(telefono, mensaje_usuario, respuesta, modelo)
         return respuesta
 
-    if len(mensaje_usuario.split()) <= 3 and nombre_conocido and not nombre_ya_saludado:
+    # 🚀 FIX V68: Inyección de Memoria a la IA
+    historial = get_historial()
+    hist_usuario = [m for m in historial if m.get("telefono") == str(telefono)]
+    
+    # Extraemos los últimos 5 mensajes para darle contexto a la IA sin saturarla
+    contexto_texto = ""
+    if hist_usuario:
+        contextos_recientes = [f"{'Cliente' if m.get('tipo')=='in' else 'IA'}: {m.get('texto')}" for m in hist_usuario[-5:]]
+        contexto_texto = "\n".join(contextos_recientes)
+
+    if len(mensaje_usuario.split()) <= 3 and nombre_conocido and not nombre_ya_saludado and not contexto_texto:
         resp = f"¡Hola, {nombre_conocido}! Qué gran paso estás dando al comunicarte. 🌟 Creemos firmemente que tienes un potencial ilimitado esperando ser despertado.\n\nA través de nuestra Transformación Cuántica, te acompañamos a romper las barreras que hoy te frenan. Todo esto se vive en el *Capítulo 1*, un entrenamiento vivencial de 3 días para rediseñar tu realidad. ¿Te gustaría conocer detalles de la próxima fecha?"
         return guardar_y_retornar(resp, "REGLA_CORTA")
     
-    prompt_sys = f"Eres un Coach de Enrolamiento de 'Crear Poder Sin Límites Perú'. BASE DE CONOCIMIENTO: {BROCHURE_INFO_MAESTRA}\nREGLAS: 1. CONEXIÓN EMPÁTICA y enérgica. 2. NO SEAS MONÓTONO, explica la transformación. 3. PALABRAS PROHIBIDAS: sanar, terapia, ayudar, paciente. 4. Termina SIEMPRE con una pregunta poderosa de cierre."
-    prompt_usr = f'Hablas con: "{nombre_conocido if nombre_conocido else "un contacto"}". Mensaje: "{mensaje_usuario}"'
+    prompt_sys = f"""Eres un Coach de Enrolamiento de 'Crear Poder Sin Límites Perú'. 
+BASE DE CONOCIMIENTO: {BROCHURE_INFO_MAESTRA}
+REGLAS ESTRICTAS:
+1. Eres humano, conversacional y muy empático. 
+2. NO repitas el mismo bloque de texto. Lee el historial de la conversación y responde SOLO a lo que el usuario acaba de decir o preguntar.
+3. Si el usuario dice "Sí" o "Ok", revisa el historial para saber a qué está respondiendo.
+4. PALABRAS PROHIBIDAS: sanar, terapia, ayudar, paciente.
+5. Termina con una pregunta corta para continuar la charla, a menos que el usuario se despida."""
+
+    prompt_usr = f"""Hablas con: {nombre_conocido if nombre_conocido else "un contacto"}.
+
+HISTORIAL RECIENTE DE LA CONVERSACIÓN:
+{contexto_texto}
+
+NUEVO MENSAJE DEL CLIENTE: "{mensaje_usuario}"
+Responde exclusivamente a este nuevo mensaje manteniendo el hilo de la conversación."""
 
     modo = Config.MODO_IA
     modelo_primario = random.choice(["deepseek", "gemini"]) if modo == "alternar" else "deepseek"
@@ -523,7 +543,7 @@ def embudo_ventas_ia(mensaje_usuario, nombre_conocido=None, nombre_ya_saludado=F
     return guardar_y_retornar("Para brindarte un apoyo 100% personalizado y humano, te invito a presionar el número de la opción que te derive con una coordinadora.", "FALLBACK_ERROR")
 
 # ══════════════════════════════════════════════════════════════════════════
-# 7. ESTRUCTURAS DE MENÚS
+# 7. ESTRUCTURAS DE MENÚS Y MÁQUINA DE ESTADOS
 # ══════════════════════════════════════════════════════════════════════════
 COORDINADORAS_CONTACTOS = {"Diana Moscoso": "51912379744", "Joyce Marín": "51933599903", "Leyla Pasquel": "51919502385", "Zuley Urteaga": "51933599864"}
 COORDINADORAS = f"Coordinadoras C1 y C2:\n• Diana Moscoso: +51 912 379 744\n• Joyce Marin: +51 933 599 903\n• Leyla Pasquel: +51 919 502 385\n• Zuley Urteaga: +51 933 599 864"
@@ -591,9 +611,6 @@ def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre, necesidad)
     enviar_mensaje(coord_tel, msg, f"COORDINADORA: {coord_nombre}", True, "ALERTA LEAD")
     return coord_nombre
 
-# ══════════════════════════════════════════════════════════════════════════
-# 8. PROCESADOR DE ESTADOS (MÁQUINA PRINCIPAL)
-# ══════════════════════════════════════════════════════════════════════════
 def flujo_principal(telefono, texto):
     try:
         sesion = get_sesion(telefono)
@@ -932,7 +949,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="empty">
       <div style="width:44px;height:44px;border-radius:50%;background:#E1F5EE;display:flex;align-items:center;justify-content:center;font-size:20px">💬</div>
       <span>Selecciona una conversación</span>
-      <span style="font-size:11px;color:#b4b2a9">Sync automático cada 30 s</span>
+      <span style="font-size:11px;color:#b4b2a9">Dual-Sync activo (Tiempo Real)</span>
     </div>
   </div>
 </div>
@@ -1022,7 +1039,6 @@ function usarDemoMode(){
 function cargarDemoData(){
   convs = [
     {tel:'51970786474', nombre:'Calle Guizado Naysha', estado:'pendiente', ext:false, unread:true, rowNum:2, px:[], msgs:[{dir:'in',texto:'Buenas noches si van ir ese capitulo 1',h:'01:12',st:'',row:2,tipo:'in'}]},
-    {tel:'51966980142', nombre:'Parra Carhuaz Olga', estado:'confirma', ext:false, unread:false, rowNum:3, px:['Rosa Maria','Camila'], msgs:[{dir:'in',texto:'Si se han sentado',h:'01:19',st:'',row:3,tipo:'in'}]}
   ];
 }
 
@@ -1138,10 +1154,42 @@ async function enviarWA(tel, texto){
   } catch(e){ return {ok:false, err:e.message}; }
 }
 
-async function sincronizar(){
+// 🚀 FIX V68: DUAL-SYNC (Backend API para Mensajes Instantáneos, Sheets para Estados)
+async function sincronizarMensajesInstantaneos() {
+    try {
+        let res = await fetch('/api/historial');
+        let data = await res.json();
+        let cambios = false;
+
+        for(let m of data) {
+            let tel = m.telefono;
+            let c = convs.find(x => x.tel === tel);
+            if (!c) {
+                c = {tel: tel, nombre: m.nombre || '+' + tel, estado: 'pendiente', ext: true, unread: false, rowNum: null, px: [], msgs: []};
+                convs.push(c);
+                cambios = true;
+            }
+            
+            let ya = c.msgs.some(x => x.texto === m.texto);
+            if (!ya) {
+                let dir = m.tipo === 'in' ? 'in' : 'out';
+                c.msgs.push({dir: dir, texto: m.texto, h: m.hora, st: dir === 'out' ? 'Enviado' : '', tipo: dir, row: 999999});
+                if (dir === 'in' && curTel !== tel) c.unread = true;
+                cambios = true;
+            }
+        }
+
+        if (cambios) {
+            renderLista();
+            if (curTel) actualizarMensajes();
+        }
+    } catch (e) {}
+}
+
+async function sincronizarSheets(){
   if(syncing||DEMO) return;
   syncing = true;
-  setSyncStatus('busy','Sincronizando…');
+  setSyncStatus('busy','Sincronizando Sheets…');
   try{
     const rows = await leerSheet();
     if(!rows){ syncing=false; return; }
@@ -1153,11 +1201,7 @@ async function sincronizar(){
       if(i===0) return;
       const tel    = (row[1]||'').toString().trim();
       const nombre = (row[2]||'').trim();
-      const msgRec = (row[3]||'').trim();
-      const botRep = (row[4]||'').trim();
       const estado = (row[5]||'pendiente').toLowerCase();
-      const respMan= (row[6]||'').trim(); 
-      const h      = (row[0]||'').slice(-5) || ahora;
       if(!tel) return;
 
       rowMap[tel] = i+1;
@@ -1168,31 +1212,9 @@ async function sincronizar(){
       }
       if(nombre && c.nombre==='+'+tel){ c.nombre=nombre; cambios=true; }
       if(estado && c.estado!==estado){ c.estado=estado; cambios=true; }
-
-      if(msgRec){
-        if(!c.msgs.some(m=>m.row===i && m.tipo==='in')){
-          c.msgs.push({dir:'in', texto:msgRec, h, st:'', tipo:'in', row:i});
-          if(curTel!==tel) c.unread=true; cambios=true;
-        }
-      }
-      if(botRep){
-        if(!c.msgs.some(m=>m.row===i && m.tipo==='bot')){
-          c.msgs.push({dir:'out', texto:botRep, h, st:'Enviado (bot)', fuente:'bot', tipo:'bot', row:i});
-          cambios=true;
-        }
-      }
-      if(respMan){
-        if(!c.msgs.some(m=>m.row===i && m.tipo==='man')){
-          c.msgs.push({dir:'out', texto:respMan, h, st:'Enviado (Manual)', fuente:'manual', tipo:'man', row:i});
-          cambios=true;
-        }
-      }
     });
 
-    if(cambios){ 
-        convs.forEach(c => c.msgs.sort((a,b)=>a.row - b.row));
-        renderStats(); renderLista(); if(curTel) actualizarMensajes(); 
-    }
+    if(cambios){ renderStats(); renderLista(); if(curTel) actualizarMensajes(); }
     setSyncStatus('ok', hora());
   } catch(e){
     setSyncStatus('err','Sync: '+e.message);
@@ -1212,7 +1234,7 @@ function renderLista(){
     const mq = !q || c.nombre.toLowerCase().includes(q) || c.tel.includes(q);
     const mt = filtro==='todos' ||(filtro==='externo'&&c.ext) ||(!c.ext&&c.estado===filtro);
     return mq && mt;
-  }).sort((a,b)=>(b.unread-a.unread)||((b.msgs[b.msgs.length-1]?.row||0)>(a.msgs[a.msgs.length-1]?.row||0)?1:-1));
+  }).sort((a,b)=>(b.unread-a.unread)||((b.msgs[b.msgs.length-1]?.h||'')>(a.msgs[a.msgs.length-1]?.h||'')?1:-1));
 
   const el = document.getElementById('list');
   if(!el) return;
@@ -1335,7 +1357,6 @@ async function enviar(){
     const ok = await appendFila([fecha(), curTel, c.nombre, '', '', 'RESPUESTA MANUAL', texto, waOk ? 'ENVIADO' : 'ERROR WA']);
     if(ok){ 
         setFootStatus('✓ Registrado en Sheets con Fecha y Hora'); 
-        setTimeout(()=>{ sincronizar(); },1000); 
     } else {
         setFootStatus('⚠ Error guardando en Sheet');
     }
@@ -1378,13 +1399,24 @@ async function crearNuevo(){
   if(existe){ cerrarNuevo(); selConv(tel); return; }
   const c = {tel, nombre, estado:'pendiente', ext:true, unread:false, rowNum:null, px:[], msgs:[]};
   convs.push(c);
-  if(!DEMO){ const ok = await appendFila([fecha(),tel,nombre,'','','pendiente','','']); if(ok) setTimeout(sincronizar, 800); }
+  if(!DEMO){ const ok = await appendFila([fecha(),tel,nombre,'','','pendiente','','']); }
   document.getElementById('n-nombre').value=''; document.getElementById('n-tel').value='';
   cerrarNuevo(); renderStats(); renderLista(); selConv(tel);
 }
 
 function iniciarUI(){ renderStats(); renderLista(); }
-async function iniciar(){ setSyncStatus('busy','Conectando…'); await sincronizar(); iniciarUI(); if(syncTimer) clearInterval(syncTimer); syncTimer = setInterval(sincronizar, 30000); }
+async function iniciar(){ 
+    setSyncStatus('busy','Conectando…'); 
+    await sincronizarSheets(); 
+    iniciarUI(); 
+    
+    // 🚀 FIX V68: Doble Sincronización
+    // 1. Mensajes al instante (Cada 2.5 segundos)
+    setInterval(sincronizarMensajesInstantaneos, 2500); 
+    // 2. Estados desde Google Sheets (Cada 30 segundos)
+    if(syncTimer) clearInterval(syncTimer); 
+    syncTimer = setInterval(sincronizarSheets, 30000); 
+}
 
 cargarCfg();
 const savedCreds = sessionStorage.getItem('cpsl_creds');
@@ -1404,6 +1436,45 @@ if(savedCreds && savedCfg){
 
 @app.route("/chat", methods=["GET"])
 def panel_chat(): return HTML_CHAT
+
+@app.route("/api/historial", methods=["GET"])
+def api_historial(): return jsonify(get_historial()), 200
+
+@app.route("/api/descargar_respaldo", methods=["GET"])
+def descargar_respaldo():
+    h = get_historial()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Fecha", "Telefono", "Nombre IMO", "Tipo Mensaje", "Texto"])
+    for m in h:
+        tipo_str = "Bot/Panel envió" if m.get("tipo") == "out" else "Contacto respondió"
+        writer.writerow([m.get("hora", ""), m.get("telefono", ""), m.get("nombre", ""), tipo_str, m.get("texto", "")])
+    return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=Respaldo_Chats.csv"})
+
+@app.route("/api/enviar", methods=["POST"])
+def api_enviar():
+    data = request.json; tel = data.get("telefono"); msg = data.get("mensaje")
+    if tel and msg:
+        sesion = get_sesion(tel)
+        perfil = sesion.get("perfil")
+        if not perfil: perfil = obtener_perfil_crm(tel)
+        nombre_mostrar = f"({perfil['rol']}) {perfil['nombre']}" if perfil['nombre'] else "NUEVO CONTACTO"
+        WhatsAppAPI.enviar_mensaje(tel, msg, nombre_mostrar, registrar_sheets=True, mensaje_usuario="[ENVIADO DESDE PANEL PRIVADO]", estado_menu="MANUAL_PANEL")
+        return jsonify({"status": "ok"}), 200
+    return jsonify({"error": "Faltan datos"}), 400
+
+@app.route("/api/mensaje_simulador", methods=["POST"])
+def mensaje_simulador():
+    data = request.json; tel = data.get("telefono"); texto = data.get("texto")
+    if not tel or not texto: return jsonify({"error": "Faltan datos"}), 400
+    # Guardamos en historial para que la UI lo vea al instante
+    sesion = get_sesion(tel)
+    perfil = sesion.get("perfil", {})
+    nombre_mostrar = f"({perfil.get('rol', 'PROSPECTO')}) {perfil.get('nombre', 'Simulado')}" if perfil.get('nombre') else "SIMULACIÓN"
+    append_historial(tel, nombre_mostrar, texto, "in")
+    # Disparamos lógica
+    threading.Thread(target=flujo_principal, args=(tel, texto), daemon=True).start()
+    return jsonify({"status": "ok"}), 200
 
 @app.route("/webhook", methods=["GET", "POST"])
 def webhook():
@@ -1425,16 +1496,24 @@ def webhook():
         if tipo == "text":
             texto = str(msg["text"]["body"]).replace("=", "").replace("+", "").replace("@", "")
             
-            # 🔥 FIX V67: Guardar en Sheet DE INMEDIATO para no perder mensajes en el Panel Web
+            # 🔥 FIX V68: Guardar INMEDIATAMENTE en la memoria para que el Panel lo vea en tiempo real
             sesion = get_sesion(telefono)
-            nombre_cached = sesion.get("perfil", {}).get("nombre", "Desconocido")
+            perfil = sesion.get("perfil")
+            if not perfil: perfil = obtener_perfil_crm(telefono)
+            nombre_cached = f"({perfil['rol']}) {perfil['nombre']}" if perfil.get('nombre') else "NUEVO CONTACTO"
+            
+            append_historial(telefono, nombre_cached, texto, "in")
             registrar_en_sheets_async(telefono, nombre_cached, texto, "", "RECIBIDO")
 
             threading.Thread(target=flujo_principal, args=(telefono, texto), daemon=True).start()
             
         elif tipo in ("audio","image","document","video","sticker"):
             sesion = get_sesion(telefono)
-            nombre_cached = sesion.get("perfil", {}).get("nombre", "Desconocido")
+            perfil = sesion.get("perfil")
+            if not perfil: perfil = obtener_perfil_crm(telefono)
+            nombre_cached = f"({perfil['rol']}) {perfil['nombre']}" if perfil.get('nombre') else "NUEVO CONTACTO"
+            
+            append_historial(telefono, nombre_cached, "[MULTIMEDIA RECIBIDO]", "in")
             registrar_en_sheets_async(telefono, nombre_cached, "[MULTIMEDIA RECIBIDO]", "", "RECIBIDO")
             WhatsAppAPI.enviar_mensaje(telefono, "Comprendido. Por favor responde con texto o el número de la opción deseada para poder apoyarte.", registrar_sheets=True, estado_menu="ERROR_MULTIMEDIA")
             
