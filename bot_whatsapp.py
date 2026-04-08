@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V66: Registro Absoluto de Fecha/Hora en Panel Manual + CRM Inquebrantable
+✅ Versión V67: Chat Web en Tiempo Real (Cero Pérdida de Mensajes) + CRM DeepSeek
 """
 
 import os, re, json, time, csv, io, random, logging, queue, threading
@@ -157,9 +157,7 @@ class GoogleSheetsAPI:
                 url = f"https://sheets.googleapis.com/v4/spreadsheets/{Config.SHEET_ID}/values/Hoja%201!A:H:append"
                 ahora = datetime.now().strftime("%d/%m/%Y %H:%M")
                 
-                # V66: Se incluyen respuesta_manual y enviado_status para el Panel Web
                 valores = [[ahora, str(telefono), imo_nombre, mensaje, respuesta_bot, estado, respuesta_manual, enviado_status]]
-                
                 req_lib.post(url, params={"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"}, 
                              json={"values": valores}, 
                              headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=10)
@@ -187,7 +185,7 @@ def registrar_en_sheets_async(tel, nom, msg, resp, est="", resp_man="", env_stat
 # ══════════════════════════════════════════════════════════════════════════
 class WhatsAppAPI:
     @staticmethod
-    def enviar_mensaje(telefono, texto, nombre_mostrar="", registrar_sheets=True, mensaje_usuario="", estado_menu=""):
+    def enviar_mensaje(telefono, texto, nombre_mostrar="", registrar_sheets=True, estado_menu=""):
         if str(telefono).startswith("SIM_"):
             SessionManager.append_historial(telefono, f"🤖 [BOT SIMULADO]", texto, "out")
             return True
@@ -201,19 +199,20 @@ class WhatsAppAPI:
                 append_historial(telefono, nombre_mostrar, texto, "out")
                 if registrar_sheets:
                     estado_actual = "SISTEMA" if nombre_mostrar == "SISTEMA" else "INTERACTIVO"
-                    registrar_en_sheets_async(telefono, nombre_mostrar, mensaje_usuario or "[Navegación]", texto[:500], estado_menu or estado_actual)
+                    # 🚀 FIX V67: Se registra SOLO la respuesta del bot para separar el historial cronológicamente
+                    registrar_en_sheets_async(telefono, nombre_mostrar, "", texto[:500], estado_menu or estado_actual)
                 return True
         except: pass
         return False
 
-def enviar_mensaje(telefono, texto, nombre_imo="", registrar_sheets=True, msg_user="", estado_menu="INTERACTIVO"):
+def enviar_mensaje(telefono, texto, nombre_imo="", registrar_sheets=True, estado_menu="INTERACTIVO"):
     sesion = get_sesion(telefono)
     if sesion.get("primera_vez", True) and not str(nombre_imo).startswith("COORDINADORA") and nombre_imo != "SISTEMA":
         aclaracion = "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*. Para atención personalizada, usa el menú para conectar con nuestras coordinadoras:_\n\n" + COORDINADORAS
         texto += aclaracion if "Coordinadoras C1 y C2" not in texto else "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*._"
         sesion["primera_vez"] = False
         set_sesion(telefono, sesion)
-    return WhatsAppAPI.enviar_mensaje(telefono, texto, nombre_imo, registrar_sheets, msg_user, estado_menu)
+    return WhatsAppAPI.enviar_mensaje(telefono, texto, nombre_imo, registrar_sheets, estado_menu)
 
 # ══════════════════════════════════════════════════════════════════════════
 # 5. UTILIDADES Y RECONOCIMIENTO OMNICANAL
@@ -258,7 +257,6 @@ def cargar_px_del_imo(telefono):
         except: return "", []
 
 def obtener_perfil_crm(telefono):
-    """Cerebro CRM Omnicanal"""
     perfil = {"rol": "PROSPECTO", "nombre": None, "pendiente": None, "imo_nombre": None, "imo_tel": None}
     es_imo = False
     
@@ -313,7 +311,7 @@ def obtener_perfil_crm(telefono):
                                 perfil["imo_nombre"] = nombre_pila(str(row.get(imo_nom_key, "Tu líder")).strip()) if imo_nom_key else "Tu líder"
                                 perfil["imo_tel"] = str(row.get(imo_tel_key, "")) if imo_tel_key else ""
                         except IndexError: continue
-    except Exception as e: logger.error(f"Error CRM CSV: {e}")
+    except: pass
 
     if es_imo:
         perfil["rol"] = "IMO"
@@ -369,7 +367,6 @@ def buscar_pendientes_imo_csv(telefono):
     except: return []
 
 def buscar_todos_imo_csv(telefono):
-    """🧠 AUTO-TRACING: Busca a todos los alumnos de un IMO"""
     try:
         if not os.path.exists(Config.CSV_BD_PATH): return []
         with open(Config.CSV_BD_PATH, "r", encoding="utf-8-sig") as f:
@@ -526,7 +523,7 @@ def embudo_ventas_ia(mensaje_usuario, nombre_conocido=None, nombre_ya_saludado=F
     return guardar_y_retornar("Para brindarte un apoyo 100% personalizado y humano, te invito a presionar el número de la opción que te derive con una coordinadora.", "FALLBACK_ERROR")
 
 # ══════════════════════════════════════════════════════════════════════════
-# 7. ESTRUCTURAS DE MENÚS Y MÁQUINA DE ESTADOS
+# 7. ESTRUCTURAS DE MENÚS
 # ══════════════════════════════════════════════════════════════════════════
 COORDINADORAS_CONTACTOS = {"Diana Moscoso": "51912379744", "Joyce Marín": "51933599903", "Leyla Pasquel": "51919502385", "Zuley Urteaga": "51933599864"}
 COORDINADORAS = f"Coordinadoras C1 y C2:\n• Diana Moscoso: +51 912 379 744\n• Joyce Marin: +51 933 599 903\n• Leyla Pasquel: +51 919 502 385\n• Zuley Urteaga: +51 933 599 864"
@@ -591,9 +588,12 @@ def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre, necesidad)
     msg = f"🚨 *NUEVO CONTACTO PARA CREAR* 🚀\n*Nombre:* {prospecto_nombre or 'No especificado'}\n*Teléfono:* wa.me/{prospecto_tel}\n*Necesidad:* {necesidad}"
     sesion_coord = get_sesion(coord_tel)
     sesion_coord["primera_vez"] = False; set_sesion(coord_tel, sesion_coord)
-    enviar_mensaje(coord_tel, msg, f"COORDINADORA: {coord_nombre}", True, "ALERTA LEAD", "SISTEMA")
+    enviar_mensaje(coord_tel, msg, f"COORDINADORA: {coord_nombre}", True, "ALERTA LEAD")
     return coord_nombre
 
+# ══════════════════════════════════════════════════════════════════════════
+# 8. PROCESADOR DE ESTADOS (MÁQUINA PRINCIPAL)
+# ══════════════════════════════════════════════════════════════════════════
 def flujo_principal(telefono, texto):
     try:
         sesion = get_sesion(telefono)
@@ -608,13 +608,12 @@ def flujo_principal(telefono, texto):
             perfil = sesion.get("perfil")
             
         nombre_mostrar = f"({perfil['rol']}) {perfil.get('nombre', 'Nuevo')}" if perfil.get('nombre') else "NUEVO CONTACTO"
-        append_historial(telefono, nombre_mostrar, texto, "in")
 
         if sesion.get("menu_state") == "esperando_encuesta":
             if texto_limpio in ["1", "2", "3", "4", "5"]:
-                enviar_mensaje(telefono, "¡Gracias por tu calificación! 🌟 Valoramos mucho tu opinión para seguir mejorando.\n\n_Escribe MENU para reiniciar._", nombre_mostrar, True, texto, "ENCUESTA CSAT")
+                enviar_mensaje(telefono, "¡Gracias por tu calificación! 🌟 Valoramos mucho tu opinión para seguir mejorando.\n\n_Escribe MENU para reiniciar._", nombre_mostrar, True, "ENCUESTA CSAT")
                 borrar_sesion(telefono)
-            else: enviar_mensaje(telefono, "Por favor califica con un número del 1 al 5.", nombre_mostrar, True, texto, "ERROR CSAT")
+            else: enviar_mensaje(telefono, "Por favor califica con un número del 1 al 5.", nombre_mostrar, True, "ERROR CSAT")
             return
 
         try:
@@ -626,7 +625,7 @@ def flujo_principal(telefono, texto):
         
         if texto_limpio == "STOP":
             marcar_stop(telefono); borrar_sesion(telefono)
-            enviar_mensaje(telefono, "Has sido dado de baja. No recibirás más mensajes.\n\n*Crear Poder Sin Límites*", nombre_mostrar, True, texto, "SE DIO DE BAJA (STOP)")
+            enviar_mensaje(telefono, "Has sido dado de baja. No recibirás más mensajes.\n\n*Crear Poder Sin Límites*", nombre_mostrar, True, "SE DIO DE BAJA (STOP)")
             return
 
         main_key = "main_imo" if perfil["rol"] == "IMO" else "main_mj" if perfil["rol"] == "MJ" else "main_px" if perfil["rol"] == "PX" else "main_prospecto"
@@ -638,7 +637,7 @@ def flujo_principal(telefono, texto):
 
         if minutos_inactividad > 30 or "menu_state" not in sesion or texto_limpio in ["0", "MENU", "MENÚ", "INICIO"]:
             sesion["menu_state"] = main_key; sesion["menu_history"] = []; sesion["menu_errors"] = 0; set_sesion(telefono, sesion)
-            enviar_mensaje(telefono, render_menu(main_key), nombre_mostrar, True, texto, main_key)
+            enviar_mensaje(telefono, render_menu(main_key), nombre_mostrar, True, main_key)
             return
 
         if texto_limpio in ["9", "VOLVER", "ATRAS", "ATRÁS"]:
@@ -646,10 +645,10 @@ def flujo_principal(telefono, texto):
             if hist:
                 prev = hist.pop()
                 sesion["menu_state"] = prev; sesion["menu_history"] = hist; set_sesion(telefono, sesion)
-                enviar_mensaje(telefono, render_menu(prev), nombre_mostrar, True, texto, prev)
+                enviar_mensaje(telefono, render_menu(prev), nombre_mostrar, True, prev)
             else:
                 sesion["menu_state"] = main_key; set_sesion(telefono, sesion)
-                enviar_mensaje(telefono, render_menu(main_key), nombre_mostrar, True, texto, main_key)
+                enviar_mensaje(telefono, render_menu(main_key), nombre_mostrar, True, main_key)
             return
 
         estado_actual = sesion.get("menu_state", main_key)
@@ -661,7 +660,7 @@ def flujo_principal(telefono, texto):
                 
                 if siguiente_estado == "px_confirma":
                     msg_exito = f"¡Extraordinario, {perfil['nombre']}! 🎉\nHemos registrado tu confirmación. Le avisaremos automáticamente a tu líder {perfil['imo_nombre']} para que esté al tanto.\n\n_Escribe 0 para volver al menú._"
-                    enviar_mensaje(telefono, msg_exito, nombre_mostrar, True, texto, "CONFIRMÓ ASISTENCIA")
+                    enviar_mensaje(telefono, msg_exito, nombre_mostrar, True, "CONFIRMÓ ASISTENCIA")
                     if perfil["imo_tel"]: threading.Thread(target=actualizar_excel, args=([{"px": perfil["nombre"], "estatus": "CONFIRMADO"}], perfil["imo_tel"]), daemon=True).start()
                     sesion["menu_state"] = "esperando_fecha"; set_sesion(telefono, sesion)
                     return
@@ -670,7 +669,7 @@ def flujo_principal(telefono, texto):
                     lista = buscar_pendientes_imo_csv(telefono)
                     if lista: msg = f"📊 *Reporte de tu Equipo (Rezagados)*\n\n" + "\n".join(lista) + "\n\n_Escribe *0* para volver._"
                     else: msg = "¡Felicidades! 🎉 Todos tus participantes se han sentado o no tienes pendientes en la base.\n\n_Escribe *0* para volver._"
-                    enviar_mensaje(telefono, msg, nombre_mostrar, True, texto, "REPORTE PENDIENTES")
+                    enviar_mensaje(telefono, msg, nombre_mostrar, True, "REPORTE PENDIENTES")
                     hist = sesion.get("menu_history", []); 
                     if estado_actual != main_key and (not hist or hist[-1] != estado_actual): hist.append(estado_actual)
                     sesion["menu_state"] = "ver_pendientes_imo"; sesion["menu_history"] = hist; set_sesion(telefono, sesion)
@@ -680,7 +679,7 @@ def flujo_principal(telefono, texto):
                     lista_todos = buscar_todos_imo_csv(telefono)
                     if lista_todos: msg = f"📊 *Reporte Completo de tu Equipo*\n\n" + "\n".join(lista_todos) + "\n\n_Escribe *0* para volver._"
                     else: msg = "No encontramos participantes vinculados a tu número.\n\n_Escribe *0* para volver._"
-                    enviar_mensaje(telefono, msg, nombre_mostrar, True, texto, "REPORTE TODOS ENROLADOS")
+                    enviar_mensaje(telefono, msg, nombre_mostrar, True, "REPORTE TODOS ENROLADOS")
                     hist = sesion.get("menu_history", [])
                     if estado_actual != main_key and (not hist or hist[-1] != estado_actual): hist.append(estado_actual)
                     sesion["menu_state"] = "ver_todos_imo"; sesion["menu_history"] = hist; set_sesion(telefono, sesion)
@@ -688,13 +687,13 @@ def flujo_principal(telefono, texto):
 
                 elif siguiente_estado == "action_humano":
                     c_nom = notificar_coordinadora_aleatoria(telefono, perfil["nombre"], f"Necesita asistencia desde: {estado_actual}")
-                    enviar_mensaje(telefono, f"¡Comprendido! He notificado a nuestra coordinadora *{c_nom}*. Ella te escribirá en breve. 🚀\n\n_Escribe *0* para cancelar._", nombre_mostrar, True, texto, "DERIVADO A HUMANO")
+                    enviar_mensaje(telefono, f"¡Comprendido! He notificado a nuestra coordinadora *{c_nom}*. Ella te escribirá en breve. 🚀\n\n_Escribe *0* para cancelar._", nombre_mostrar, True, "DERIVADO A HUMANO")
                     sesion["menu_state"] = "esperando_humano"; set_sesion(telefono, sesion)
                     return
                     
                 elif siguiente_estado == "action_salir":
                     sesion["menu_state"] = "esperando_encuesta"; set_sesion(telefono, sesion)
-                    enviar_mensaje(telefono, "Antes de irte, ¿Cómo calificarías tu experiencia de hoy con nuestra *IA Cuántica*?\n\nResponde con un número del *1 al 5*:\n1️⃣ = Mala\n5️⃣ = ¡Excelente!", nombre_mostrar, True, texto, "ENCUESTA SALIDA")
+                    enviar_mensaje(telefono, "Antes de irte, ¿Cómo calificarías tu experiencia de hoy con nuestra *IA Cuántica*?\n\nResponde con un número del *1 al 5*:\n1️⃣ = Mala\n5️⃣ = ¡Excelente!", nombre_mostrar, True, "ENCUESTA SALIDA")
                     return
                     
                 elif siguiente_estado == "main": siguiente_estado = main_key
@@ -703,15 +702,15 @@ def flujo_principal(telefono, texto):
                 if estado_actual != main_key and (not hist or hist[-1] != estado_actual): hist.append(estado_actual)
                 sesion["menu_state"] = siguiente_estado; sesion["menu_history"] = hist; set_sesion(telefono, sesion)
                 
-                if siguiente_estado in MENU_STRUCTURE: enviar_mensaje(telefono, render_menu(siguiente_estado), nombre_mostrar, True, texto, siguiente_estado)
-                elif siguiente_estado == "chat_libre_ia": enviar_mensaje(telefono, "Has ingresado a nuestro *Chat Inteligente*. 🧠\nPuedes preguntarme lo que desees.\n\n_Escribe *0* para salir._", nombre_mostrar, True, texto, "INGRESO CHAT IA")
-                elif siguiente_estado == "action_imo": enviar_mensaje(telefono, f"¡Hola líder! 👋\n\nEstás en el *Portal IMO*. Envíame el estatus de tus participantes.\n\n_Escribe *0* para volver._", nombre_mostrar, True, texto, "REPORTE MANUAL IMO")
+                if siguiente_estado in MENU_STRUCTURE: enviar_mensaje(telefono, render_menu(siguiente_estado), nombre_mostrar, True, siguiente_estado)
+                elif siguiente_estado == "chat_libre_ia": enviar_mensaje(telefono, "Has ingresado a nuestro *Chat Inteligente*. 🧠\nPuedes preguntarme lo que desees.\n\n_Escribe *0* para salir._", nombre_mostrar, True, "INGRESO CHAT IA")
+                elif siguiente_estado == "action_imo": enviar_mensaje(telefono, f"¡Hola líder! 👋\n\nEstás en el *Portal IMO*. Envíame el estatus de tus participantes.\n\n_Escribe *0* para volver._", nombre_mostrar, True, "REPORTE MANUAL IMO")
             else:
                 if not texto_limpio.isnumeric():
                     sesion["menu_state"] = "chat_libre_ia"; set_sesion(telefono, sesion)
                     resp_ia = embudo_ventas_ia(texto, perfil["nombre"], sesion.get("nombre_saludado", False), telefono)
                     if "potencial ilimitado" in resp_ia: sesion["nombre_saludado"] = True; set_sesion(telefono, sesion)
-                    enviar_mensaje(telefono, resp_ia + "\n\n_(Escribe *0* para volver al menú)_", nombre_mostrar, True, texto, "CHAT_IA_DEEPSEEK")
+                    enviar_mensaje(telefono, resp_ia + "\n\n_(Escribe *0* para volver al menú)_", nombre_mostrar, True, "CHAT_IA_DEEPSEEK")
                     return
                 
                 errores = sesion.get("menu_errors", 0) + 1
@@ -719,18 +718,18 @@ def flujo_principal(telefono, texto):
                 if errores >= 3:
                     sesion["menu_errors"] = 0
                     c_nom = notificar_coordinadora_aleatoria(telefono, perfil["nombre"], "El usuario se atascó en el menú.")
-                    enviar_mensaje(telefono, f"Noto que estamos teniendo problemas. 🤖\nHe notificado a la coordinadora *{c_nom}* para que te asista de manera humana.\n\n_Escribe *0* para menú principal._", nombre_mostrar, True, texto, "ERROR_DERIVADO")
+                    enviar_mensaje(telefono, f"Noto que estamos teniendo problemas. 🤖\nHe notificado a la coordinadora *{c_nom}* para que te asista de manera humana.\n\n_Escribe *0* para menú principal._", nombre_mostrar, True, "ERROR_DERIVADO")
                     sesion["menu_state"] = "esperando_humano"
                 else:
-                    enviar_mensaje(telefono, f"⚠️ *Opción no válida*. Responde únicamente con el *número*.\n\n{render_menu(estado_actual)}", nombre_mostrar, True, texto, "ERROR_MENU")
+                    enviar_mensaje(telefono, f"⚠️ *Opción no válida*. Responde únicamente con el *número*.\n\n{render_menu(estado_actual)}", nombre_mostrar, True, "ERROR_MENU")
                 set_sesion(telefono, sesion)
 
         elif estado_actual in ["action_imo", "chat_libre_ia"]:
             if estado_actual == "chat_libre_ia":
                 resp_ia = embudo_ventas_ia(texto, perfil["nombre"], sesion.get("nombre_saludado", False), telefono)
-                enviar_mensaje(telefono, resp_ia, nombre_mostrar, True, texto, "CHAT_IA_DEEPSEEK")
+                enviar_mensaje(telefono, resp_ia, nombre_mostrar, True, "CHAT_IA_DEEPSEEK")
             else:
-                enviar_mensaje(telefono, f"Mensaje recibido. Procesando...\n\n_Escribe *0* para volver al menú._", nombre_mostrar, True, texto, "ESTATUS RECIBIDO IMO")
+                enviar_mensaje(telefono, f"Mensaje recibido. Procesando...\n\n_Escribe *0* para volver al menú._", nombre_mostrar, True, "ESTATUS RECIBIDO IMO")
             
         elif estado_actual in ["esperando_humano", "esperando_fecha", "ver_todos_imo", "ver_pendientes_imo"]:
             set_sesion(telefono, sesion)
@@ -739,7 +738,7 @@ def flujo_principal(telefono, texto):
         logger.error(f"Error en flujo principal: {e}", exc_info=True)
 
 # ══════════════════════════════════════════════════════════════════════════
-# 9. PANEL WEB (HTML)
+# 9. PANEL WEB (HTML), ENDPOINTS Y SIMULADOR
 # ══════════════════════════════════════════════════════════════════════════
 HTML_CHAT = """<!DOCTYPE html>
 <html lang="es">
@@ -1022,8 +1021,8 @@ function usarDemoMode(){
 
 function cargarDemoData(){
   convs = [
-    {tel:'51970786474', nombre:'Calle Guizado Naysha', estado:'pendiente', ext:false, unread:true, rowNum:2, px:[], msgs:[{dir:'in',texto:'Buenas noches si van ir ese capitulo 1',h:'01:12',st:''}]},
-    {tel:'51966980142', nombre:'Parra Carhuaz Olga', estado:'confirma', ext:false, unread:false, rowNum:3, px:['Rosa Maria','Camila'], msgs:[{dir:'in',texto:'Si se han sentado',h:'01:19',st:''}]}
+    {tel:'51970786474', nombre:'Calle Guizado Naysha', estado:'pendiente', ext:false, unread:true, rowNum:2, px:[], msgs:[{dir:'in',texto:'Buenas noches si van ir ese capitulo 1',h:'01:12',st:'',row:2,tipo:'in'}]},
+    {tel:'51966980142', nombre:'Parra Carhuaz Olga', estado:'confirma', ext:false, unread:false, rowNum:3, px:['Rosa Maria','Camila'], msgs:[{dir:'in',texto:'Si se han sentado',h:'01:19',st:'',row:3,tipo:'in'}]}
   ];
 }
 
@@ -1157,6 +1156,7 @@ async function sincronizar(){
       const msgRec = (row[3]||'').trim();
       const botRep = (row[4]||'').trim();
       const estado = (row[5]||'pendiente').toLowerCase();
+      const respMan= (row[6]||'').trim(); 
       const h      = (row[0]||'').slice(-5) || ahora;
       if(!tel) return;
 
@@ -1170,16 +1170,29 @@ async function sincronizar(){
       if(estado && c.estado!==estado){ c.estado=estado; cambios=true; }
 
       if(msgRec){
-        const ya = c.msgs.some(m=>m.dir==='in'&&m.texto===msgRec);
-        if(!ya){ c.msgs.push({dir:'in',texto:msgRec,h,st:''}); if(curTel!==tel) c.unread=true; cambios=true; }
+        if(!c.msgs.some(m=>m.row===i && m.tipo==='in')){
+          c.msgs.push({dir:'in', texto:msgRec, h, st:'', tipo:'in', row:i});
+          if(curTel!==tel) c.unread=true; cambios=true;
+        }
       }
       if(botRep){
-        const ya = c.msgs.some(m=>m.dir==='out'&&m.texto===botRep&&m.fuente==='bot');
-        if(!ya){ c.msgs.push({dir:'out',texto:botRep,h,st:'Enviado (bot)',fuente:'bot'}); cambios=true; }
+        if(!c.msgs.some(m=>m.row===i && m.tipo==='bot')){
+          c.msgs.push({dir:'out', texto:botRep, h, st:'Enviado (bot)', fuente:'bot', tipo:'bot', row:i});
+          cambios=true;
+        }
+      }
+      if(respMan){
+        if(!c.msgs.some(m=>m.row===i && m.tipo==='man')){
+          c.msgs.push({dir:'out', texto:respMan, h, st:'Enviado (Manual)', fuente:'manual', tipo:'man', row:i});
+          cambios=true;
+        }
       }
     });
 
-    if(cambios){ renderStats(); renderLista(); if(curTel) actualizarMensajes(); }
+    if(cambios){ 
+        convs.forEach(c => c.msgs.sort((a,b)=>a.row - b.row));
+        renderStats(); renderLista(); if(curTel) actualizarMensajes(); 
+    }
     setSyncStatus('ok', hora());
   } catch(e){
     setSyncStatus('err','Sync: '+e.message);
@@ -1199,7 +1212,7 @@ function renderLista(){
     const mq = !q || c.nombre.toLowerCase().includes(q) || c.tel.includes(q);
     const mt = filtro==='todos' ||(filtro==='externo'&&c.ext) ||(!c.ext&&c.estado===filtro);
     return mq && mt;
-  }).sort((a,b)=>(b.unread-a.unread)||((b.msgs[b.msgs.length-1]?.h||'')>(a.msgs[a.msgs.length-1]?.h||'')?1:-1));
+  }).sort((a,b)=>(b.unread-a.unread)||((b.msgs[b.msgs.length-1]?.row||0)>(a.msgs[a.msgs.length-1]?.row||0)?1:-1));
 
   const el = document.getElementById('list');
   if(!el) return;
@@ -1303,7 +1316,7 @@ async function enviar(){
   const c = convs.find(x=>x.tel===curTel);
   if(!c){ sb.disabled=false; return; }
 
-  const mObj = {dir:'out', texto, h, st:'Enviando…', pending:true};
+  const mObj = {dir:'out', texto, h, st:'Enviando…', pending:true, tipo:'man', row: 999999};
   c.msgs.push(mObj);
 
   ti.value=''; ti.style.height='auto';
@@ -1319,7 +1332,6 @@ async function enviar(){
   } else { setFootStatus('Sin token WA — guardando en Sheet para reenvío del bot'); }
 
   if(!DEMO){
-    // 🚀 V66: SIEMPRE REGISTRA COMO FILA NUEVA CON FECHA Y HORA 🚀
     const ok = await appendFila([fecha(), curTel, c.nombre, '', '', 'RESPUESTA MANUAL', texto, waOk ? 'ENVIADO' : 'ERROR WA']);
     if(ok){ 
         setFootStatus('✓ Registrado en Sheets con Fecha y Hora'); 
@@ -1412,10 +1424,19 @@ def webhook():
         
         if tipo == "text":
             texto = str(msg["text"]["body"]).replace("=", "").replace("+", "").replace("@", "")
+            
+            # 🔥 FIX V67: Guardar en Sheet DE INMEDIATO para no perder mensajes en el Panel Web
+            sesion = get_sesion(telefono)
+            nombre_cached = sesion.get("perfil", {}).get("nombre", "Desconocido")
+            registrar_en_sheets_async(telefono, nombre_cached, texto, "", "RECIBIDO")
+
             threading.Thread(target=flujo_principal, args=(telefono, texto), daemon=True).start()
             
         elif tipo in ("audio","image","document","video","sticker"):
-            WhatsAppAPI.enviar_mensaje(telefono, "Comprendido. Por favor responde con texto o el número de la opción deseada para poder apoyarte.")
+            sesion = get_sesion(telefono)
+            nombre_cached = sesion.get("perfil", {}).get("nombre", "Desconocido")
+            registrar_en_sheets_async(telefono, nombre_cached, "[MULTIMEDIA RECIBIDO]", "", "RECIBIDO")
+            WhatsAppAPI.enviar_mensaje(telefono, "Comprendido. Por favor responde con texto o el número de la opción deseada para poder apoyarte.", registrar_sheets=True, estado_menu="ERROR_MULTIMEDIA")
             
     except Exception as e: logger.error(f"Error Webhook: {e}", exc_info=True)
     return jsonify({"status":"ok"}), 200
