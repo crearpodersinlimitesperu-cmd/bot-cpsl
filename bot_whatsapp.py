@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V68: AI Context Memory + Real-Time Dual Sync (Panel Instantáneo)
+✅ Versión V69: Menús Limpios (Sin IA) + Doble Base de Datos (Local CSV + Sheets)
 """
 
 import os, re, json, time, csv, io, random, logging, queue, threading
@@ -11,17 +11,6 @@ import requests as req_lib
 from openpyxl import load_workbook
 from filelock import FileLock
 from http import HTTPStatus
-
-# ── IMPORTS DE LAS IAs ──
-GEMINI_DISPONIBLE = False
-DEEPSEEK_DISPONIBLE = True 
-genai = None
-
-try:
-    import google.generativeai as genai_module
-    genai = genai_module
-    GEMINI_DISPONIBLE = True
-except ImportError: pass
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("BotCrear")
@@ -45,16 +34,15 @@ class Config:
     CSV_BD_PATH = os.environ.get("CSV_BD_PATH", get_csv_bd_path())
     SESSIONS_PATH = os.environ.get("SESSIONS_PATH", "sesiones.json")
     HISTORIAL_PATH = "historial_chat.json"
-    DATASET_PATH = "dataset_entrenamiento.csv"
     
-    GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
-    DEEPSEEK_KEY = os.environ.get("DEEPSEEK_API_KEY", "sk-b77a476c9e17420aa89a1ee86ff44d6e")
-    MODO_IA = os.environ.get("MODO_IA", "alternar").lower() 
+    # 🚀 LA CAJA NEGRA: Respaldo absoluto local que jamás se borra
+    BACKUP_ABSOLUTO_CSV = "backup_absoluto_mensajes.csv"
+    
     SHEET_ID = os.environ.get("SHEET_ID", "")
     CREDS_JSON = os.environ.get("GOOGLE_CREDENTIALS", "")
 
 # ══════════════════════════════════════════════════════════════════════════
-# 2. GESTOR DE ESTADO CONCURRENTE
+# 2. GESTOR DE ESTADO CONCURRENTE Y DOBLE RESPALDO
 # ══════════════════════════════════════════════════════════════════════════
 class SessionManager:
     @staticmethod
@@ -100,14 +88,16 @@ class SessionManager:
             except: pass
 
     @staticmethod
-    def guardar_dataset(telefono, mensaje_usuario, respuesta_ia, modelo_usado):
-        with FileLock(Config.DATASET_PATH + ".lock"):
+    def guardar_backup_absoluto(telefono, nombre, mensaje, direccion, estado_sistema):
+        """🚀 MOTOR 2: Guardado inquebrantable en disco local"""
+        with FileLock(Config.BACKUP_ABSOLUTO_CSV + ".lock"):
             try:
-                archivo_existe = os.path.exists(Config.DATASET_PATH)
-                with open(Config.DATASET_PATH, "a", encoding="utf-8-sig", newline="") as f:
+                archivo_existe = os.path.exists(Config.BACKUP_ABSOLUTO_CSV)
+                with open(Config.BACKUP_ABSOLUTO_CSV, "a", encoding="utf-8-sig", newline="") as f:
                     writer = csv.writer(f)
-                    if not archivo_existe: writer.writerow(["Fecha", "Telefono", "Mensaje Usuario", "Respuesta IA", "Modelo"])
-                    writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), telefono, mensaje_usuario, respuesta_ia, modelo_usado])
+                    if not archivo_existe: 
+                        writer.writerow(["Fecha y Hora", "Telefono", "Nombre", "Direccion (In/Out)", "Mensaje", "Estado Sistema"])
+                    writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), telefono, nombre, direccion, mensaje, estado_sistema])
             except: pass
 
 def get_sesion(tel): return SessionManager.get_sesion(tel)
@@ -122,7 +112,7 @@ def get_historial():
     return []
 
 # ══════════════════════════════════════════════════════════════════════════
-# 3. SISTEMA DE COLAS PARA GOOGLE SHEETS
+# 3. SISTEMA DE COLAS PARA GOOGLE SHEETS (MOTOR 1)
 # ══════════════════════════════════════════════════════════════════════════
 cola_sheets = queue.Queue()
 
@@ -159,7 +149,7 @@ class GoogleSheetsAPI:
                 req_lib.post(url, params={"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"}, 
                              json={"values": valores}, 
                              headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=10)
-        except Exception as e: pass
+        except Exception as e: logger.error(f"Error Sheets: {e}")
 
 def worker_sheets():
     while True:
@@ -186,6 +176,7 @@ class WhatsAppAPI:
     def enviar_mensaje(telefono, texto, nombre_mostrar="", registrar_sheets=True, estado_menu=""):
         if str(telefono).startswith("SIM_"):
             SessionManager.append_historial(telefono, f"🤖 [BOT SIMULADO]", texto, "out")
+            SessionManager.guardar_backup_absoluto(telefono, nombre_mostrar, texto, "OUT", "SIMULADOR")
             return True
 
         url = f"https://graph.facebook.com/v19.0/{Config.PHONE_ID}/messages"
@@ -195,6 +186,7 @@ class WhatsAppAPI:
             r = req_lib.post(url, json=payload, headers=headers, timeout=10)
             if r.status_code == 200:
                 append_historial(telefono, nombre_mostrar, texto, "out")
+                SessionManager.guardar_backup_absoluto(telefono, nombre_mostrar, texto, "OUT", estado_menu or "INTERACTIVO")
                 if registrar_sheets:
                     estado_actual = "SISTEMA" if nombre_mostrar == "SISTEMA" else "INTERACTIVO"
                     registrar_en_sheets_async(telefono, nombre_mostrar, "", texto[:500], estado_menu or estado_actual)
@@ -205,8 +197,8 @@ class WhatsAppAPI:
 def enviar_mensaje(telefono, texto, nombre_imo="", registrar_sheets=True, estado_menu="INTERACTIVO"):
     sesion = get_sesion(telefono)
     if sesion.get("primera_vez", True) and not str(nombre_imo).startswith("COORDINADORA") and nombre_imo != "SISTEMA":
-        aclaracion = "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*. Para atención personalizada, usa el menú para conectar con nuestras coordinadoras:_\n\n"
-        texto += aclaracion if "Coordinadoras C1 y C2" not in texto else "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*._"
+        aclaracion = "\n\n🤖 _Nota: Soy el asistente virtual. Para atención personalizada, usa el menú para conectar con nuestras coordinadoras:_\n\n" + COORDINADORAS
+        texto += aclaracion if "Coordinadoras" not in texto else "\n\n🤖 _Nota: Asistente Automático._"
         sesion["primera_vez"] = False
         set_sesion(telefono, sesion)
     return WhatsAppAPI.enviar_mensaje(telefono, texto, nombre_imo, registrar_sheets, estado_menu)
@@ -458,108 +450,23 @@ def marcar_stop(telefono):
         except: pass
 
 # ══════════════════════════════════════════════════════════════════════════
-# 6. ESTRATEGIA DE IA DUAL (MEMORIA DE CONTEXTO INCORPORADA)
-# ══════════════════════════════════════════════════════════════════════════
-BROCHURE_INFO_MAESTRA = """
-INFORMACIÓN OFICIAL CREAR PODER SIN LÍMITES PERÚ:
-- Misión: Impactar a la máxima cantidad de seres humanos a vivir una vida extraordinaria. No somos un cursito, somos Alto Rendimiento.
-- Los 3 Niveles del Proceso (100 Días):
-  1. Capítulo 1 (C1): Descubrimiento. 3 días para romper paradigmas y darte cuenta de tus barreras.
-  2. Capítulo 2 (C2): Experiencia y Transformación profunda (Usualmente 4 días). Rediseñas cómo te relacionas con el mundo.
-  3. Maestría (MJ): 100 días para integrar lo aprendido. Llevas el liderazgo a la familia y finanzas.
-- Reglas: Exclusivo para MAYORES DE 18 AÑOS. NO es terapia.
-- Inversión: BCP Soles a nombre de CREACIÓN CUÁNTICA E.I.R.L (Cuenta: 1934218307060).
-"""
-
-def llamar_deepseek(prompt_system, prompt_user):
-    if not Config.DEEPSEEK_KEY: return None, "deepseek_no_configurado"
-    url = "https://api.deepseek.com/chat/completions"
-    headers = {"Authorization": f"Bearer {Config.DEEPSEEK_KEY}", "Content-Type": "application/json"}
-    payload = {"model": "deepseek-chat", "messages": [{"role": "system", "content": prompt_system}, {"role": "user", "content": prompt_user}], "temperature": 0.7, "max_tokens": 500}
-    try:
-        response = req_lib.post(url, json=payload, headers=headers, timeout=7)
-        if response.status_code == 200:
-            respuesta = response.json()['choices'][0]['message']['content'].strip()
-            return re.sub(r'\*\*IA.*?\*\*|<\|.*?\|>|\[.*?\]', '', respuesta), None
-        return None, f"deepseek_api_error: {response.status_code}"
-    except Exception as e: return None, f"deepseek_error:{str(e)[:100]}"
-
-def llamar_gemini(prompt_system, prompt_user):
-    if not Config.GEMINI_KEY or not GEMINI_DISPONIBLE: return None, "gemini_no_configurado"
-    try:
-        genai.configure(api_key=Config.GEMINI_KEY)
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        r = model.generate_content(f"{prompt_system}\n\nContexto del usuario:\n{prompt_user}")
-        if r.text: return r.text.strip(), None
-    except Exception as e: return None, f"gemini_error:{str(e)[:100]}"
-    return None, "gemini_sin_respuesta"
-
-def embudo_ventas_ia(mensaje_usuario, nombre_conocido=None, nombre_ya_saludado=False, telefono=None):
-    def guardar_y_retornar(respuesta, modelo):
-        if telefono: SessionManager.guardar_dataset(telefono, mensaje_usuario, respuesta, modelo)
-        return respuesta
-
-    # 🚀 FIX V68: Inyección de Memoria a la IA
-    historial = get_historial()
-    hist_usuario = [m for m in historial if m.get("telefono") == str(telefono)]
-    
-    # Extraemos los últimos 5 mensajes para darle contexto a la IA sin saturarla
-    contexto_texto = ""
-    if hist_usuario:
-        contextos_recientes = [f"{'Cliente' if m.get('tipo')=='in' else 'IA'}: {m.get('texto')}" for m in hist_usuario[-5:]]
-        contexto_texto = "\n".join(contextos_recientes)
-
-    if len(mensaje_usuario.split()) <= 3 and nombre_conocido and not nombre_ya_saludado and not contexto_texto:
-        resp = f"¡Hola, {nombre_conocido}! Qué gran paso estás dando al comunicarte. 🌟 Creemos firmemente que tienes un potencial ilimitado esperando ser despertado.\n\nA través de nuestra Transformación Cuántica, te acompañamos a romper las barreras que hoy te frenan. Todo esto se vive en el *Capítulo 1*, un entrenamiento vivencial de 3 días para rediseñar tu realidad. ¿Te gustaría conocer detalles de la próxima fecha?"
-        return guardar_y_retornar(resp, "REGLA_CORTA")
-    
-    prompt_sys = f"""Eres un Coach de Enrolamiento de 'Crear Poder Sin Límites Perú'. 
-BASE DE CONOCIMIENTO: {BROCHURE_INFO_MAESTRA}
-REGLAS ESTRICTAS:
-1. Eres humano, conversacional y muy empático. 
-2. NO repitas el mismo bloque de texto. Lee el historial de la conversación y responde SOLO a lo que el usuario acaba de decir o preguntar.
-3. Si el usuario dice "Sí" o "Ok", revisa el historial para saber a qué está respondiendo.
-4. PALABRAS PROHIBIDAS: sanar, terapia, ayudar, paciente.
-5. Termina con una pregunta corta para continuar la charla, a menos que el usuario se despida."""
-
-    prompt_usr = f"""Hablas con: {nombre_conocido if nombre_conocido else "un contacto"}.
-
-HISTORIAL RECIENTE DE LA CONVERSACIÓN:
-{contexto_texto}
-
-NUEVO MENSAJE DEL CLIENTE: "{mensaje_usuario}"
-Responde exclusivamente a este nuevo mensaje manteniendo el hilo de la conversación."""
-
-    modo = Config.MODO_IA
-    modelo_primario = random.choice(["deepseek", "gemini"]) if modo == "alternar" else "deepseek"
-    modelo_fallback = "gemini" if modelo_primario == "deepseek" else "deepseek"
-
-    respuesta, _ = llamar_deepseek(prompt_sys, prompt_usr) if modelo_primario == "deepseek" else llamar_gemini(prompt_sys, prompt_usr)
-    if respuesta: return guardar_y_retornar(respuesta, modelo_primario.upper())
-
-    respuesta, _ = llamar_deepseek(prompt_sys, prompt_usr) if modelo_fallback == "deepseek" else llamar_gemini(prompt_sys, prompt_usr)
-    if respuesta: return guardar_y_retornar(respuesta, f"FALLBACK_{modelo_fallback.upper()}")
-
-    return guardar_y_retornar("Para brindarte un apoyo 100% personalizado y humano, te invito a presionar el número de la opción que te derive con una coordinadora.", "FALLBACK_ERROR")
-
-# ══════════════════════════════════════════════════════════════════════════
-# 7. ESTRUCTURAS DE MENÚS Y MÁQUINA DE ESTADOS
+# 6. ESTRUCTURAS DE MENÚS (MODIFICADAS: SIN OPCIONES DE IA)
 # ══════════════════════════════════════════════════════════════════════════
 COORDINADORAS_CONTACTOS = {"Diana Moscoso": "51912379744", "Joyce Marín": "51933599903", "Leyla Pasquel": "51919502385", "Zuley Urteaga": "51933599864"}
 COORDINADORAS = f"Coordinadoras C1 y C2:\n• Diana Moscoso: +51 912 379 744\n• Joyce Marin: +51 933 599 903\n• Leyla Pasquel: +51 919 502 385\n• Zuley Urteaga: +51 933 599 864"
 
 MENU_STRUCTURE = {
     "main_prospecto": {
-        "text": "🌟 *Bienvenido a Crear Poder Sin Límites Perú* 🌟\nSoy *IA Cuántica*, tu asistente virtual.\n\n1️⃣ *Explorar Entrenamientos* (C1, C2 y Maestría)\n2️⃣ *Inversión y Pagos*\n3️⃣ *Hablar con IA Cuántica* (Chat libre)\n4️⃣ *Atención Personalizada* (Coordinadora)\n0️⃣ *Finalizar sesión*",
-        "options": {"1": "info_entrenamientos", "2": "pagos", "3": "chat_libre_ia", "4": "action_humano", "0": "action_salir"}
+        "text": "🌟 *Bienvenido a Crear Poder Sin Límites Perú* 🌟\nSoy tu asistente de atención.\n\n1️⃣ *Explorar Entrenamientos* (C1, C2 y Maestría)\n2️⃣ *Inversión y Pagos*\n3️⃣ *Atención Personalizada* (Hablar con Coordinadora)\n0️⃣ *Finalizar sesión*",
+        "options": {"1": "info_entrenamientos", "2": "pagos", "3": "action_humano", "0": "action_salir"}
     },
     "main_imo": {
         "text": "🌟 *Bienvenido Líder IMO {nombre}* 🌟\nEs un honor apoyarte. Selecciona una opción:\n\n1️⃣ *Reportar Asistencia* de mis participantes\n2️⃣ *Ver mis participantes pendientes (C1/C2)*\n3️⃣ *Ver TODOS mis enrolados y estatus*\n4️⃣ *Explorar Entrenamientos*\n5️⃣ *Hablar con una Coordinadora*\n0️⃣ *Finalizar sesión*",
         "options": {"1": "action_imo", "2": "ver_pendientes_imo", "3": "ver_todos_imo", "4": "info_entrenamientos", "5": "action_humano", "0": "action_salir"}
     },
     "main_px": {
-        "text": "🌟 *Bienvenido de vuelta, {nombre}* 🌟\nVemos que tienes pendiente tu: *{pendiente}*.\n\n1️⃣ *¡CONFIRMAR MI ASISTENCIA!*\n2️⃣ *Ver fechas y horarios*\n3️⃣ *Solicitar reprogramación*\n4️⃣ *Hablar con coordinadora*\n5️⃣ *Chat Libre con IA*\n0️⃣ *Finalizar sesión*",
-        "options": {"1": "px_confirma", "2": "info_fechas", "3": "action_humano", "4": "action_humano", "5": "chat_libre_ia", "0": "action_salir"}
+        "text": "🌟 *Bienvenido de vuelta, {nombre}* 🌟\nVemos que tienes pendiente tu: *{pendiente}*.\n\n1️⃣ *¡CONFIRMAR MI ASISTENCIA!*\n2️⃣ *Ver fechas y horarios*\n3️⃣ *Solicitar reprogramación*\n4️⃣ *Hablar con coordinadora*\n0️⃣ *Finalizar sesión*",
+        "options": {"1": "px_confirma", "2": "info_fechas", "3": "action_humano", "4": "action_humano", "0": "action_salir"}
     },
     "main_mj": {
         "text": "🌟 *Hola Líder {nombre}* 🌟\nVemos en nuestra base de datos que has participado en Maestría. ¿Cuál es tu estatus actual en el proceso?\n\n1️⃣ Soy Graduado 🎓\n2️⃣ Estoy en proceso ⏳\n3️⃣ Me retiré / Deserté 🛑\n4️⃣ Quiero enrolar a alguien 🚀\n0️⃣ Finalizar sesión",
@@ -611,6 +518,9 @@ def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre, necesidad)
     enviar_mensaje(coord_tel, msg, f"COORDINADORA: {coord_nombre}", True, "ALERTA LEAD")
     return coord_nombre
 
+# ══════════════════════════════════════════════════════════════════════════
+# 7. PROCESADOR DE ESTADOS (FLUJO SIN IA)
+# ══════════════════════════════════════════════════════════════════════════
 def flujo_principal(telefono, texto):
     try:
         sesion = get_sesion(telefono)
@@ -703,14 +613,14 @@ def flujo_principal(telefono, texto):
                     return
 
                 elif siguiente_estado == "action_humano":
-                    c_nom = notificar_coordinadora_aleatoria(telefono, perfil["nombre"], f"Necesita asistencia desde: {estado_actual}")
+                    c_nom = notificar_coordinadora_aleatoria(telefono, perfil["nombre"], f"Necesita asistencia desde el menú: {estado_actual}")
                     enviar_mensaje(telefono, f"¡Comprendido! He notificado a nuestra coordinadora *{c_nom}*. Ella te escribirá en breve. 🚀\n\n_Escribe *0* para cancelar._", nombre_mostrar, True, "DERIVADO A HUMANO")
                     sesion["menu_state"] = "esperando_humano"; set_sesion(telefono, sesion)
                     return
                     
                 elif siguiente_estado == "action_salir":
                     sesion["menu_state"] = "esperando_encuesta"; set_sesion(telefono, sesion)
-                    enviar_mensaje(telefono, "Antes de irte, ¿Cómo calificarías tu experiencia de hoy con nuestra *IA Cuántica*?\n\nResponde con un número del *1 al 5*:\n1️⃣ = Mala\n5️⃣ = ¡Excelente!", nombre_mostrar, True, "ENCUESTA SALIDA")
+                    enviar_mensaje(telefono, "Antes de irte, ¿Cómo calificarías tu experiencia con nuestro sistema?\n\nResponde con un número del *1 al 5*:\n1️⃣ = Mala\n5️⃣ = ¡Excelente!", nombre_mostrar, True, "ENCUESTA SALIDA")
                     return
                     
                 elif siguiente_estado == "main": siguiente_estado = main_key
@@ -720,14 +630,14 @@ def flujo_principal(telefono, texto):
                 sesion["menu_state"] = siguiente_estado; sesion["menu_history"] = hist; set_sesion(telefono, sesion)
                 
                 if siguiente_estado in MENU_STRUCTURE: enviar_mensaje(telefono, render_menu(siguiente_estado), nombre_mostrar, True, siguiente_estado)
-                elif siguiente_estado == "chat_libre_ia": enviar_mensaje(telefono, "Has ingresado a nuestro *Chat Inteligente*. 🧠\nPuedes preguntarme lo que desees.\n\n_Escribe *0* para salir._", nombre_mostrar, True, "INGRESO CHAT IA")
                 elif siguiente_estado == "action_imo": enviar_mensaje(telefono, f"¡Hola líder! 👋\n\nEstás en el *Portal IMO*. Envíame el estatus de tus participantes.\n\n_Escribe *0* para volver._", nombre_mostrar, True, "REPORTE MANUAL IMO")
             else:
+                # 🚀 FIX V69: Si no selecciona número, se asume que necesita hablar con alguien inmediatamente
                 if not texto_limpio.isnumeric():
-                    sesion["menu_state"] = "chat_libre_ia"; set_sesion(telefono, sesion)
-                    resp_ia = embudo_ventas_ia(texto, perfil["nombre"], sesion.get("nombre_saludado", False), telefono)
-                    if "potencial ilimitado" in resp_ia: sesion["nombre_saludado"] = True; set_sesion(telefono, sesion)
-                    enviar_mensaje(telefono, resp_ia + "\n\n_(Escribe *0* para volver al menú)_", nombre_mostrar, True, "CHAT_IA_DEEPSEEK")
+                    c_nom = notificar_coordinadora_aleatoria(telefono, perfil["nombre"], f"Ha escrito texto libre: {texto}")
+                    enviar_mensaje(telefono, f"¡Hola! Para brindarte una atención 100% humana y precisa, he notificado a nuestra coordinadora *{c_nom}*. Ella te asistirá en breve.\n\n_(Si deseas volver al menú principal, escribe *0*)_", nombre_mostrar, True, "DERIVACIÓN DIRECTA")
+                    sesion["menu_state"] = "esperando_humano"
+                    set_sesion(telefono, sesion)
                     return
                 
                 errores = sesion.get("menu_errors", 0) + 1
@@ -741,12 +651,8 @@ def flujo_principal(telefono, texto):
                     enviar_mensaje(telefono, f"⚠️ *Opción no válida*. Responde únicamente con el *número*.\n\n{render_menu(estado_actual)}", nombre_mostrar, True, "ERROR_MENU")
                 set_sesion(telefono, sesion)
 
-        elif estado_actual in ["action_imo", "chat_libre_ia"]:
-            if estado_actual == "chat_libre_ia":
-                resp_ia = embudo_ventas_ia(texto, perfil["nombre"], sesion.get("nombre_saludado", False), telefono)
-                enviar_mensaje(telefono, resp_ia, nombre_mostrar, True, "CHAT_IA_DEEPSEEK")
-            else:
-                enviar_mensaje(telefono, f"Mensaje recibido. Procesando...\n\n_Escribe *0* para volver al menú._", nombre_mostrar, True, "ESTATUS RECIBIDO IMO")
+        elif estado_actual == "action_imo":
+            enviar_mensaje(telefono, f"Estatus recibido. Procesando y derivando a la mesa de control...\n\n_Escribe *0* para volver al menú._", nombre_mostrar, True, "ESTATUS RECIBIDO IMO")
             
         elif estado_actual in ["esperando_humano", "esperando_fecha", "ver_todos_imo", "ver_pendientes_imo"]:
             set_sesion(telefono, sesion)
@@ -755,7 +661,7 @@ def flujo_principal(telefono, texto):
         logger.error(f"Error en flujo principal: {e}", exc_info=True)
 
 # ══════════════════════════════════════════════════════════════════════════
-# 9. PANEL WEB (HTML), ENDPOINTS Y SIMULADOR
+# 8. PANEL WEB (HTML), ENDPOINTS Y SIMULADOR
 # ══════════════════════════════════════════════════════════════════════════
 HTML_CHAT = """<!DOCTYPE html>
 <html lang="es">
@@ -875,7 +781,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="field">
       <label>Sheet ID</label>
       <input id="c-sid" placeholder="1NqEgzCkixVhMn3VLhsy_GVWwYBfwLQ1rwdHVcKTRyjo">
-      <div class="hint">ID largo en la URL del Google Sheet</div>
     </div>
     <div class="field">
       <label>Nombre de la pestaña</label>
@@ -884,19 +789,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="field">
       <label>Credenciales Google — JSON completo</label>
       <textarea id="c-creds" placeholder='{"type":"service_account","project_id":"bot-cpsl","private_key":"...","client_email":"bot-cpsl-sheets@..."}'></textarea>
-      <div class="hint">Asegúrate de pegar el JSON en una sola línea (Minified)</div>
     </div>
     <div class="field">
       <label>WA Token</label>
       <input id="c-watok" type="password" placeholder="EAAxxxxxxx">
-      <div class="hint">Token temporal o permanente de Graph API</div>
     </div>
     <div class="field">
       <label>WA Phone Number ID</label>
       <input id="c-wapid" placeholder="1085205258006361">
     </div>
     <button class="btn-primary" onclick="guardarCfg()">Conectar y abrir app</button>
-    <p class="modal-note"><button class="btn-link" onclick="usarDemoMode()">Continuar en modo demo (sin conexión real)</button></p>
+    <p class="modal-note"><button class="btn-link" onclick="usarDemoMode()">Continuar en modo demo</button></p>
   </div>
 </div>
 
@@ -959,11 +862,11 @@ const CFG_KEY  = 'cpsl_cfg_v2';
 const DEMO_KEY = 'cpsl_demo_v2';
 
 const QR = [
-  {l:'Info C1 E27', t:'Hola, aqui tienes la informacion del Capitulo 1 — Equipo 27:\\n\\nHotel Jose Antonio Deluxe\\nCalle Bellavista 133, Miraflores, Lima\\n\\nViernes 1 mayo: registro 9:00am, inicio 10:00am\\nSabado 2 mayo: ingreso 9:00am, inicio 10:00am\\nDomingo 3 mayo: inicio 9:00am, cierre 9:00pm\\n\\nRopa comoda, botella de agua.\\n\\nCoordinadoras C1/C2:\\nDiana Moscoso: +51 912 379 744\\nJoyce Marin: +51 933 599 903\\nLeyla Pasquel: +51 919 502 385\\nZuley Urteaga: +51 933 599 864\\n\\nComunicaciones Crear Poder Sin Limites Peru'},
-  {l:'Confirmar', t:'Hola, gracias por informarnos. Confirmacion registrada.\\n\\nLos esperamos en el Hotel Jose Antonio Deluxe, Calle Bellavista 133, Miraflores. Mesa de registro a las 9:00am.\\n\\nComunicaciones Crear Poder Sin Limites Peru'},
-  {l:'No asiste', t:'Hola, recibido. La inscripcion sigue activa para el siguiente equipo inmediato.\\n\\nComunicaciones Crear Poder Sin Limites Peru'},
-  {l:'Cambio nombre', t:'Hola, los cambios de nombre se gestionan con tu coordinadora antes del miercoles previo hasta las 6:00pm.\\n\\nDiana Moscoso: +51 912 379 744\\nJoyce Marin: +51 933 599 903\\n\\nComunicaciones Crear Poder Sin Limites Peru'},
-  {l:'Pedir estatus', t:'Hola, queremos actualizar el registro de tus participantes para el C1 E27 (1, 2 y 3 de mayo).\\n\\nIndicanos el estatus: Confirma / Siguiente equipo / No quiere / No contesta / Pendiente\\n\\nComunicaciones Crear Poder Sin Limites Peru'}
+  {l:'Info C1', t:'Hola, aquí tienes la información del Capítulo 1 — Equipo 27:\\n\\nHotel José Antonio Deluxe\\nCalle Bellavista 133, Miraflores, Lima\\n\\nViernes 1 mayo: registro 9:00am, inicio 10:00am\\nSábado 2 mayo: ingreso 9:00am, inicio 10:00am\\nDomingo 3 mayo: inicio 9:00am, cierre 9:00pm\\n\\nComunicaciones Crear Poder Sin Límites Perú'},
+  {l:'Confirmar', t:'Hola, gracias por informarnos. Confirmación registrada.\\n\\nLos esperamos en el Hotel José Antonio Deluxe. Mesa de registro a las 9:00am.\\n\\nComunicaciones Crear Poder Sin Límites Perú'},
+  {l:'No asiste', t:'Hola, recibido. La inscripción sigue activa para el siguiente equipo inmediato.\\n\\nComunicaciones Crear Poder Sin Límites Perú'},
+  {l:'Cambio nombre', t:'Hola, los cambios de nombre se gestionan con tu coordinadora antes del miércoles previo hasta las 6:00pm.\\n\\nComunicaciones Crear Poder Sin Límites Perú'},
+  {l:'Pedir estatus', t:'Hola, queremos actualizar el registro de tus participantes para el C1 E27 (1, 2 y 3 de mayo).\\n\\nIndícanos el estatus: Confirma / Siguiente equipo / No asiste / Pendiente\\n\\nComunicaciones Crear Poder Sin Límites Perú'}
 ];
 
 let CFG = {}; let DEMO = false; let convs = []; let curTel = null; let filtro = 'todos';
@@ -1154,7 +1057,6 @@ async function enviarWA(tel, texto){
   } catch(e){ return {ok:false, err:e.message}; }
 }
 
-// 🚀 FIX V68: DUAL-SYNC (Backend API para Mensajes Instantáneos, Sheets para Estados)
 async function sincronizarMensajesInstantaneos() {
     try {
         let res = await fetch('/api/historial');
@@ -1410,10 +1312,7 @@ async function iniciar(){
     await sincronizarSheets(); 
     iniciarUI(); 
     
-    // 🚀 FIX V68: Doble Sincronización
-    // 1. Mensajes al instante (Cada 2.5 segundos)
     setInterval(sincronizarMensajesInstantaneos, 2500); 
-    // 2. Estados desde Google Sheets (Cada 30 segundos)
     if(syncTimer) clearInterval(syncTimer); 
     syncTimer = setInterval(sincronizarSheets, 30000); 
 }
@@ -1442,14 +1341,13 @@ def api_historial(): return jsonify(get_historial()), 200
 
 @app.route("/api/descargar_respaldo", methods=["GET"])
 def descargar_respaldo():
-    h = get_historial()
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["Fecha", "Telefono", "Nombre IMO", "Tipo Mensaje", "Texto"])
-    for m in h:
-        tipo_str = "Bot/Panel envió" if m.get("tipo") == "out" else "Contacto respondió"
-        writer.writerow([m.get("hora", ""), m.get("telefono", ""), m.get("nombre", ""), tipo_str, m.get("texto", "")])
-    return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=Respaldo_Chats.csv"})
+    """🚀 MOTOR 2 (LOCAL): Descarga la Caja Negra Absoluta de Mensajes"""
+    if os.path.exists(Config.BACKUP_ABSOLUTO_CSV):
+        with open(Config.BACKUP_ABSOLUTO_CSV, "r", encoding="utf-8-sig") as f:
+            data = f.read()
+    else:
+        data = "Fecha y Hora,Telefono,Nombre,Direccion (In/Out),Mensaje,Estado Sistema\nSin datos aun"
+    return Response(data, mimetype="text/csv", headers={"Content-Disposition":f"attachment;filename=Backup_Absoluto_V69.csv"})
 
 @app.route("/api/enviar", methods=["POST"])
 def api_enviar():
@@ -1467,12 +1365,13 @@ def api_enviar():
 def mensaje_simulador():
     data = request.json; tel = data.get("telefono"); texto = data.get("texto")
     if not tel or not texto: return jsonify({"error": "Faltan datos"}), 400
-    # Guardamos en historial para que la UI lo vea al instante
     sesion = get_sesion(tel)
     perfil = sesion.get("perfil", {})
     nombre_mostrar = f"({perfil.get('rol', 'PROSPECTO')}) {perfil.get('nombre', 'Simulado')}" if perfil.get('nombre') else "SIMULACIÓN"
+    
     append_historial(tel, nombre_mostrar, texto, "in")
-    # Disparamos lógica
+    SessionManager.guardar_backup_absoluto(tel, nombre_mostrar, texto, "IN", "SIMULADOR")
+    
     threading.Thread(target=flujo_principal, args=(tel, texto), daemon=True).start()
     return jsonify({"status": "ok"}), 200
 
@@ -1496,14 +1395,15 @@ def webhook():
         if tipo == "text":
             texto = str(msg["text"]["body"]).replace("=", "").replace("+", "").replace("@", "")
             
-            # 🔥 FIX V68: Guardar INMEDIATAMENTE en la memoria para que el Panel lo vea en tiempo real
             sesion = get_sesion(telefono)
             perfil = sesion.get("perfil")
             if not perfil: perfil = obtener_perfil_crm(telefono)
             nombre_cached = f"({perfil['rol']}) {perfil['nombre']}" if perfil.get('nombre') else "NUEVO CONTACTO"
             
+            # Doble Respaldo INMEDIATO (Motor 1 Nube + Motor 2 Local)
             append_historial(telefono, nombre_cached, texto, "in")
             registrar_en_sheets_async(telefono, nombre_cached, texto, "", "RECIBIDO")
+            SessionManager.guardar_backup_absoluto(telefono, nombre_cached, texto, "IN", "RECIBIDO")
 
             threading.Thread(target=flujo_principal, args=(telefono, texto), daemon=True).start()
             
@@ -1515,6 +1415,8 @@ def webhook():
             
             append_historial(telefono, nombre_cached, "[MULTIMEDIA RECIBIDO]", "in")
             registrar_en_sheets_async(telefono, nombre_cached, "[MULTIMEDIA RECIBIDO]", "", "RECIBIDO")
+            SessionManager.guardar_backup_absoluto(telefono, nombre_cached, "[MULTIMEDIA RECIBIDO]", "IN", "ERROR_MULTIMEDIA")
+            
             WhatsAppAPI.enviar_mensaje(telefono, "Comprendido. Por favor responde con texto o el número de la opción deseada para poder apoyarte.", registrar_sheets=True, estado_menu="ERROR_MULTIMEDIA")
             
     except Exception as e: logger.error(f"Error Webhook: {e}", exc_info=True)
