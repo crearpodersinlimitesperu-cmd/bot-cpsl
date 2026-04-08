@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V63: Panel Web Blindado (Cero Regex) + CRM DeepSeek + Anti-Caídas
+✅ Versión V64: Fix Prospectos (Atención inmediata) + Panel Web Blindado + DeepSeek
 """
 
 import os, re, json, time, csv, io, random, logging, queue, threading
@@ -48,7 +48,6 @@ class Config:
     HISTORIAL_PATH = "historial_chat.json"
     DATASET_PATH = "dataset_entrenamiento.csv"
     
-    # 🧠 LLAVES DE INTELIGENCIA ARTIFICIAL
     GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
     DEEPSEEK_KEY = os.environ.get("DEEPSEEK_API_KEY", "sk-b77a476c9e17420aa89a1ee86ff44d6e")
     MODO_IA = os.environ.get("MODO_IA", "alternar").lower() 
@@ -57,7 +56,7 @@ class Config:
     CREDS_JSON = os.environ.get("GOOGLE_CREDENTIALS", "")
 
 # ══════════════════════════════════════════════════════════════════════════
-# 2. GESTOR DE ESTADO CONCURRENTE (GUNICORN SAFE)
+# 2. GESTOR DE ESTADO CONCURRENTE
 # ══════════════════════════════════════════════════════════════════════════
 class SessionManager:
     @staticmethod
@@ -125,7 +124,7 @@ def get_historial():
     return []
 
 # ══════════════════════════════════════════════════════════════════════════
-# 3. SISTEMA DE COLAS (QUEUE) Y GOOGLE SHEETS
+# 3. SISTEMA DE COLAS Y GOOGLE SHEETS
 # ══════════════════════════════════════════════════════════════════════════
 cola_mensajes = queue.Queue()
 cola_sheets = queue.Queue()
@@ -146,26 +145,21 @@ class GoogleSheetsAPI:
                 "aud": "https://oauth2.googleapis.com/token", "iat": now, "exp": now + 3600
             }).encode()).rstrip(b"=")
             msg_jwt = header + b"." + payload
-            
             from cryptography.hazmat.primitives import hashes, serialization
             from cryptography.hazmat.primitives.asymmetric import padding
             
-            # Reparación de saltos de línea de las credenciales en Render
-            private_key = creds["private_key"].encode('utf-8').replace(b'\\n', b'\n')
-            pk = serialization.load_pem_private_key(private_key, password=None)
+            pk = serialization.load_pem_private_key(creds["private_key"].encode('utf-8').replace(b'\\n', b'\n'), password=None)
             sig = pk.sign(msg_jwt, padding.PKCS1v15(), hashes.SHA256())
             jwt = (msg_jwt + b"." + base64.urlsafe_b64encode(sig).rstrip(b"=")).decode()
-            
-            # Petición a Google con un Timeout largo
-            r = req_lib.post("https://oauth2.googleapis.com/token", data={"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": jwt}, timeout=15)
+            r = req_lib.post("https://oauth2.googleapis.com/token", data={"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": jwt}, timeout=10)
             if r.status_code == 200:
                 token = r.json()["access_token"]
                 url = f"https://sheets.googleapis.com/v4/spreadsheets/{Config.SHEET_ID}/values/Hoja%201!A:H:append"
                 ahora = datetime.now().strftime("%d/%m/%Y %H:%M")
                 req_lib.post(url, params={"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"}, 
                              json={"values": [[ahora, str(telefono), imo_nombre, mensaje, respuesta_bot, estado, "", ""]]}, 
-                             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=15)
-        except Exception as e: logger.error(f"Error Sheets: {e}")
+                             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=10)
+        except: pass
 
 def worker_sheets():
     while True:
@@ -183,7 +177,6 @@ def worker_procesar_mensajes():
         except Exception as e: logger.error(f"Error Worker Mensajes: {e}")
         finally: cola_mensajes.task_done()
 
-# Iniciamos los Hilos Anti-Caídas
 threading.Thread(target=worker_sheets, daemon=True).start()
 threading.Thread(target=worker_procesar_mensajes, daemon=True).start()
 
@@ -210,7 +203,7 @@ class WhatsAppAPI:
                 append_historial(telefono, nombre_mostrar, texto, "out")
                 if registrar_sheets:
                     estado_actual = "SISTEMA" if nombre_mostrar == "SISTEMA" else "INTERACTIVO"
-                    registrar_en_sheets_async(telefono, nombre_mostrar, mensaje_usuario or "[Bot]", texto[:500], estado_menu or estado_actual)
+                    registrar_en_sheets_async(telefono, nombre_mostrar, mensaje_usuario or "[Navegación]", texto[:500], estado_menu or estado_actual)
                 return True
         except: pass
         return False
@@ -225,7 +218,7 @@ def enviar_mensaje(telefono, texto, nombre_imo="", registrar_sheets=True, msg_us
     return WhatsAppAPI.enviar_mensaje(telefono, texto, nombre_imo, registrar_sheets, msg_user, estado_menu)
 
 # ══════════════════════════════════════════════════════════════════════════
-# 5. UTILIDADES, CSV, CAMBIO DE CUPO Y CRM OMNICANAL
+# 5. UTILIDADES Y RECONOCIMIENTO OMNICANAL
 # ══════════════════════════════════════════════════════════════════════════
 def norm_tel(tel):
     t = re.sub(r'\D', '', str(tel))
@@ -241,11 +234,6 @@ def son_mismo_numero(tel1, tel2):
     min_len = min(len(t1), len(t2))
     if min_len >= 8 and (t1.endswith(t2) or t2.endswith(t1)): return True
     return False
-
-def normalizar(texto):
-    t = texto.lower().strip()
-    for a, b in [("á","a"),("é","e"),("í","i"),("ó","o"),("ú","u"),("ñ","n")]: t = t.replace(a, b)
-    return t
 
 def nombre_pila(s):
     partes = [p.strip() for p in re.split(r'\s+', s.strip()) if len(p.strip()) > 2]
@@ -265,7 +253,8 @@ def cargar_px_del_imo(telefono):
                 estado = str(row[6] or "").strip().upper()
                 if son_mismo_numero(imo_t, telefono):
                     if not imo_nombre: imo_nombre = imo_n
-                    if estado in ("PENDIENTE","ENVIADO","") and px_n: px_list.append(px_n)
+                    if estado in ("PENDIENTE","ENVIADO","") and px_n:
+                        px_list.append(px_n)
             wb.close()
             return imo_nombre, px_list
         except: return "", []
@@ -476,7 +465,7 @@ def marcar_stop(telefono):
         except: pass
 
 # ══════════════════════════════════════════════════════════════════════════
-# 6. ESTRATEGIA DE IA DUAL (DEEPSEEK & GEMINI) CON ALTERNANCIA (ANTI-CAÍDAS)
+# 6. ESTRATEGIA DE IA DUAL (DEEPSEEK & GEMINI)
 # ══════════════════════════════════════════════════════════════════════════
 BROCHURE_INFO_MAESTRA = """
 INFORMACIÓN OFICIAL CREAR PODER SIN LÍMITES PERÚ:
@@ -609,7 +598,7 @@ def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre, necesidad)
     return coord_nombre
 
 # ══════════════════════════════════════════════════════════════════════════
-# 8. PROCESADOR DE ESTADOS (MÁQUINA PRINCIPAL) - REGISTRO ABSOLUTO
+# 8. PROCESADOR DE ESTADOS (MÁQUINA PRINCIPAL) - ATENCIÓN INMEDIATA A PROSPECTOS
 # ══════════════════════════════════════════════════════════════════════════
 def procesar_mensaje(telefono, texto):
     sesion = get_sesion(telefono)
@@ -617,7 +606,8 @@ def procesar_mensaje(telefono, texto):
     
     if texto_limpio in ["0", "MENU", "MENÚ", "INICIO"] or "perfil" not in sesion:
         perfil = obtener_perfil_crm(telefono)
-        if perfil["rol"] == "PROSPECTO" and len(texto.split()) <= 3 and len(texto) > 2 and not texto_limpio.isnumeric():
+        # 🚀 FIX PROSPECTOS: Capturar nombre siempre si no son números, ignorar límite estricto de palabras
+        if perfil["rol"] == "PROSPECTO" and not texto_limpio.isnumeric():
             perfil["nombre"] = nombre_pila(texto)
         sesion["perfil"] = perfil; set_sesion(telefono, sesion)
     else:
@@ -728,12 +718,14 @@ def procesar_mensaje(telefono, texto):
             elif siguiente_estado == "chat_libre_ia": enviar_mensaje(telefono, "Has ingresado a nuestro *Chat Inteligente*. 🧠\nPuedes preguntarme lo que desees.\n\n_Escribe *0* para salir._", nombre_mostrar, True, texto, "INGRESO CHAT IA")
             elif siguiente_estado == "action_imo": enviar_mensaje(telefono, f"¡Hola líder! 👋\n\nEstás en el *Portal IMO*. Envíame el estatus de tus participantes.\n\n_Escribe *0* para volver._", nombre_mostrar, True, texto, "REPORTE MANUAL IMO")
         else:
-            if not texto_limpio.isnumeric() and len(texto.split()) > 1:
+            # 🚀 FIX PROSPECTOS: Cualquier texto que no sea un número válido y que no sea una opción de menú, va a la IA
+            if not texto_limpio.isnumeric():
                 sesion["menu_state"] = "chat_libre_ia"; set_sesion(telefono, sesion)
                 resp_ia = embudo_ventas_ia(texto, perfil["nombre"], sesion.get("nombre_saludado", False), telefono)
                 if "potencial ilimitado" in resp_ia: sesion["nombre_saludado"] = True; set_sesion(telefono, sesion)
                 enviar_mensaje(telefono, resp_ia + "\n\n_(Escribe *0* para volver al menú)_", nombre_mostrar, True, texto, "CHAT_IA_DEEPSEEK")
                 return
+            
             errores = sesion.get("menu_errors", 0) + 1
             sesion["menu_errors"] = errores
             if errores >= 3:
@@ -756,7 +748,7 @@ def procesar_mensaje(telefono, texto):
         set_sesion(telefono, sesion)
 
 # ══════════════════════════════════════════════════════════════════════════
-# 9. PANEL WEB Y ENDPOINTS FLASK (CÓDIGO BLINDADO JS)
+# 9. PANEL WEB (HTML), ENDPOINTS Y SIMULADOR (SIN EXPRESIONES REGULARES)
 # ══════════════════════════════════════════════════════════════════════════
 HTML_CHAT = """<!DOCTYPE html>
 <html lang="es">
@@ -885,7 +877,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="field">
       <label>Credenciales Google — JSON completo</label>
       <textarea id="c-creds" placeholder='{"type":"service_account","project_id":"bot-cpsl","private_key":"...","client_email":"bot-cpsl-sheets@..."}'></textarea>
-      <div class="hint">Contenido completo de bot-cpsl-XXXX.json</div>
+      <div class="hint">Asegúrate de pegar el JSON en una sola línea (Minified)</div>
     </div>
     <div class="field">
       <label>WA Token</label>
@@ -971,7 +963,7 @@ let CFG = {}; let DEMO = false; let convs = []; let curTel = null; let filtro = 
 let syncing = false; let syncTimer = null; let rowMap = {}; let _tok = null; let _tokExp = 0;
 
 function esc(s){ return String(s).split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;').split('"').join('&quot;').split("'").join('&#39;'); }
-function nl2br(s){ return esc(s).split(String.fromCharCode(10)).join('<br>'); }
+function nl2br(s){ return esc(s).split('\\n').join('<br>'); }
 function ini(n){ const p=n.trim().split(' '); return ((p[0]||'')[0]+(p[1]||'')[0]||'').toUpperCase(); }
 function hora(){ return new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'}); }
 function fecha(){ return new Date().toLocaleString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
@@ -1073,8 +1065,8 @@ async function getToken(){
     let pemBody = creds.private_key;
     pemBody = pemBody.split('-----BEGIN PRIVATE KEY-----').join('');
     pemBody = pemBody.split('-----END PRIVATE KEY-----').join('');
-    pemBody = pemBody.split(String.fromCharCode(10)).join('');
-    pemBody = pemBody.split(String.fromCharCode(13)).join('');
+    pemBody = pemBody.split('\\n').join('');
+    pemBody = pemBody.split('\\r').join('');
     pemBody = pemBody.split(' ').join('');
 
     const keyBuf = Uint8Array.from(atob(pemBody), c=>c.charCodeAt(0)).buffer;
@@ -1361,7 +1353,17 @@ async function setEstado(estado){
 }
 
 function usarQR(idx){ const ti = document.getElementById('tinput'); if(!ti) return; ti.value = QR[idx].t; onInput(ti); ti.focus(); }
-function togglePx(btn, px){ btn.classList.toggle('on'); const ti = document.getElementById('tinput'); if(!ti) return; if(btn.classList.contains('on')){ ti.value += (ti.value&&!ti.value.endsWith(String.fromCharCode(10))?' ':'')+px; onInput(ti); ti.focus(); } }
+
+function togglePx(btn, px){ 
+    btn.classList.toggle('on'); 
+    const ti = document.getElementById('tinput'); 
+    if(!ti) return; 
+    if(btn.classList.contains('on')){ 
+        ti.value += (ti.value&&!ti.value.endsWith('\\n')?' ':'')+px; 
+        onInput(ti); 
+        ti.focus(); 
+    } 
+}
 
 function abrirNuevo(){ document.getElementById('ovl-new').style.display='flex'; }
 function cerrarNuevo(){ document.getElementById('ovl-new').style.display='none'; }
