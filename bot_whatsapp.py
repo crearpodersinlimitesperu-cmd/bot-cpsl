@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V65: Ejecución Directa (Cero Pérdida de Prospectos) + CRM Total + DeepSeek
+✅ Versión V66: Registro Absoluto de Fecha/Hora en Panel Manual + CRM Inquebrantable
 """
 
 import os, re, json, time, csv, io, random, logging, queue, threading
@@ -48,10 +48,10 @@ class Config:
     HISTORIAL_PATH = "historial_chat.json"
     DATASET_PATH = "dataset_entrenamiento.csv"
     
-    # 🧠 LLAVES DE INTELIGENCIA ARTIFICIAL BLINDADAS (En Render)
     GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
-    DEEPSEEK_KEY = os.environ.get("DEEPSEEK_API_KEY", "") 
+    DEEPSEEK_KEY = os.environ.get("DEEPSEEK_API_KEY", "sk-b77a476c9e17420aa89a1ee86ff44d6e")
     MODO_IA = os.environ.get("MODO_IA", "alternar").lower() 
+    
     SHEET_ID = os.environ.get("SHEET_ID", "")
     CREDS_JSON = os.environ.get("GOOGLE_CREDENTIALS", "")
 
@@ -130,7 +130,7 @@ cola_sheets = queue.Queue()
 
 class GoogleSheetsAPI:
     @classmethod
-    def registrar_accion(cls, telefono, imo_nombre, mensaje, respuesta_bot, estado=""):
+    def registrar_accion(cls, telefono, imo_nombre, mensaje, respuesta_bot, estado="", respuesta_manual="", enviado_status=""):
         if not Config.SHEET_ID or not Config.CREDS_JSON: return
         try:
             import base64
@@ -156,8 +156,12 @@ class GoogleSheetsAPI:
                 token = r.json()["access_token"]
                 url = f"https://sheets.googleapis.com/v4/spreadsheets/{Config.SHEET_ID}/values/Hoja%201!A:H:append"
                 ahora = datetime.now().strftime("%d/%m/%Y %H:%M")
+                
+                # V66: Se incluyen respuesta_manual y enviado_status para el Panel Web
+                valores = [[ahora, str(telefono), imo_nombre, mensaje, respuesta_bot, estado, respuesta_manual, enviado_status]]
+                
                 req_lib.post(url, params={"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"}, 
-                             json={"values": [[ahora, str(telefono), imo_nombre, mensaje, respuesta_bot, estado, "", ""]]}, 
+                             json={"values": valores}, 
                              headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=10)
         except Exception as e: logger.error(f"Error Sheets: {e}")
 
@@ -165,15 +169,18 @@ def worker_sheets():
     while True:
         try:
             tarea = cola_sheets.get()
-            GoogleSheetsAPI.registrar_accion(tarea['tel'], tarea['nom'], tarea['msg'], tarea['resp'], tarea['est'])
+            GoogleSheetsAPI.registrar_accion(
+                tarea['tel'], tarea['nom'], tarea['msg'], tarea['resp'], 
+                tarea['est'], tarea.get('resp_man', ""), tarea.get('env_stat', "")
+            )
         except: pass
         finally: cola_sheets.task_done()
 
 threading.Thread(target=worker_sheets, daemon=True).start()
 
-def registrar_en_sheets_async(tel, nom, msg, resp, est=""):
+def registrar_en_sheets_async(tel, nom, msg, resp, est="", resp_man="", env_stat=""):
     if str(tel).startswith("SIM_"): return 
-    cola_sheets.put({'tel': tel, 'nom': nom, 'msg': msg, 'resp': resp, 'est': est})
+    cola_sheets.put({'tel': tel, 'nom': nom, 'msg': msg, 'resp': resp, 'est': est, 'resp_man': resp_man, 'env_stat': env_stat})
 
 # ══════════════════════════════════════════════════════════════════════════
 # 4. CONECTORES DE WHATSAPP API
@@ -209,7 +216,7 @@ def enviar_mensaje(telefono, texto, nombre_imo="", registrar_sheets=True, msg_us
     return WhatsAppAPI.enviar_mensaje(telefono, texto, nombre_imo, registrar_sheets, msg_user, estado_menu)
 
 # ══════════════════════════════════════════════════════════════════════════
-# 5. UTILIDADES, CSV Y CRM OMNICANAL
+# 5. UTILIDADES Y RECONOCIMIENTO OMNICANAL
 # ══════════════════════════════════════════════════════════════════════════
 def norm_tel(tel):
     t = re.sub(r'\D', '', str(tel))
@@ -225,11 +232,6 @@ def son_mismo_numero(tel1, tel2):
     min_len = min(len(t1), len(t2))
     if min_len >= 8 and (t1.endswith(t2) or t2.endswith(t1)): return True
     return False
-
-def normalizar(texto):
-    t = texto.lower().strip()
-    for a, b in [("á","a"),("é","e"),("í","i"),("ó","o"),("ú","u"),("ñ","n")]: t = t.replace(a, b)
-    return t
 
 def nombre_pila(s):
     partes = [p.strip() for p in re.split(r'\s+', s.strip()) if len(p.strip()) > 2]
@@ -593,14 +595,12 @@ def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre, necesidad)
     return coord_nombre
 
 def flujo_principal(telefono, texto):
-    """🚀 Hilo de ejecución directa para respuesta instantánea (Sin colas que se duermen)"""
     try:
         sesion = get_sesion(telefono)
         texto_limpio = str(texto).strip().upper()
         
         if texto_limpio in ["0", "MENU", "MENÚ", "INICIO"] or "perfil" not in sesion:
             perfil = obtener_perfil_crm(telefono)
-            # PROSPECTOS: Guardamos su nombre si es una palabra corta y no es número
             if perfil["rol"] == "PROSPECTO" and len(texto.split()) <= 3 and len(texto) > 2 and not texto_limpio.isnumeric():
                 perfil["nombre"] = nombre_pila(texto)
             sesion["perfil"] = perfil; set_sesion(telefono, sesion)
@@ -608,8 +608,6 @@ def flujo_principal(telefono, texto):
             perfil = sesion.get("perfil")
             
         nombre_mostrar = f"({perfil['rol']}) {perfil.get('nombre', 'Nuevo')}" if perfil.get('nombre') else "NUEVO CONTACTO"
-        
-        # Historial Inbound
         append_historial(telefono, nombre_mostrar, texto, "in")
 
         if sesion.get("menu_state") == "esperando_encuesta":
@@ -709,7 +707,6 @@ def flujo_principal(telefono, texto):
                 elif siguiente_estado == "chat_libre_ia": enviar_mensaje(telefono, "Has ingresado a nuestro *Chat Inteligente*. 🧠\nPuedes preguntarme lo que desees.\n\n_Escribe *0* para salir._", nombre_mostrar, True, texto, "INGRESO CHAT IA")
                 elif siguiente_estado == "action_imo": enviar_mensaje(telefono, f"¡Hola líder! 👋\n\nEstás en el *Portal IMO*. Envíame el estatus de tus participantes.\n\n_Escribe *0* para volver._", nombre_mostrar, True, texto, "REPORTE MANUAL IMO")
             else:
-                # 🚀 FIX PROSPECTOS: Cualquier texto que no sea un número de menú pasa a la IA directamente.
                 if not texto_limpio.isnumeric():
                     sesion["menu_state"] = "chat_libre_ia"; set_sesion(telefono, sesion)
                     resp_ia = embudo_ventas_ia(texto, perfil["nombre"], sesion.get("nombre_saludado", False), telefono)
@@ -737,12 +734,12 @@ def flujo_principal(telefono, texto):
             
         elif estado_actual in ["esperando_humano", "esperando_fecha", "ver_todos_imo", "ver_pendientes_imo"]:
             set_sesion(telefono, sesion)
-            
+
     except Exception as e:
         logger.error(f"Error en flujo principal: {e}", exc_info=True)
 
 # ══════════════════════════════════════════════════════════════════════════
-# 9. PANEL WEB (HTML), ENDPOINTS Y SIMULADOR
+# 9. PANEL WEB (HTML)
 # ══════════════════════════════════════════════════════════════════════════
 HTML_CHAT = """<!DOCTYPE html>
 <html lang="es">
@@ -1322,19 +1319,18 @@ async function enviar(){
   } else { setFootStatus('Sin token WA — guardando en Sheet para reenvío del bot'); }
 
   if(!DEMO){
-    const rn = rowMap[curTel];
-    if(rn){
-      const okG = await escribirCelda(rn, 7, texto);
-      const okH = await escribirCelda(rn, 8, waOk?'ENVIADO':'');
-      setFootStatus(okG ? (waOk?'✓ Enviado y guardado en Sheet':'✓ Guardado en Sheet — el bot lo enviará') : '⚠ Error guardando en Sheet');
+    // 🚀 V66: SIEMPRE REGISTRA COMO FILA NUEVA CON FECHA Y HORA 🚀
+    const ok = await appendFila([fecha(), curTel, c.nombre, '', '', 'RESPUESTA MANUAL', texto, waOk ? 'ENVIADO' : 'ERROR WA']);
+    if(ok){ 
+        setFootStatus('✓ Registrado en Sheets con Fecha y Hora'); 
+        setTimeout(()=>{ sincronizar(); },1000); 
     } else {
-      const ok = await appendFila([fecha(),curTel,c.nombre,'',texto,c.estado,texto,waOk?'ENVIADO':'']);
-      if(ok){ setFootStatus('✓ Nueva fila creada en Sheet'); setTimeout(()=>{ sincronizar(); },1000); }
+        setFootStatus('⚠ Error guardando en Sheet');
     }
   } else { setFootStatus('Modo demo — no se guarda en Sheet'); }
 
   mObj.pending = false;
-  mObj.st = waOk ? 'Enviado' : (DEMO ? 'Demo' : 'En cola (bot lo enviará)');
+  mObj.st = waOk ? 'Enviado' : (DEMO ? 'Demo' : 'En cola');
   actualizarMensajes(); renderLista(); sb.disabled = false;
 }
 
@@ -1397,184 +1393,6 @@ if(savedCreds && savedCfg){
 @app.route("/chat", methods=["GET"])
 def panel_chat(): return HTML_CHAT
 
-@app.route("/api/historial", methods=["GET"])
-def api_historial(): return jsonify(get_historial()), 200
-
-@app.route("/api/descargar_respaldo", methods=["GET"])
-def descargar_respaldo():
-    h = get_historial()
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["Fecha", "Telefono", "Nombre IMO", "Tipo Mensaje", "Texto"])
-    for m in h:
-        tipo_str = "Bot/Panel envió" if m.get("tipo") == "out" else "Contacto respondió"
-        writer.writerow([m.get("hora", ""), m.get("telefono", ""), m.get("nombre", ""), tipo_str, m.get("texto", "")])
-    return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=Respaldo_Chats.csv"})
-
-@app.route("/api/enviar", methods=["POST"])
-def api_enviar():
-    data = request.json; tel = data.get("telefono"); msg = data.get("mensaje")
-    if tel and msg:
-        sesion = get_sesion(tel)
-        perfil = sesion.get("perfil")
-        if not perfil: perfil = obtener_perfil_crm(tel)
-        nombre_mostrar = f"({perfil['rol']}) {perfil['nombre']}" if perfil['nombre'] else "NUEVO CONTACTO"
-        WhatsAppAPI.enviar_mensaje(tel, msg, nombre_mostrar, registrar_sheets=True, mensaje_usuario="[ENVIADO DESDE PANEL PRIVADO]", estado_menu="MANUAL_PANEL")
-        return jsonify({"status": "ok"}), 200
-    return jsonify({"error": "Faltan datos"}), 400
-
-@app.route("/api/mensaje_simulador", methods=["POST"])
-def mensaje_simulador():
-    data = request.json; tel = data.get("telefono"); texto = data.get("texto")
-    if not tel or not texto: return jsonify({"error": "Faltan datos"}), 400
-    flujo_principal(tel, texto)
-    return jsonify({"status": "ok"}), 200
-
-def flujo_principal(telefono, texto):
-    """🚀 Hilo Directo: Elimina la necesidad de colas y asegura que NADIE se quede sin respuesta"""
-    try:
-        sesion = get_sesion(telefono)
-        texto_limpio = str(texto).strip().upper()
-        
-        if texto_limpio in ["0", "MENU", "MENÚ", "INICIO"] or "perfil" not in sesion:
-            perfil = obtener_perfil_crm(telefono)
-            if perfil["rol"] == "PROSPECTO" and len(texto.split()) <= 3 and len(texto) > 2 and not texto_limpio.isnumeric():
-                perfil["nombre"] = nombre_pila(texto)
-            sesion["perfil"] = perfil; set_sesion(telefono, sesion)
-        else:
-            perfil = sesion.get("perfil")
-            
-        nombre_mostrar = f"({perfil['rol']}) {perfil.get('nombre', 'Nuevo')}" if perfil.get('nombre') else "NUEVO CONTACTO"
-        append_historial(telefono, nombre_mostrar, texto, "in")
-
-        if sesion.get("menu_state") == "esperando_encuesta":
-            if texto_limpio in ["1", "2", "3", "4", "5"]:
-                enviar_mensaje(telefono, "¡Gracias por tu calificación! 🌟 Valoramos mucho tu opinión.\n\n_Escribe MENU para reiniciar._", nombre_mostrar, True, texto, "ENCUESTA CSAT")
-                borrar_sesion(telefono)
-            else: enviar_mensaje(telefono, "Por favor califica con un número del 1 al 5.", nombre_mostrar, True, texto, "ERROR CSAT")
-            return
-
-        try:
-            last_time = datetime.strptime(sesion.get("last_interaction", "2000-01-01 00:00:00"), "%Y-%m-%d %H:%M:%S")
-            minutos_inactividad = (datetime.now() - last_time).total_seconds() / 60.0
-        except: minutos_inactividad = 9999
-
-        sesion["last_interaction"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        if texto_limpio == "STOP":
-            marcar_stop(telefono); borrar_sesion(telefono)
-            enviar_mensaje(telefono, "Has sido dado de baja. No recibirás más mensajes.\n\n*Crear Poder Sin Límites*", nombre_mostrar, True, texto, "SE DIO DE BAJA (STOP)")
-            return
-
-        main_key = "main_imo" if perfil["rol"] == "IMO" else "main_mj" if perfil["rol"] == "MJ" else "main_px" if perfil["rol"] == "PX" else "main_prospecto"
-
-        def render_menu(m_key):
-            txt = MENU_STRUCTURE[m_key]["text"]
-            if "{" in txt: txt = txt.format(nombre=perfil.get("nombre", "Participante"), imo=perfil.get("imo_nombre", "tu líder"), pendiente=perfil.get("pendiente", "tu entrenamiento"))
-            return txt
-
-        if minutos_inactividad > 30 or "menu_state" not in sesion or texto_limpio in ["0", "MENU", "MENÚ", "INICIO"]:
-            sesion["menu_state"] = main_key; sesion["menu_history"] = []; sesion["menu_errors"] = 0; set_sesion(telefono, sesion)
-            enviar_mensaje(telefono, render_menu(main_key), nombre_mostrar, True, texto, main_key)
-            return
-
-        if texto_limpio in ["9", "VOLVER", "ATRAS", "ATRÁS"]:
-            hist = sesion.get("menu_history", [])
-            if hist:
-                prev = hist.pop()
-                sesion["menu_state"] = prev; sesion["menu_history"] = hist; set_sesion(telefono, sesion)
-                enviar_mensaje(telefono, render_menu(prev), nombre_mostrar, True, texto, prev)
-            else:
-                sesion["menu_state"] = main_key; set_sesion(telefono, sesion)
-                enviar_mensaje(telefono, render_menu(main_key), nombre_mostrar, True, texto, main_key)
-            return
-
-        estado_actual = sesion.get("menu_state", main_key)
-
-        if estado_actual in MENU_STRUCTURE:
-            siguiente_estado = MENU_STRUCTURE[estado_actual].get("options", {}).get(texto_limpio)
-            if siguiente_estado:
-                sesion["menu_errors"] = 0
-                
-                if siguiente_estado == "px_confirma":
-                    msg_exito = f"¡Extraordinario, {perfil['nombre']}! 🎉\nHemos registrado tu confirmación. Le avisaremos automáticamente a tu líder {perfil['imo_nombre']} para que esté al tanto.\n\n_Escribe 0 para volver al menú._"
-                    enviar_mensaje(telefono, msg_exito, nombre_mostrar, True, texto, "CONFIRMÓ ASISTENCIA")
-                    if perfil["imo_tel"]: threading.Thread(target=actualizar_excel, args=([{"px": perfil["nombre"], "estatus": "CONFIRMADO"}], perfil["imo_tel"]), daemon=True).start()
-                    sesion["menu_state"] = "esperando_fecha"; set_sesion(telefono, sesion)
-                    return
-
-                elif siguiente_estado == "ver_pendientes_imo":
-                    lista = buscar_pendientes_imo_csv(telefono)
-                    if lista: msg = f"📊 *Reporte de tu Equipo (Rezagados)*\n\n" + "\n".join(lista) + "\n\n_Escribe *0* para volver._"
-                    else: msg = "¡Felicidades! 🎉 Todos tus participantes se han sentado o no tienes pendientes en la base.\n\n_Escribe *0* para volver._"
-                    enviar_mensaje(telefono, msg, nombre_mostrar, True, texto, "REPORTE PENDIENTES")
-                    hist = sesion.get("menu_history", []); 
-                    if estado_actual != main_key and (not hist or hist[-1] != estado_actual): hist.append(estado_actual)
-                    sesion["menu_state"] = "ver_pendientes_imo"; sesion["menu_history"] = hist; set_sesion(telefono, sesion)
-                    return
-
-                elif siguiente_estado == "ver_todos_imo":
-                    lista_todos = buscar_todos_imo_csv(telefono)
-                    if lista_todos: msg = f"📊 *Reporte Completo de tu Equipo*\n\n" + "\n".join(lista_todos) + "\n\n_Escribe *0* para volver._"
-                    else: msg = "No encontramos participantes vinculados a tu número.\n\n_Escribe *0* para volver._"
-                    enviar_mensaje(telefono, msg, nombre_mostrar, True, texto, "REPORTE TODOS ENROLADOS")
-                    hist = sesion.get("menu_history", [])
-                    if estado_actual != main_key and (not hist or hist[-1] != estado_actual): hist.append(estado_actual)
-                    sesion["menu_state"] = "ver_todos_imo"; sesion["menu_history"] = hist; set_sesion(telefono, sesion)
-                    return
-
-                elif siguiente_estado == "action_humano":
-                    c_nom = notificar_coordinadora_aleatoria(telefono, perfil["nombre"], f"Necesita asistencia desde: {estado_actual}")
-                    enviar_mensaje(telefono, f"¡Comprendido! He notificado a nuestra coordinadora *{c_nom}*. Ella te escribirá en breve. 🚀\n\n_Escribe *0* para cancelar._", nombre_mostrar, True, texto, "DERIVADO A HUMANO")
-                    sesion["menu_state"] = "esperando_humano"; set_sesion(telefono, sesion)
-                    return
-                    
-                elif siguiente_estado == "action_salir":
-                    sesion["menu_state"] = "esperando_encuesta"; set_sesion(telefono, sesion)
-                    enviar_mensaje(telefono, "Antes de irte, ¿Cómo calificarías tu experiencia de hoy con nuestra *IA Cuántica*?\n\nResponde con un número del *1 al 5*:\n1️⃣ = Mala\n5️⃣ = ¡Excelente!", nombre_mostrar, True, texto, "ENCUESTA SALIDA")
-                    return
-                    
-                elif siguiente_estado == "main": siguiente_estado = main_key
-                    
-                hist = sesion.get("menu_history", [])
-                if estado_actual != main_key and (not hist or hist[-1] != estado_actual): hist.append(estado_actual)
-                sesion["menu_state"] = siguiente_estado; sesion["menu_history"] = hist; set_sesion(telefono, sesion)
-                
-                if siguiente_estado in MENU_STRUCTURE: enviar_mensaje(telefono, render_menu(siguiente_estado), nombre_mostrar, True, texto, siguiente_estado)
-                elif siguiente_estado == "chat_libre_ia": enviar_mensaje(telefono, "Has ingresado a nuestro *Chat Inteligente*. 🧠\nPuedes preguntarme lo que desees.\n\n_Escribe *0* para salir._", nombre_mostrar, True, texto, "INGRESO CHAT IA")
-                elif siguiente_estado == "action_imo": enviar_mensaje(telefono, f"¡Hola líder! 👋\n\nEstás en el *Portal IMO*. Envíame el estatus de tus participantes.\n\n_Escribe *0* para volver._", nombre_mostrar, True, texto, "REPORTE MANUAL IMO")
-            else:
-                if not texto_limpio.isnumeric():
-                    sesion["menu_state"] = "chat_libre_ia"; set_sesion(telefono, sesion)
-                    resp_ia = embudo_ventas_ia(texto, perfil["nombre"], sesion.get("nombre_saludado", False), telefono)
-                    if "potencial ilimitado" in resp_ia: sesion["nombre_saludado"] = True; set_sesion(telefono, sesion)
-                    enviar_mensaje(telefono, resp_ia + "\n\n_(Escribe *0* para volver al menú)_", nombre_mostrar, True, texto, "CHAT_IA_DEEPSEEK")
-                    return
-                
-                errores = sesion.get("menu_errors", 0) + 1
-                sesion["menu_errors"] = errores
-                if errores >= 3:
-                    sesion["menu_errors"] = 0
-                    c_nom = notificar_coordinadora_aleatoria(telefono, perfil["nombre"], "El usuario se atascó en el menú.")
-                    enviar_mensaje(telefono, f"Noto que estamos teniendo problemas. 🤖\nHe notificado a la coordinadora *{c_nom}* para que te asista de manera humana.\n\n_Escribe *0* para menú principal._", nombre_mostrar, True, texto, "ERROR_DERIVADO")
-                    sesion["menu_state"] = "esperando_humano"
-                else:
-                    enviar_mensaje(telefono, f"⚠️ *Opción no válida*. Responde únicamente con el *número*.\n\n{render_menu(estado_actual)}", nombre_mostrar, True, texto, "ERROR_MENU")
-                set_sesion(telefono, sesion)
-
-        elif estado_actual in ["action_imo", "chat_libre_ia"]:
-            if estado_actual == "chat_libre_ia":
-                resp_ia = embudo_ventas_ia(texto, perfil["nombre"], sesion.get("nombre_saludado", False), telefono)
-                enviar_mensaje(telefono, resp_ia, nombre_mostrar, True, texto, "CHAT_IA_DEEPSEEK")
-            else:
-                enviar_mensaje(telefono, f"Mensaje recibido. Procesando...\n\n_Escribe *0* para volver al menú._", nombre_mostrar, True, texto, "ESTATUS RECIBIDO IMO")
-            
-        elif estado_actual in ["esperando_humano", "esperando_fecha", "ver_todos_imo", "ver_pendientes_imo"]:
-            set_sesion(telefono, sesion)
-
-    except Exception as e:
-        logger.error(f"Error en flujo principal: {e}", exc_info=True)
-
 @app.route("/webhook", methods=["GET", "POST"])
 def webhook():
     if request.method == "GET":
@@ -1594,7 +1412,6 @@ def webhook():
         
         if tipo == "text":
             texto = str(msg["text"]["body"]).replace("=", "").replace("+", "").replace("@", "")
-            # 🚀 EJECUCIÓN DIRECTA PARA NO PERDER PROSPECTOS 🚀
             threading.Thread(target=flujo_principal, args=(telefono, texto), daemon=True).start()
             
         elif tipo in ("audio","image","document","video","sticker"):
