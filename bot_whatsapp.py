@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V59 MASTER: Blindaje Anti-Timeouts de DeepSeek (Fallback Rápido 7s)
+✅ Versión V61: Nuevo Panel CRM Avanzado Integrado + IA DeepSeek + Webhook Blindado
 """
 
 import os, re, json, time, csv, io, random, logging, queue, threading
@@ -29,7 +29,7 @@ logger = logging.getLogger("BotCrear")
 app = Flask(__name__)
 
 # ══════════════════════════════════════════════════════════════════════════
-# 1. CONFIGURACIÓN Y CONSTANTES BLINDADAS
+# 1. CONFIGURACIÓN Y CONSTANTES
 # ══════════════════════════════════════════════════════════════════════════
 def get_csv_bd_path():
     if os.path.exists("base_datos.csv"): return "base_datos.csv"
@@ -41,23 +41,21 @@ class Config:
     TOKEN = os.environ.get("WA_TOKEN", "")
     PHONE_ID = os.environ.get("WA_PHONE_ID", "")
     VERIFY_TOKEN = os.environ.get("WA_VERIFY_TOKEN", "cpsl2026")
-    
     EXCEL_PATH = os.environ.get("EXCEL_PATH", "campana_imos_c1_e27.xlsx")
     CSV_BD_PATH = os.environ.get("CSV_BD_PATH", get_csv_bd_path())
     SESSIONS_PATH = os.environ.get("SESSIONS_PATH", "sesiones.json")
     HISTORIAL_PATH = "historial_chat.json"
     DATASET_PATH = "dataset_entrenamiento.csv"
     
-    # 🛡️ LLAVES OCULTAS Y SEGURAS (Se leen desde el Environment de Render)
     GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "")
     DEEPSEEK_KEY = os.environ.get("DEEPSEEK_API_KEY", "") 
-    
     MODO_IA = os.environ.get("MODO_IA", "alternar").lower() 
+    
     SHEET_ID = os.environ.get("SHEET_ID", "")
     CREDS_JSON = os.environ.get("GOOGLE_CREDENTIALS", "")
 
 # ══════════════════════════════════════════════════════════════════════════
-# 2. GESTOR DE ESTADO CONCURRENTE (GUNICORN SAFE)
+# 2. GESTOR DE ESTADO CONCURRENTE
 # ══════════════════════════════════════════════════════════════════════════
 class SessionManager:
     @staticmethod
@@ -102,17 +100,6 @@ class SessionManager:
                 with open(Config.HISTORIAL_PATH, "w", encoding="utf-8") as f: json.dump(h[-10000:], f, ensure_ascii=False, indent=2)
             except: pass
 
-    @staticmethod
-    def guardar_dataset(telefono, mensaje_usuario, respuesta_ia, modelo_usado):
-        with FileLock(Config.DATASET_PATH + ".lock"):
-            try:
-                archivo_existe = os.path.exists(Config.DATASET_PATH)
-                with open(Config.DATASET_PATH, "a", encoding="utf-8-sig", newline="") as f:
-                    writer = csv.writer(f)
-                    if not archivo_existe: writer.writerow(["Fecha", "Telefono", "Mensaje Usuario", "Respuesta IA", "Modelo"])
-                    writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), telefono, mensaje_usuario, respuesta_ia, modelo_usado])
-            except: pass
-
 def get_sesion(tel): return SessionManager.get_sesion(tel)
 def set_sesion(tel, d): SessionManager.set_sesion(tel, d)
 def borrar_sesion(tel): SessionManager.borrar_sesion(tel)
@@ -125,7 +112,7 @@ def get_historial():
     return []
 
 # ══════════════════════════════════════════════════════════════════════════
-# 3. SISTEMA DE COLAS (QUEUE) Y GOOGLE SHEETS
+# 3. SISTEMA DE COLAS (QUEUE) Y GOOGLE SHEETS BLINDADO
 # ══════════════════════════════════════════════════════════════════════════
 cola_mensajes = queue.Queue()
 cola_sheets = queue.Queue()
@@ -157,7 +144,7 @@ class GoogleSheetsAPI:
                 req_lib.post(url, params={"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"}, 
                              json={"values": [[ahora, str(telefono), imo_nombre, mensaje, respuesta_bot, estado, "", ""]]}, 
                              headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=10)
-        except Exception as e: logger.error(f"Error Sheets: {e}")
+        except Exception as e: pass
 
 def worker_sheets():
     while True:
@@ -183,11 +170,11 @@ def registrar_en_sheets_async(tel, nom, msg, resp, est=""):
     cola_sheets.put({'tel': tel, 'nom': nom, 'msg': msg, 'resp': resp, 'est': est})
 
 # ══════════════════════════════════════════════════════════════════════════
-# 4. CONECTORES DE WHATSAPP API
+# 4. CONECTORES DE WHATSAPP API Y LOGGING
 # ══════════════════════════════════════════════════════════════════════════
 class WhatsAppAPI:
     @staticmethod
-    def enviar_mensaje(telefono, texto, nombre_mostrar="", registrar_sheets=False, mensaje_usuario=""):
+    def enviar_mensaje(telefono, texto, nombre_mostrar="", registrar_sheets=True, mensaje_usuario="", estado_menu=""):
         if str(telefono).startswith("SIM_"):
             SessionManager.append_historial(telefono, f"🤖 [BOT SIMULADO]", texto, "out")
             return True
@@ -201,19 +188,19 @@ class WhatsAppAPI:
                 append_historial(telefono, nombre_mostrar, texto, "out")
                 if registrar_sheets:
                     estado_actual = "SISTEMA" if nombre_mostrar == "SISTEMA" else "INTERACTIVO"
-                    registrar_en_sheets_async(telefono, nombre_mostrar, mensaje_usuario or "[Bot]", texto[:500], estado_actual)
+                    registrar_en_sheets_async(telefono, nombre_mostrar, mensaje_usuario or "[Navegación]", texto[:500], estado_menu)
                 return True
         except: pass
         return False
 
-def enviar_mensaje(telefono, texto, nombre_imo="", registrar_sheets=False, msg_user=""):
+def enviar_mensaje(telefono, texto, nombre_imo="", registrar_sheets=True, msg_user="", estado_menu="INTERACTIVO"):
     sesion = get_sesion(telefono)
     if sesion.get("primera_vez", True) and not str(nombre_imo).startswith("COORDINADORA") and nombre_imo != "SISTEMA":
-        aclaracion = "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*. Para atención personalizada, usa el menú para conectar con nuestras coordinadoras:_\n\n" + COORDINADORAS
-        texto += aclaracion if "Coordinadoras C1 y C2" not in texto else "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*._"
+        aclaracion = "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*. Para atención personalizada, usa el menú para conectar con nuestras coordinadoras:_\n\n"
+        texto += aclaracion if "Coordinadoras" not in texto else "\n\n🤖 _Nota: Estás comunicándote con *IA Cuántica*._"
         sesion["primera_vez"] = False
         set_sesion(telefono, sesion)
-    return WhatsAppAPI.enviar_mensaje(telefono, texto, nombre_imo, registrar_sheets, msg_user)
+    return WhatsAppAPI.enviar_mensaje(telefono, texto, nombre_imo, registrar_sheets, msg_user, estado_menu)
 
 # ══════════════════════════════════════════════════════════════════════════
 # 5. UTILIDADES, CSV, CAMBIO DE CUPO Y CRM OMNICANAL
@@ -470,7 +457,7 @@ def marcar_stop(telefono):
         except: pass
 
 # ══════════════════════════════════════════════════════════════════════════
-# 6. ESTRATEGIA DE IA DUAL (DEEPSEEK & GEMINI) CON ALTERNANCIA (ANTI-CAÍDAS)
+# 6. ESTRATEGIA DE IA DUAL (DEEPSEEK & GEMINI) CON ALTERNANCIA
 # ══════════════════════════════════════════════════════════════════════════
 BROCHURE_INFO_MAESTRA = """
 INFORMACIÓN OFICIAL CREAR PODER SIN LÍMITES PERÚ:
@@ -484,7 +471,6 @@ INFORMACIÓN OFICIAL CREAR PODER SIN LÍMITES PERÚ:
 """
 
 def llamar_deepseek(prompt_system, prompt_user):
-    """Llamada blindada a DeepSeek. Timeout rápido (7s) para no atascar el bot si el servidor mundial cae."""
     if not Config.DEEPSEEK_KEY: return None, "deepseek_no_configurado"
     url = "https://api.deepseek.com/chat/completions"
     headers = {"Authorization": f"Bearer {Config.DEEPSEEK_KEY}", "Content-Type": "application/json"}
@@ -600,11 +586,11 @@ def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre, necesidad)
     msg = f"🚨 *NUEVO CONTACTO PARA CREAR* 🚀\n*Nombre:* {prospecto_nombre or 'No especificado'}\n*Teléfono:* wa.me/{prospecto_tel}\n*Necesidad:* {necesidad}"
     sesion_coord = get_sesion(coord_tel)
     sesion_coord["primera_vez"] = False; set_sesion(coord_tel, sesion_coord)
-    enviar_mensaje(coord_tel, msg, f"COORDINADORA: {coord_nombre}")
+    enviar_mensaje(coord_tel, msg, f"COORDINADORA: {coord_nombre}", True, "ALERTA LEAD", "SISTEMA")
     return coord_nombre
 
 # ══════════════════════════════════════════════════════════════════════════
-# 8. PROCESADOR DE ESTADOS (MÁQUINA PRINCIPAL)
+# 8. PROCESADOR DE ESTADOS (MÁQUINA PRINCIPAL) - REGISTRO ABSOLUTO
 # ══════════════════════════════════════════════════════════════════════════
 def procesar_mensaje(telefono, texto):
     sesion = get_sesion(telefono)
@@ -622,10 +608,9 @@ def procesar_mensaje(telefono, texto):
 
     if sesion.get("menu_state") == "esperando_encuesta":
         if texto_limpio in ["1", "2", "3", "4", "5"]:
-            registrar_en_sheets_async(telefono, nombre_mostrar, "Calificación", f"{texto_limpio} Estrellas", "CSAT")
-            enviar_mensaje(telefono, "¡Gracias por tu calificación! 🌟 Valoramos mucho tu opinión.\n\n_Escribe MENU para reiniciar._", nombre_mostrar)
+            enviar_mensaje(telefono, "¡Gracias por tu calificación! 🌟 Valoramos mucho tu opinión para seguir mejorando.\n\n_Escribe MENU para reiniciar._", nombre_mostrar, True, texto, "ENCUESTA CSAT")
             borrar_sesion(telefono)
-        else: enviar_mensaje(telefono, "Por favor califica con un número del 1 al 5.", nombre_mostrar)
+        else: enviar_mensaje(telefono, "Por favor califica con un número del 1 al 5.", nombre_mostrar, True, texto, "ERROR CSAT")
         return
 
     try:
@@ -636,8 +621,8 @@ def procesar_mensaje(telefono, texto):
     sesion["last_interaction"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     if texto_limpio == "STOP":
-        borrar_sesion(telefono)
-        enviar_mensaje(telefono, "Has sido dado de baja. No recibirás más mensajes.\n\n*Crear Poder Sin Límites*", nombre_mostrar)
+        marcar_stop(telefono); borrar_sesion(telefono)
+        enviar_mensaje(telefono, "Has sido dado de baja. No recibirás más mensajes.\n\n*Crear Poder Sin Límites*", nombre_mostrar, True, texto, "SE DIO DE BAJA (STOP)")
         return
 
     def get_main_key(rol):
@@ -655,7 +640,7 @@ def procesar_mensaje(telefono, texto):
 
     if minutos_inactividad > 30 or "menu_state" not in sesion or texto_limpio in ["0", "MENU", "MENÚ", "INICIO"]:
         sesion["menu_state"] = main_key; sesion["menu_history"] = []; sesion["menu_errors"] = 0; set_sesion(telefono, sesion)
-        enviar_mensaje(telefono, render_menu(main_key), nombre_mostrar)
+        enviar_mensaje(telefono, render_menu(main_key), nombre_mostrar, True, texto, main_key)
         return
 
     if texto_limpio in ["9", "VOLVER", "ATRAS", "ATRÁS"]:
@@ -663,10 +648,10 @@ def procesar_mensaje(telefono, texto):
         if hist:
             prev = hist.pop()
             sesion["menu_state"] = prev; sesion["menu_history"] = hist; set_sesion(telefono, sesion)
-            enviar_mensaje(telefono, render_menu(prev), nombre_mostrar)
+            enviar_mensaje(telefono, render_menu(prev), nombre_mostrar, True, texto, prev)
         else:
             sesion["menu_state"] = main_key; set_sesion(telefono, sesion)
-            enviar_mensaje(telefono, render_menu(main_key), nombre_mostrar)
+            enviar_mensaje(telefono, render_menu(main_key), nombre_mostrar, True, texto, main_key)
         return
 
     estado_actual = sesion.get("menu_state", main_key)
@@ -677,8 +662,8 @@ def procesar_mensaje(telefono, texto):
             sesion["menu_errors"] = 0
             
             if siguiente_estado == "px_confirma":
-                msg_exito = f"¡Extraordinario, {perfil['nombre']}! 🎉\nHemos registrado tu confirmación. Le avisaremos a tu líder {perfil['imo_nombre']}.\n\n_Escribe 0 para volver al menú._"
-                enviar_mensaje(telefono, msg_exito, nombre_mostrar)
+                msg_exito = f"¡Extraordinario, {perfil['nombre']}! 🎉\nHemos registrado tu confirmación. Le avisaremos automáticamente a tu líder {perfil['imo_nombre']} para que esté al tanto.\n\n_Escribe 0 para volver al menú._"
+                enviar_mensaje(telefono, msg_exito, nombre_mostrar, True, texto, "CONFIRMÓ ASISTENCIA")
                 if perfil["imo_tel"]: threading.Thread(target=actualizar_excel, args=([{"px": perfil["nombre"], "estatus": "CONFIRMADO"}], perfil["imo_tel"]), daemon=True).start()
                 sesion["menu_state"] = "esperando_fecha"; set_sesion(telefono, sesion)
                 return
@@ -687,7 +672,7 @@ def procesar_mensaje(telefono, texto):
                 lista = buscar_pendientes_imo_csv(telefono)
                 if lista: msg = f"📊 *Reporte de tu Equipo (Rezagados)*\n\n" + "\n".join(lista) + "\n\n_Escribe *0* para volver._"
                 else: msg = "¡Felicidades! 🎉 Todos tus participantes se han sentado o no tienes pendientes en la base.\n\n_Escribe *0* para volver._"
-                enviar_mensaje(telefono, msg, nombre_mostrar)
+                enviar_mensaje(telefono, msg, nombre_mostrar, True, texto, "REPORTE PENDIENTES")
                 hist = sesion.get("menu_history", []); 
                 if estado_actual != main_key and (not hist or hist[-1] != estado_actual): hist.append(estado_actual)
                 sesion["menu_state"] = "ver_pendientes_imo"; sesion["menu_history"] = hist; set_sesion(telefono, sesion)
@@ -697,7 +682,7 @@ def procesar_mensaje(telefono, texto):
                 lista_todos = buscar_todos_imo_csv(telefono)
                 if lista_todos: msg = f"📊 *Reporte Completo de tu Equipo*\n\n" + "\n".join(lista_todos) + "\n\n_Escribe *0* para volver._"
                 else: msg = "No encontramos participantes vinculados a tu número.\n\n_Escribe *0* para volver._"
-                enviar_mensaje(telefono, msg, nombre_mostrar)
+                enviar_mensaje(telefono, msg, nombre_mostrar, True, texto, "REPORTE TODOS ENROLADOS")
                 hist = sesion.get("menu_history", [])
                 if estado_actual != main_key and (not hist or hist[-1] != estado_actual): hist.append(estado_actual)
                 sesion["menu_state"] = "ver_todos_imo"; sesion["menu_history"] = hist; set_sesion(telefono, sesion)
@@ -705,13 +690,13 @@ def procesar_mensaje(telefono, texto):
 
             elif siguiente_estado == "action_humano":
                 c_nom = notificar_coordinadora_aleatoria(telefono, perfil["nombre"], f"Necesita asistencia desde: {estado_actual}")
-                enviar_mensaje(telefono, f"¡Comprendido! He notificado a nuestra coordinadora *{c_nom}*. Ella te escribirá en breve. 🚀\n\n_Escribe *0* para cancelar._", nombre_mostrar)
+                enviar_mensaje(telefono, f"¡Comprendido! He notificado a nuestra coordinadora *{c_nom}*. Ella te escribirá en breve. 🚀\n\n_Escribe *0* para cancelar._", nombre_mostrar, True, texto, "DERIVADO A HUMANO")
                 sesion["menu_state"] = "esperando_humano"; set_sesion(telefono, sesion)
                 return
                 
             elif siguiente_estado == "action_salir":
                 sesion["menu_state"] = "esperando_encuesta"; set_sesion(telefono, sesion)
-                enviar_mensaje(telefono, "Antes de irte, ¿Cómo calificarías tu experiencia de hoy con nuestra *IA Cuántica*?\n\nResponde con un número del *1 al 5*:\n1️⃣ = Mala\n5️⃣ = ¡Excelente!", nombre_mostrar)
+                enviar_mensaje(telefono, "Antes de irte, ¿Cómo calificarías tu experiencia de hoy con nuestra *IA Cuántica*?\n\nResponde con un número del *1 al 5*:\n1️⃣ = Mala\n5️⃣ = ¡Excelente!", nombre_mostrar, True, texto, "ENCUESTA SALIDA")
                 return
                 
             elif siguiente_estado == "main": siguiente_estado = main_key
@@ -720,280 +705,740 @@ def procesar_mensaje(telefono, texto):
             if estado_actual != main_key and (not hist or hist[-1] != estado_actual): hist.append(estado_actual)
             sesion["menu_state"] = siguiente_estado; sesion["menu_history"] = hist; set_sesion(telefono, sesion)
             
-            if siguiente_estado in MENU_STRUCTURE: enviar_mensaje(telefono, render_menu(siguiente_estado), nombre_mostrar)
-            elif siguiente_estado == "chat_libre_ia": enviar_mensaje(telefono, "Has ingresado a nuestro *Chat Inteligente*. 🧠\nPuedes preguntarme lo que desees.\n\n_Escribe *0* para salir._", nombre_mostrar)
-            elif siguiente_estado == "action_imo": enviar_mensaje(telefono, f"¡Hola líder! 👋\n\nEstás en el *Portal IMO*. Envíame el estatus de tus participantes.\n\n_Escribe *0* para volver._", nombre_mostrar)
+            if siguiente_estado in MENU_STRUCTURE: enviar_mensaje(telefono, render_menu(siguiente_estado), nombre_mostrar, True, texto, siguiente_estado)
+            elif siguiente_estado == "chat_libre_ia": enviar_mensaje(telefono, "Has ingresado a nuestro *Chat Inteligente*. 🧠\nPuedes preguntarme lo que desees.\n\n_Escribe *0* para salir._", nombre_mostrar, True, texto, "INGRESO CHAT IA")
+            elif siguiente_estado == "action_imo": enviar_mensaje(telefono, f"¡Hola líder! 👋\n\nEstás en el *Portal IMO*. Envíame el estatus de tus participantes.\n\n_Escribe *0* para volver._", nombre_mostrar, True, texto, "REPORTE MANUAL IMO")
         else:
             if not texto_limpio.isnumeric() and len(texto.split()) > 1:
                 sesion["menu_state"] = "chat_libre_ia"; set_sesion(telefono, sesion)
                 resp_ia = embudo_ventas_ia(texto, perfil["nombre"], sesion.get("nombre_saludado", False), telefono)
                 if "potencial ilimitado" in resp_ia: sesion["nombre_saludado"] = True; set_sesion(telefono, sesion)
-                enviar_mensaje(telefono, resp_ia + "\n\n_(Escribe *0* para volver al menú)_", nombre_mostrar)
+                enviar_mensaje(telefono, resp_ia + "\n\n_(Escribe *0* para volver al menú)_", nombre_mostrar, True, texto, "CHAT_IA_DEEPSEEK")
                 return
             errores = sesion.get("menu_errors", 0) + 1
             sesion["menu_errors"] = errores
             if errores >= 3:
                 sesion["menu_errors"] = 0
                 c_nom = notificar_coordinadora_aleatoria(telefono, perfil["nombre"], "El usuario se atascó en el menú.")
-                enviar_mensaje(telefono, f"Noto que estamos teniendo problemas. 🤖\nHe notificado a la coordinadora *{c_nom}* para que te asista de manera humana.\n\n_Escribe *0* para menú principal._", nombre_mostrar)
+                enviar_mensaje(telefono, f"Noto que estamos teniendo problemas. 🤖\nHe notificado a la coordinadora *{c_nom}* para que te asista de manera humana.\n\n_Escribe *0* para menú principal._", nombre_mostrar, True, texto, "ERROR_DERIVADO")
                 sesion["menu_state"] = "esperando_humano"
             else:
-                enviar_mensaje(telefono, f"⚠️ *Opción no válida*. Responde únicamente con el *número*.\n\n{render_menu(estado_actual)}", nombre_mostrar)
+                enviar_mensaje(telefono, f"⚠️ *Opción no válida*. Responde únicamente con el *número*.\n\n{render_menu(estado_actual)}", nombre_mostrar, True, texto, "ERROR_MENU")
             set_sesion(telefono, sesion)
 
     elif estado_actual in ["action_imo", "chat_libre_ia"]:
         if estado_actual == "chat_libre_ia":
             resp_ia = embudo_ventas_ia(texto, perfil["nombre"], sesion.get("nombre_saludado", False), telefono)
-            enviar_mensaje(telefono, resp_ia, nombre_mostrar)
+            enviar_mensaje(telefono, resp_ia, nombre_mostrar, True, texto, "CHAT_IA_DEEPSEEK")
         else:
-            enviar_mensaje(telefono, f"Mensaje recibido. Procesando...\n\n_Escribe *0* para volver al menú._", nombre_mostrar)
+            enviar_mensaje(telefono, f"Mensaje recibido. Procesando...\n\n_Escribe *0* para volver al menú._", nombre_mostrar, True, texto, "ESTATUS RECIBIDO IMO")
         
     elif estado_actual in ["esperando_humano", "esperando_fecha", "ver_todos_imo", "ver_pendientes_imo"]:
         set_sesion(telefono, sesion)
 
 # ══════════════════════════════════════════════════════════════════════════
-# 9. PANEL WEB Y SIMULADOR
+# 9. PANEL WEB (HTML), ENDPOINTS Y SIMULADOR (NUEVA INTERFAZ DESACOPLADA)
 # ══════════════════════════════════════════════════════════════════════════
-HTML_CHAT = """
-<!DOCTYPE html>
+HTML_CHAT = r"""<!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel WhatsApp - Creación Cuántica</title>
-    <style>
-        :root { --primary: #008069; --bg-body: #d1d7db; --bg-chat: #efeae2; --chat-bubble-out: #d9fdd3; --text-dark: #111b21; --text-muted: #667781; --border: #e9edef; --panel-bg: #ffffff; }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; }
-        body { background-color: var(--bg-body); color: var(--text-dark); height: 100vh; display: flex; justify-content: center; align-items: center; overflow: hidden; }
-        .app-container { display: flex; width: 100%; max-width: 1400px; height: 95vh; background: var(--panel-bg); box-shadow: 0 6px 18px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; }
-        .sidebar { width: 30%; min-width: 320px; border-right: 1px solid var(--border); display: flex; flex-direction: column; background: #ffffff; }
-        .sidebar-header { background: #f0f2f5; padding: 15px 20px; font-weight: 600; font-size: 18px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
-        .header-top { display: flex; justify-content: space-between; align-items: center; width: 100%; }
-        .header-actions { font-size:12px; font-weight:normal; display:flex; align-items:center; gap:8px; }
-        .search-box { width: 100%; padding: 8px 12px; border-radius: 5px; border: 1px solid #ccc; outline: none; font-size: 14px; }
-        .contacts-list { flex: 1; overflow-y: auto; }
-        .contact-item { padding: 15px 20px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s; display: flex; align-items: center; }
-        .contact-item:hover, .contact-item.active { background: #f0f2f5; }
-        .avatar { width: 45px; height: 45px; background: #dfe5e7; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 15px; font-size: 20px; flex-shrink: 0;}
-        .contact-info { flex: 1; min-width: 0; }
-        .contact-info h4 { margin-bottom: 4px; font-weight: 500; font-size:15px; color: #111b21;}
-        .contact-info p { font-size: 13px; color: var(--text-muted); text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
-        .chat-area { flex: 1; display: flex; flex-direction: column; background: var(--bg-chat); position: relative; }
-        .chat-header { background: #f0f2f5; padding: 15px 25px; font-weight: 500; border-bottom: 1px solid var(--border); z-index: 1; display: flex; align-items: center; }
-        .messages-container { flex: 1; padding: 30px; overflow-y: auto; z-index: 1; display: flex; flex-direction: column; scroll-behavior: smooth; }
-        .message { max-width: 65%; padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; position: relative; font-size: 14.5px; line-height: 1.4; box-shadow: 0 1px 1px rgba(0,0,0,0.1); word-wrap: break-word; }
-        .message.sent { align-self: flex-end; background: var(--chat-bubble-out); border-top-right-radius: 0; }
-        .message.received { align-self: flex-start; background: #ffffff; border-top-left-radius: 0; }
-        .message .time { font-size: 11px; color: var(--text-muted); float: right; margin-top: 5px; margin-left: 15px; }
-        .chat-input-area { background: #f0f2f5; padding: 15px 25px; display: flex; align-items: center; z-index: 1; gap: 15px; }
-        .chat-input-area textarea { flex: 1; border: none; padding: 12px 15px; border-radius: 8px; resize: none; outline: none; font-size: 15px; }
-        .send-btn { background: var(--primary); color: white; border: none; width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; flex-shrink:0; }
-        .hidden { display: none !important; }
-        .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; z-index: 1; color: var(--text-muted); text-align: center; padding: 20px;}
-        .download-btn { background: #00a884; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; transition: 0.2s; text-decoration: none;}
-        .sim-btn { background: #1a73e8; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; transition: 0.2s; }
-        .sim-banner { background: #ffe0b2; color: #174ea6; padding: 10px; text-align: center; font-size: 13px; font-weight: bold; border-bottom: 1px solid #f2c779;}
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPSL — Centro de Comunicaciones C1 E27</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f4f0;color:#1a1a18;height:100vh;overflow:hidden}
+
+/* ── MODAL CONFIG ─────────────────────────────── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:900}
+.modal{background:#fff;border-radius:12px;padding:28px 32px;width:500px;max-height:90vh;overflow-y:auto}
+.modal h2{font-size:16px;font-weight:600;margin-bottom:4px}
+.modal .sub{font-size:12px;color:#888780;margin-bottom:20px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;font-weight:600;color:#5f5e5a;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.field input,.field textarea{width:100%;padding:8px 10px;font-size:13px;border:.5px solid #b4b2a9;border-radius:8px;background:#fafaf8;color:#1a1a18;outline:none;font-family:'SF Mono',monospace}
+.field textarea{resize:vertical;min-height:80px;font-size:11px}
+.field input:focus,.field textarea:focus{border-color:#1D9E75;background:#fff}
+.field .hint{font-size:11px;color:#888780;margin-top:3px}
+.btn-primary{width:100%;padding:10px;background:#1D9E75;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;margin-top:6px}
+.btn-primary:hover{background:#0F6E56}
+.modal-note{text-align:center;margin-top:10px;font-size:11px;color:#888780}
+.btn-link{background:none;border:none;color:#1D9E75;font-size:11px;cursor:pointer;text-decoration:underline;padding:0}
+
+/* ── APP ──────────────────────────────────────── */
+.app{display:grid;grid-template-columns:300px 1fr;height:100vh}
+
+/* ── SIDEBAR ──────────────────────────────────── */
+.sidebar{border-right:.5px solid #d3d1c7;display:flex;flex-direction:column;background:#f5f4f0;min-width:0}
+.sb-header{padding:12px 14px 10px;border-bottom:.5px solid #d3d1c7}
+.sb-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.sb-title{font-size:13px;font-weight:600}
+.sync-row{display:flex;align-items:center;gap:4px}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:#d3d1c7;transition:background .3s;flex-shrink:0}
+.sync-dot.ok{background:#1D9E75}
+.sync-dot.busy{background:#BA7517;animation:blink 1s infinite}
+.sync-dot.err{background:#A32D2D}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.sync-text{font-size:10px;color:#888780}
+.btn-cfg{font-size:10px;padding:2px 6px;border:.5px solid #d3d1c7;border-radius:6px;background:transparent;color:#888780;cursor:pointer;margin-left:2px}
+.btn-cfg:hover{background:#fff}
+.search{width:100%;padding:7px 10px;font-size:13px;border:.5px solid #b4b2a9;border-radius:8px;background:#fff;color:#1a1a18;outline:none}
+.search:focus{border-color:#1D9E75}
+.tabs{display:flex;gap:4px;padding:8px 14px;border-bottom:.5px solid #d3d1c7;flex-wrap:wrap}
+.tab{font-size:11px;padding:3px 8px;border-radius:20px;border:.5px solid #d3d1c7;background:transparent;color:#888780;cursor:pointer;white-space:nowrap}
+.tab.on{background:#fff;color:#1a1a18;border-color:#888780;font-weight:600}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:.5px solid #d3d1c7}
+.stat{text-align:center;padding:7px 2px;border-right:.5px solid #d3d1c7}
+.stat:last-child{border-right:none}
+.stat-n{font-size:15px;font-weight:600}
+.stat-l{font-size:10px;color:#888780}
+.list{overflow-y:auto;flex:1}
+.item{padding:10px 14px;border-bottom:.5px solid #d3d1c7;cursor:pointer;transition:background .1s}
+.item:hover{background:#fff}
+.item.on{background:#fff;border-left:2px solid #1D9E75}
+.item-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px}
+.item-name{font-size:13px;font-weight:600;color:#1a1a18;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px}
+.item-time{font-size:10px;color:#888780;flex-shrink:0}
+.item-prev{font-size:12px;color:#5f5e5a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px}
+.item-bot{display:flex;align-items:center;justify-content:space-between;margin-top:3px}
+.dot-unread{width:7px;height:7px;border-radius:50%;background:#1D9E75;flex-shrink:0}
+.new-btn{margin:10px 14px;padding:8px;width:calc(100% - 28px);background:transparent;border:.5px dashed #b4b2a9;border-radius:8px;font-size:12px;color:#888780;cursor:pointer;text-align:center}
+.new-btn:hover{background:#fff;color:#1a1a18;border-color:#888780}
+
+/* ── BADGES ───────────────────────────────────── */
+.badge{display:inline-block;font-size:10px;padding:2px 6px;border-radius:10px;font-weight:600}
+.b-pendiente{background:#FAEEDA;color:#854F0B}
+.b-confirma{background:#EAF3DE;color:#3B6D11}
+.b-noasiste,.b-no-asiste{background:#FCEBEB;color:#A32D2D}
+.b-stop{background:#F1EFE8;color:#5F5E5A}
+.b-cambio{background:#E6F1FB;color:#185FA5}
+.b-externo{background:#EEEDFE;color:#534AB7}
+
+/* ── CHAT ─────────────────────────────────────── */
+.chat{display:flex;flex-direction:column;height:100vh;background:#fff}
+.ch-header{padding:12px 18px;border-bottom:.5px solid #d3d1c7;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.ch-left{display:flex;align-items:center;gap:10px}
+.avatar{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0}
+.av-imo{background:#E1F5EE;color:#0F6E56}
+.av-ext{background:#EEEDFE;color:#534AB7}
+.ch-name{font-size:14px;font-weight:600;color:#1a1a18}
+.ch-sub{font-size:11px;color:#888780;margin-top:1px}
+.ch-actions{display:flex;gap:4px;flex-wrap:wrap}
+.btn-s{font-size:11px;padding:4px 8px;border-radius:7px;border:.5px solid #b4b2a9;background:transparent;color:#5f5e5a;cursor:pointer;white-space:nowrap}
+.btn-s:hover{background:#f5f4f0}
+.messages{flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:8px;background:#fafaf8}
+.msg{display:flex;flex-direction:column;max-width:76%}
+.msg.in{align-self:flex-start}
+.msg.out{align-self:flex-end}
+.msg-who{font-size:10px;color:#888780;margin-bottom:2px}
+.msg.out .msg-who{text-align:right}
+.bubble{padding:8px 12px;border-radius:12px;font-size:13px;line-height:1.5;word-break:break-word}
+.msg.in .bubble{background:#fff;color:#1a1a18;border:.5px solid #d3d1c7;border-radius:3px 12px 12px 12px}
+.msg.out .bubble{background:#1D9E75;color:#fff;border-radius:12px 3px 12px 12px}
+.msg.out.pending .bubble{background:#5DCAA5}
+.msg-st{font-size:10px;color:#888780;margin-top:2px;text-align:right}
+.date-sep{text-align:center;font-size:10px;color:#b4b2a9;padding:2px 0;flex-shrink:0}
+.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#888780;gap:8px;font-size:13px}
+
+/* ── FOOTER ───────────────────────────────────── */
+.footer{border-top:.5px solid #d3d1c7;padding:9px 14px 11px;background:#fff;flex-shrink:0}
+.px-row{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:7px;align-items:center}
+.px-lbl{font-size:10px;color:#888780}
+.px-chip{font-size:11px;padding:2px 8px;border-radius:20px;border:.5px solid #b4b2a9;color:#5f5e5a;cursor:pointer;background:transparent}
+.px-chip:hover{background:#f5f4f0}
+.px-chip.on{background:#E1F5EE;color:#0F6E56;border-color:#5DCAA5}
+.qr-row{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:7px}
+.qr{font-size:11px;padding:3px 8px;border-radius:20px;border:.5px solid #b4b2a9;background:transparent;color:#5f5e5a;cursor:pointer;white-space:nowrap}
+.qr:hover{background:#f5f4f0;color:#1a1a18}
+.input-row{display:flex;gap:7px;align-items:flex-end}
+.tinput{flex:1;padding:8px 11px;font-size:13px;border:.5px solid #b4b2a9;border-radius:8px;background:#f5f4f0;color:#1a1a18;resize:none;outline:none;min-height:36px;max-height:110px;font-family:inherit;line-height:1.4}
+.tinput:focus{border-color:#1D9E75;background:#fff}
+.send{padding:8px 16px;background:#1D9E75;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0}
+.send:hover{background:#0F6E56}
+.send:disabled{background:#9FE1CB;cursor:not-allowed}
+.foot-meta{display:flex;justify-content:space-between;margin-top:3px}
+.foot-meta span{font-size:10px;color:#888780}
+</style>
 </head>
 <body>
-    <div class="app-container">
-        <div class="sidebar">
-            <div class="sidebar-header">
-                <div class="header-top">
-                    <div>💬 Panel V59 (Anti-Caídas)</div>
-                    <div class="header-actions">
-                        <button class="sim-btn" onclick="iniciarSimulador()">🧪 Simular</button>
-                        <a href="/api/descargar_respaldo" class="download-btn">📥 Backup</a>
-                    </div>
-                </div>
-                <input type="text" id="searchBox" class="search-box" placeholder="🔍 Buscar nombre, número o mensaje..." onkeyup="filtrarChats()">
-            </div>
-            <div class="contacts-list" id="contactsList"></div>
-        </div>
-        <div class="chat-area" id="chatArea">
-            <div class="empty-state" id="emptyState">
-                <div style="font-size: 50px; margin-bottom: 20px;">🚀</div>
-                <h2 style="color: #41525d; font-weight: 300;">Creación Cuántica Web</h2>
-                <p style="margin-top: 10px; font-size:14px;">Selecciona un chat o inicia el Simulador.</p>
-            </div>
-            <div class="sim-banner hidden" id="simBanner">⚠️ MODO SIMULADOR: Estás escribiendo como si fueras el cliente. Nada se enviará a WhatsApp.</div>
-            <div class="chat-header hidden" id="chatHeader">
-                <div class="avatar">👤</div>
-                <h3 id="chatHeaderName" style="color: #111b21;"></h3>
-            </div>
-            <div class="messages-container hidden" id="messagesContainer"></div>
-            <div class="chat-input-area hidden" id="chatInputArea">
-                <textarea id="messageInput" rows="1" placeholder="Escribe tu respuesta aquí..."></textarea>
-                <button class="send-btn" onclick="sendMessage()">Enviar</button>
-            </div>
-        </div>
+
+<div class="overlay" id="ovl-cfg">
+  <div class="modal">
+    <h2>Configurar conexión</h2>
+    <p class="sub">Los datos se guardan solo en tu navegador. No salen de tu PC.</p>
+
+    <div class="field">
+      <label>Sheet ID</label>
+      <input id="c-sid" placeholder="1NqEgzCkixVhMn3VLhsy_GVWwYBfwLQ1rwdHVcKTRyjo">
+      <div class="hint">ID largo en la URL del Google Sheet</div>
     </div>
-    <script>
-        let chatHistory = {}; let activeContact = null;
-        async function cargarDatos() {
-            try {
-                let res = await fetch('/api/historial'); let data = await res.json();
-                let newHistory = {};
-                for(let m of data) {
-                    if (!newHistory[m.telefono]) newHistory[m.telefono] = { nombre: "", messages: [] };
-                    if (m.nombre) newHistory[m.telefono].nombre = m.nombre;
-                    newHistory[m.telefono].messages.push({ text: m.texto, time: m.hora, sent: m.tipo === 'out' });
-                }
-                chatHistory = newHistory; renderContacts(); if (activeContact) renderMessages();
-            } catch (e) { }
-        }
-        
-        function filtrarChats() {
-            const query = document.getElementById("searchBox").value.toLowerCase();
-            const items = document.querySelectorAll(".contact-item");
-            items.forEach(item => {
-                const searchData = item.getAttribute("data-search") || "";
-                item.style.display = searchData.includes(query) ? "flex" : "none";
-            });
-        }
+    <div class="field">
+      <label>Nombre de la pestaña</label>
+      <input id="c-sname" value="Hoja 1">
+    </div>
+    <div class="field">
+      <label>Credenciales Google — JSON completo</label>
+      <textarea id="c-creds" placeholder='{"type":"service_account","project_id":"bot-cpsl","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n","client_email":"bot-cpsl-sheets@..."}'></textarea>
+      <div class="hint">Contenido completo de bot-cpsl-7b9f0a22b054.json</div>
+    </div>
+    <div class="field">
+      <label>WA Token</label>
+      <input id="c-watok" type="password" placeholder="EAAxxxxxxx (de Graph Explorer)">
+      <div class="hint">Si no hay token, los mensajes se guardan en el Sheet para que el bot los envíe</div>
+    </div>
+    <div class="field">
+      <label>WA Phone Number ID</label>
+      <input id="c-wapid" placeholder="1085205258006361">
+    </div>
 
-        function iniciarSimulador() {
-            let num = prompt("Ingresa el número a simular:\\nEj: 999888777");
-            if (!num) return;
-            num = num.replace(/\\D/g, '');
-            let simTel = "SIM_" + num;
-            activeContact = simTel;
-            
-            fetch('/api/mensaje_simulador', { 
-                method: 'POST', headers: {'Content-Type': 'application/json'}, 
-                body: JSON.stringify({telefono: simTel, texto: "MENU"}) 
-            }).then(() => cargarDatos());
-        }
+    <button class="btn-primary" onclick="guardarCfg()">Conectar y abrir app</button>
+    <p class="modal-note">
+      <button class="btn-link" onclick="usarDemoMode()">Continuar en modo demo (sin conexión real)</button>
+    </p>
+  </div>
+</div>
 
-        function renderContacts() {
-            const list = document.getElementById('contactsList'); list.innerHTML = '';
-            const phones = Object.keys(chatHistory).reverse();
-            if(phones.length === 0) return;
-            phones.forEach(phone => {
-                const contactData = chatHistory[phone]; 
-                const lastMessage = contactData.messages[contactData.messages.length - 1].text;
-                const displayName = contactData.nombre ? contactData.nombre : `+${phone}`;
-                
-                const allMessages = contactData.messages.map(m => m.text.toLowerCase()).join(" ");
-                const searchStr = `${displayName.toLowerCase()} ${phone} ${allMessages}`.replace(/"/g, '');
+<div class="overlay" id="ovl-new" style="display:none">
+  <div class="modal" style="width:380px;padding:22px 26px">
+    <h2 style="margin-bottom:14px">Nueva conversación</h2>
+    <div class="field">
+      <label>Nombre</label>
+      <input id="n-nombre" placeholder="Nombre completo">
+    </div>
+    <div class="field">
+      <label>Teléfono (con código de país)</label>
+      <input id="n-tel" type="tel" placeholder="51987654321">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button style="flex:1;padding:9px;border:.5px solid #b4b2a9;border-radius:8px;background:transparent;font-size:13px;color:#5f5e5a;cursor:pointer" onclick="cerrarNuevo()">Cancelar</button>
+      <button style="flex:1;padding:9px;background:#1D9E75;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer" onclick="crearNuevo()">Iniciar</button>
+    </div>
+  </div>
+</div>
 
-                const div = document.createElement('div');
-                div.className = `contact-item ${activeContact === phone ? 'active' : ''}`;
-                div.onclick = () => openChat(phone, displayName);
-                div.setAttribute("data-search", searchStr);
-                
-                let icon = phone.startsWith("SIM_") ? "🧪" : "👤";
-                div.innerHTML = `<div class="avatar">${icon}</div><div class="contact-info"><h4>${displayName}</h4><p>${lastMessage}</p></div>`;
-                list.appendChild(div);
-            });
-            filtrarChats(); 
-        }
+<div class="app" id="app" style="display:none">
+  <div class="sidebar">
+    <div class="sb-header">
+      <div class="sb-top">
+        <span class="sb-title">Comunicaciones C1 E27</span>
+        <div class="sync-row">
+          <div class="sync-dot" id="sdot"></div>
+          <span class="sync-text" id="stxt">—</span>
+          <button class="btn-cfg" onclick="abrirCfg()">⚙</button>
+        </div>
+      </div>
+      <input class="search" type="text" id="search" placeholder="Buscar nombre o teléfono…" oninput="renderLista()">
+    </div>
 
-        function openChat(phone, displayName) {
-            activeContact = phone;
-            document.getElementById('emptyState').classList.add('hidden'); 
-            document.getElementById('chatHeader').classList.remove('hidden');
-            document.getElementById('messagesContainer').classList.remove('hidden'); 
-            document.getElementById('chatInputArea').classList.remove('hidden');
-            document.getElementById('chatHeaderName').innerHTML = `${displayName} <span style="font-size:12px; color:#888; margin-left:10px;">(+${phone})</span>`;
-            
-            if (phone.startsWith("SIM_")) document.getElementById('simBanner').classList.remove('hidden');
-            else document.getElementById('simBanner').classList.add('hidden');
-            
-            renderContacts(); renderMessages();
-        }
+    <div class="tabs">
+      <button class="tab on" data-tab="todos" onclick="setTab(this)">Todos</button>
+      <button class="tab" data-tab="pendiente" onclick="setTab(this)">Pendiente</button>
+      <button class="tab" data-tab="confirma" onclick="setTab(this)">Confirma</button>
+      <button class="tab" data-tab="no asiste" onclick="setTab(this)">No asiste</button>
+      <button class="tab" data-tab="externo" onclick="setTab(this)">Externos</button>
+    </div>
 
-        function renderMessages() {
-            const container = document.getElementById('messagesContainer'); container.innerHTML = '';
-            if (!activeContact || !chatHistory[activeContact]) return;
-            
-            const isSim = activeContact.startsWith("SIM_");
-            chatHistory[activeContact].messages.forEach(msg => {
-                const div = document.createElement('div'); 
-                let isSentByMe = isSim ? !msg.sent : msg.sent;
-                div.className = `message ${isSentByMe ? 'sent' : 'received'}`;
-                div.innerHTML = `${msg.text.replace(/\\n/g, '<br>')}<span class="time">${msg.time}</span>`;
-                container.appendChild(div);
-            });
-            container.scrollTop = container.scrollHeight;
-        }
+    <div class="stats">
+      <div class="stat"><div class="stat-n" id="st0">0</div><div class="stat-l">Total</div></div>
+      <div class="stat"><div class="stat-n" id="st1" style="color:#1D9E75">0</div><div class="stat-l">Confirman</div></div>
+      <div class="stat"><div class="stat-n" id="st2" style="color:#BA7517">0</div><div class="stat-l">Pendiente</div></div>
+      <div class="stat"><div class="stat-n" id="st3" style="color:#A32D2D">0</div><div class="stat-l">No asiste</div></div>
+    </div>
 
-        async function sendMessage() {
-            const textarea = document.getElementById('messageInput'); const mensaje = textarea.value.trim(); const destino = activeContact;
-            if (!mensaje || !destino) return;
-            textarea.value = '';
-            
-            const isSim = destino.startsWith("SIM_");
-            chatHistory[destino].messages.push({ text: mensaje, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}), sent: !isSim });
-            renderMessages(); renderContacts();
-            
-            try {
-                if (isSim) await fetch('/api/mensaje_simulador', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ telefono: destino, texto: mensaje }) });
-                else await fetch('/api/enviar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ telefono: destino, mensaje: mensaje }) });
-                cargarDatos();
-            } catch (error) { alert("Error de conexión"); }
-        }
-        setInterval(cargarDatos, 3000); cargarDatos();
-    </script>
+    <div class="list" id="list"></div>
+    <button class="new-btn" onclick="abrirNuevo()">+ Nueva conversación</button>
+  </div>
+
+  <div class="chat" id="chat">
+    <div class="empty">
+      <div style="width:44px;height:44px;border-radius:50%;background:#E1F5EE;display:flex;align-items:center;justify-content:center;font-size:20px">💬</div>
+      <span>Selecciona una conversación</span>
+      <span style="font-size:11px;color:#b4b2a9">Sync automático cada 30 s</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// CONSTANTES
+// ══════════════════════════════════════════════════════════
+const CFG_KEY  = 'cpsl_cfg_v2';
+const DEMO_KEY = 'cpsl_demo_v2';
+
+const QR = [
+  {l:'Info C1 E27', t:'Hola, aqui tienes la informacion del Capitulo 1 — Equipo 27:\\n\\nHotel Jose Antonio Deluxe\\nCalle Bellavista 133, Miraflores, Lima\\n\\nViernes 1 mayo: registro 9:00am, inicio 10:00am\\nSabado 2 mayo: ingreso 9:00am, inicio 10:00am\\nDomingo 3 mayo: inicio 9:00am, cierre 9:00pm\\n\\nRopa comoda, botella de agua.\\n\\nCoordinadoras C1/C2:\\nDiana Moscoso: +51 912 379 744\\nJoyce Marin: +51 933 599 903\\nLeyla Pasquel: +51 919 502 385\\nZuley Urteaga: +51 933 599 864\\n\\nComunicaciones Crear Poder Sin Limites Peru'},
+  {l:'Confirmar asistencia', t:'Hola, gracias por informarnos. Confirmacion registrada.\\n\\nLos esperamos en el Hotel Jose Antonio Deluxe, Calle Bellavista 133, Miraflores. Mesa de registro a las 9:00am.\\n\\nComunicaciones Crear Poder Sin Limites Peru'},
+  {l:'No asiste — siguiente', t:'Hola, recibido. La inscripcion sigue activa para el siguiente equipo inmediato.\\n\\nComunicaciones Crear Poder Sin Limites Peru'},
+  {l:'Cambio de nombre', t:'Hola, los cambios de nombre se gestionan con tu coordinadora antes del miercoles previo hasta las 6:00pm.\\n\\nDiana Moscoso: +51 912 379 744\\nJoyce Marin: +51 933 599 903\\n\\nComunicaciones Crear Poder Sin Limites Peru'},
+  {l:'Pedir estatus', t:'Hola, queremos actualizar el registro de tus participantes para el C1 E27 (1, 2 y 3 de mayo).\\n\\nIndicanos el estatus: Confirma / Siguiente equipo / No quiere / No contesta / Pendiente\\n\\nComunicaciones Crear Poder Sin Limites Peru'},
+  {l:'Devolucion', t:'Hola, en Crear Poder Sin Limites no realizamos devoluciones una vez efectuado el pago. El espacio esta reservado desde el momento del compromiso.\\n\\nLa inversion queda activa para el siguiente equipo inmediato.\\n\\nComunicaciones Crear Poder Sin Limites Peru'},
+  {l:'No es de campaña', t:'Hola, te contactamos de Crear Poder Sin Limites Peru.\\n\\nEste canal esta destinado al seguimiento del Capitulo 1 — Equipo 27.\\n\\nSi deseas informacion sobre nuestros entrenamientos de transformacion personal, comunicate con nuestras coordinadoras:\\n\\nDiana Moscoso: +51 912 379 744\\nJoyce Marin: +51 933 599 903\\n\\nComunicaciones Crear Poder Sin Limites Peru'},
+];
+
+// ══════════════════════════════════════════════════════════
+// ESTADO GLOBAL
+// ══════════════════════════════════════════════════════════
+let CFG = {};
+let DEMO = false;
+let convs = [];        // [{tel, nombre, estado, msgs[], px[], unread, ext, rowNum}]
+let curTel = null;
+let filtro = 'todos';
+let syncing = false;
+let syncTimer = null;
+let rowMap = {};       // tel -> numero fila sheet (1-based)
+let _tok = null;
+let _tokExp = 0;
+
+// ══════════════════════════════════════════════════════════
+// UTILIDADES
+// ══════════════════════════════════════════════════════════
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function nl2br(s){ return esc(s).replace(/\\n/g,'<br>'); }
+function ini(n){ const p=n.trim().split(' '); return ((p[0]||'')[0]+(p[1]||'')[0]||'').toUpperCase(); }
+function hora(){ return new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'}); }
+function fecha(){ return new Date().toLocaleString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
+
+function badgeClass(estado, ext){
+  if(ext) return 'b-externo';
+  const e = (estado||'').toLowerCase().replace(' ','');
+  return {confirma:'b-confirma',pendiente:'b-pendiente',noasiste:'b-noasiste',stop:'b-stop',cambio:'b-cambio'}[e] || 'b-pendiente';
+}
+
+function setSyncStatus(tipo, txt){
+  const d = document.getElementById('sdot');
+  const s = document.getElementById('stxt');
+  if(!d) return;
+  d.className = 'sync-dot ' + tipo;
+  s.textContent = txt;
+}
+
+function setFootStatus(msg){
+  const el = document.getElementById('fstatus');
+  if(el) el.textContent = msg;
+}
+
+// ══════════════════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════════════════
+function cargarCfg(){
+  try { CFG = JSON.parse(localStorage.getItem(CFG_KEY)||'{}'); } catch{ CFG={}; }
+  if(CFG.sid){ document.getElementById('c-sid').value   = CFG.sid; }
+  if(CFG.sname){ document.getElementById('c-sname').value = CFG.sname; }
+  if(CFG.watok){ document.getElementById('c-watok').value = CFG.watok; }
+  if(CFG.wapid){ document.getElementById('c-wapid').value = CFG.wapid; }
+}
+
+function guardarCfg(){
+  const sid   = document.getElementById('c-sid').value.trim();
+  const sname = document.getElementById('c-sname').value.trim()||'Hoja 1';
+  const creds = document.getElementById('c-creds').value.trim();
+  const watok = document.getElementById('c-watok').value.trim();
+  const wapid = document.getElementById('c-wapid').value.trim();
+
+  if(!sid)  { alert('El Sheet ID es obligatorio.'); return; }
+  if(!creds){ alert('Las credenciales JSON son obligatorias.'); return; }
+
+  try{
+    const c = JSON.parse(creds);
+    if(!c.private_key||!c.client_email) throw new Error('Faltan campos');
+  } catch(e){
+    alert('El JSON de credenciales no es válido: '+e.message); return;
+  }
+
+  CFG = {sid, sname, creds, watok, wapid};
+  const forStorage = {sid, sname, watok, wapid};
+  localStorage.setItem(CFG_KEY, JSON.stringify(forStorage));
+  sessionStorage.setItem('cpsl_creds', creds);
+
+  DEMO = false;
+  document.getElementById('ovl-cfg').style.display='none';
+  document.getElementById('app').style.display='grid';
+  iniciar();
+}
+
+function abrirCfg(){
+  document.getElementById('ovl-cfg').style.display='flex';
+  document.getElementById('app').style.display='none';
+  if(syncTimer){ clearInterval(syncTimer); syncTimer=null; }
+}
+
+function usarDemoMode(){
+  DEMO = true;
+  CFG  = {sid:'demo', sname:'Hoja 1', creds:'', watok:'', wapid:''};
+  document.getElementById('ovl-cfg').style.display='none';
+  document.getElementById('app').style.display='grid';
+  cargarDemoData();
+  iniciarUI();
+}
+
+function cargarDemoData(){
+  convs = [
+    {tel:'51970786474', nombre:'Calle Guizado Naysha', estado:'pendiente', ext:false, unread:true, rowNum:2, px:[], msgs:[{dir:'in',texto:'Buenas noches si van ir ese capitulo 1',h:'01:12',st:''}]},
+    {tel:'51966980142', nombre:'Parra Carhuaz Olga', estado:'confirma', ext:false, unread:false, rowNum:3, px:['Rosa Maria','Camila'], msgs:[{dir:'in',texto:'Si se han sentado',h:'01:19',st:''}]},
+  ];
+}
+
+// ══════════════════════════════════════════════════════════
+// JWT + SHEETS AUTH
+// ══════════════════════════════════════════════════════════
+async function getToken(){
+  if(_tok && Date.now() < _tokExp - 60000) return _tok;
+  if(DEMO) return null;
+
+  const credsStr = CFG.creds || sessionStorage.getItem('cpsl_creds') || '';
+  if(!credsStr) return null;
+
+  let creds;
+  try{ creds = JSON.parse(credsStr); } catch{ setSyncStatus('err','JSON de credenciales inválido'); return null; }
+
+  try{
+    const now = Math.floor(Date.now()/1000);
+    const b64u = s => btoa(s).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=/g,'');
+    const enc  = s => b64u(unescape(encodeURIComponent(JSON.stringify(s))));
+
+    const hdr = enc({alg:'RS256',typ:'JWT'});
+    const pld = enc({iss:creds.client_email, scope:'https://www.googleapis.com/auth/spreadsheets', aud:'https://oauth2.googleapis.com/token', iat:now, exp:now+3600});
+
+    const pemBody = creds.private_key.replace(/-----BEGIN PRIVATE KEY-----/g,'').replace(/-----END PRIVATE KEY-----/g,'').replace(/\\s+/g,'');
+    const keyBuf = Uint8Array.from(atob(pemBody), c=>c.charCodeAt(0)).buffer;
+    const cryptoKey = await crypto.subtle.importKey('pkcs8', keyBuf, {name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'}, false, ['sign']);
+    const sigBuf = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', cryptoKey, new TextEncoder().encode(`${hdr}.${pld}`));
+    const sig = b64u(String.fromCharCode(...new Uint8Array(sigBuf)));
+    const jwt = `${hdr}.${pld}.${sig}`;
+
+    const r = await fetch('https://oauth2.googleapis.com/token',{ method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:`grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}` });
+    if(!r.ok) throw new Error('Token HTTP '+r.status);
+    const d = await r.json();
+    if(!d.access_token) throw new Error(d.error_description||'Sin token');
+    _tok    = d.access_token;
+    _tokExp = Date.now() + (d.expires_in||3600)*1000;
+    return _tok;
+  } catch(e){
+    setSyncStatus('err','Auth: '+e.message);
+    return null;
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// SHEETS API
+// ══════════════════════════════════════════════════════════
+async function sheetFetch(url, opts, retries=2){
+  for(let i=0; i<=retries; i++){
+    try{
+      const r = await fetch(url, opts);
+      if(r.status===429||r.status===503){ if(i<retries){ await new Promise(res=>setTimeout(res,1500*(i+1))); continue; } throw new Error('Rate limit'); }
+      return r;
+    } catch(e){ if(i===retries) throw e; await new Promise(res=>setTimeout(res,1000)); }
+  }
+}
+
+const rng    = () => encodeURIComponent((CFG.sname||'Hoja 1')+'!A:H');
+const shBase = () => `https://sheets.googleapis.com/v4/spreadsheets/${CFG.sid}/values/${rng()}`;
+
+async function leerSheet(){
+  const tok = await getToken();
+  if(!tok) return null;
+  const r = await sheetFetch(shBase(), {headers:{Authorization:`Bearer ${tok}`}});
+  if(!r||!r.ok){ setSyncStatus('err','Error leyendo Sheet ('+r?.status+')'); return null; }
+  return (await r.json()).values || [];
+}
+
+async function escribirCelda(fila, col, valor){
+  const tok = await getToken();
+  if(!tok) return false;
+  const colLetter = String.fromCharCode(64+col);
+  const rango = encodeURIComponent(`${CFG.sname||'Hoja 1'}!${colLetter}${fila}`);
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${CFG.sid}/values/${rango}?valueInputOption=USER_ENTERED`;
+  const r = await sheetFetch(url,{ method:'PUT', headers:{Authorization:`Bearer ${tok}`,'Content-Type':'application/json'}, body:JSON.stringify({values:[[valor]]}) });
+  return r && r.ok;
+}
+
+async function appendFila(vals){
+  const tok = await getToken();
+  if(!tok) return false;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${CFG.sid}/values/${rng()}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+  const r = await sheetFetch(url,{ method:'POST', headers:{Authorization:`Bearer ${tok}`,'Content-Type':'application/json'}, body:JSON.stringify({values:[vals]}) });
+  return r && r.ok;
+}
+
+// ══════════════════════════════════════════════════════════
+// WHATSAPP
+// ══════════════════════════════════════════════════════════
+async function enviarWA(tel, texto){
+  const watok = CFG.watok || '';
+  const wapid = CFG.wapid || '';
+  if(!watok||!wapid) return {ok:false, err:'Sin credenciales WA'};
+  try{
+    const r = await fetch(`https://graph.facebook.com/v19.0/${wapid}/messages`,{ method:'POST', headers:{Authorization:`Bearer ${watok}`,'Content-Type':'application/json'}, body:JSON.stringify({messaging_product:'whatsapp',to:String(tel),type:'text',text:{body:texto,preview_url:false}}) });
+    const d = await r.json();
+    if(!r.ok) return {ok:false, err:(d.error?.message||'Error '+r.status)};
+    return {ok:true};
+  } catch(e){ return {ok:false, err:e.message}; }
+}
+
+// ══════════════════════════════════════════════════════════
+// SYNC
+// ══════════════════════════════════════════════════════════
+async function sincronizar(){
+  if(syncing||DEMO) return;
+  syncing = true;
+  setSyncStatus('busy','Sincronizando…');
+  try{
+    const rows = await leerSheet();
+    if(!rows){ syncing=false; return; }
+
+    let cambios = false;
+    const ahora = hora();
+
+    rows.forEach((row, i) => {
+      if(i===0) return;
+      const tel    = (row[1]||'').toString().trim();
+      const nombre = (row[2]||'').trim();
+      const msgRec = (row[3]||'').trim();
+      const botRep = (row[4]||'').trim();
+      const estado = (row[5]||'pendiente').toLowerCase();
+      const h      = (row[0]||'').slice(-5) || ahora;
+      if(!tel) return;
+
+      rowMap[tel] = i+1;
+      let c = convs.find(x=>x.tel===tel);
+      if(!c){
+        c = {tel, nombre:nombre||'+'+tel, estado, ext:!nombre, unread:false, rowNum:i+1, px:[], msgs:[]};
+        convs.push(c); cambios=true;
+      }
+      if(nombre && c.nombre==='+'+tel){ c.nombre=nombre; cambios=true; }
+      if(estado && c.estado!==estado){ c.estado=estado; cambios=true; }
+
+      if(msgRec){
+        const ya = c.msgs.some(m=>m.dir==='in'&&m.texto===msgRec);
+        if(!ya){ c.msgs.push({dir:'in',texto:msgRec,h,st:''}); if(curTel!==tel) c.unread=true; cambios=true; }
+      }
+      if(botRep){
+        const ya = c.msgs.some(m=>m.dir==='out'&&m.texto===botRep&&m.fuente==='bot');
+        if(!ya){ c.msgs.push({dir:'out',texto:botRep,h,st:'Enviado (bot)',fuente:'bot'}); cambios=true; }
+      }
+    });
+
+    if(cambios){ renderStats(); renderLista(); if(curTel) actualizarMensajes(); }
+    setSyncStatus('ok', hora());
+  } catch(e){
+    setSyncStatus('err','Sync: '+e.message);
+  } finally{ syncing=false; }
+}
+
+// ══════════════════════════════════════════════════════════
+// RENDER
+// ══════════════════════════════════════════════════════════
+function renderStats(){
+  document.getElementById('st0').textContent = convs.length;
+  document.getElementById('st1').textContent = convs.filter(c=>c.estado==='confirma').length;
+  document.getElementById('st2').textContent = convs.filter(c=>c.estado==='pendiente').length;
+  document.getElementById('st3').textContent = convs.filter(c=>c.estado==='no asiste'||c.estado==='stop').length;
+}
+
+function renderLista(){
+  const q = (document.getElementById('search')||{value:''}).value.toLowerCase();
+  const lista = convs.filter(c=>{
+    const mq = !q || c.nombre.toLowerCase().includes(q) || c.tel.includes(q);
+    const mt = filtro==='todos' ||(filtro==='externo'&&c.ext) ||(!c.ext&&c.estado===filtro);
+    return mq && mt;
+  }).sort((a,b)=>(b.unread-a.unread)||((b.msgs[b.msgs.length-1]?.h||'')>(a.msgs[a.msgs.length-1]?.h||'')?1:-1));
+
+  const el = document.getElementById('list');
+  if(!el) return;
+  if(!lista.length){ el.innerHTML='<div style="padding:18px;text-align:center;font-size:12px;color:#888780">Sin resultados</div>'; return; }
+
+  el.innerHTML = lista.map(c=>{
+    const last = c.msgs[c.msgs.length-1];
+    const prev = last ? last.texto.slice(0,44)+(last.texto.length>44?'…':'') : '—';
+    const bc   = badgeClass(c.estado, c.ext);
+    const elbl = c.ext ? 'externo' : c.estado;
+    return `<div class="item${curTel===c.tel?' on':''}" onclick="selConv('${c.tel}')">
+      <div class="item-top"><span class="item-name">${esc(c.nombre.split(' ').slice(0,3).join(' '))}</span><span class="item-time">${esc(last?.h||'')}</span></div>
+      <div class="item-prev">${esc(prev)}</div>
+      <div class="item-bot"><span class="badge ${bc}">${esc(elbl)}</span><div style="display:flex;align-items:center;gap:4px"><span style="font-size:10px;color:#b4b2a9">+${esc(c.tel)}</span>${c.unread?'<div class="dot-unread"></div>':''}</div></div>
+    </div>`;
+  }).join('');
+}
+
+function setTab(el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  filtro = el.dataset.tab;
+  renderLista();
+}
+
+function selConv(tel){ curTel = tel; const c = convs.find(x=>x.tel===tel); if(c) c.unread=false; renderLista(); renderChat(); }
+
+function renderChat(){
+  const c = convs.find(x=>x.tel===curTel);
+  if(!c) return;
+  const av = c.ext?'av-ext':'av-imo';
+  const bc = badgeClass(c.estado, c.ext);
+  const el = c.ext?'externo / no es IMO de campaña':c.estado;
+
+  document.getElementById('chat').innerHTML = `
+    <div class="ch-header">
+      <div class="ch-left">
+        <div class="avatar ${av}">${esc(ini(c.nombre))}</div>
+        <div><div class="ch-name">${esc(c.nombre)}</div><div class="ch-sub">+${esc(c.tel)} &nbsp;·&nbsp; <span class="badge ${bc}">${esc(el)}</span></div></div>
+      </div>
+      <div class="ch-actions">
+        <button class="btn-s" onclick="setEstado('confirma')">✓ Confirma</button>
+        <button class="btn-s" onclick="setEstado('pendiente')">⏳ Pendiente</button>
+        <button class="btn-s" onclick="setEstado('no asiste')">✗ No asiste</button>
+        <button class="btn-s" onclick="setEstado('cambio')">↔ Cambio</button>
+        <button class="btn-s" onclick="setEstado('stop')">— Stop</button>
+      </div>
+    </div>
+    <div class="messages" id="msgs"></div>
+    <div class="footer">
+      ${c.px.length?`<div class="px-row"><span class="px-lbl">Px:</span>${c.px.map(p=>`<button class="px-chip" onclick="togglePx(this,'${p}')">${esc(p)}</button>`).join('')}</div>`:''}
+      <div class="qr-row">${QR.map((r,i)=>`<button class="qr" onclick="usarQR(${i})">${esc(r.l)}</button>`).join('')}</div>
+      <div class="input-row">
+        <textarea class="tinput" id="tinput" placeholder="Escribe tu respuesta… (Enter = enviar | Shift+Enter = nueva línea)" onkeydown="handleKey(event)" oninput="onInput(this)"></textarea>
+        <button class="send" id="sbtn" onclick="enviar()">Enviar</button>
+      </div>
+      <div class="foot-meta"><span id="fchars">0 caracteres</span><span id="fstatus"></span></div>
+    </div>`;
+
+  poblarMensajes(c); scrollFin();
+  const ti = document.getElementById('tinput'); if(ti) ti.focus();
+}
+
+function actualizarMensajes(){
+  const c = convs.find(x=>x.tel===curTel);
+  if(!c) return;
+  const el = document.getElementById('msgs');
+  if(!el) return;
+  poblarMensajes(c);
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+  if(atBottom) scrollFin();
+}
+
+function poblarMensajes(c){
+  const el = document.getElementById('msgs');
+  if(!el) return;
+  if(!c.msgs.length){ el.innerHTML='<div style="text-align:center;font-size:12px;color:#b4b2a9;padding:20px">Sin mensajes registrados</div>'; return; }
+  el.innerHTML = c.msgs.map(m=>{
+    const quien = m.dir==='in' ? esc(c.nombre.split(' ').slice(0,2).join(' ')) : 'Tu';
+    const st = m.dir==='out' ? `<div class="msg-st">${esc(m.st||'Enviado')}</div>` : '';
+    return `<div class="msg ${m.dir==='in'?'in':'out'}${m.pending?' pending':''}"><div class="msg-who">${quien} · ${esc(m.h)}</div><div class="bubble">${nl2br(m.texto)}</div>${st}</div>`;
+  }).join('');
+}
+
+function scrollFin(){ setTimeout(()=>{ const e=document.getElementById('msgs'); if(e) e.scrollTop=e.scrollHeight; },50); }
+
+function onInput(el){
+  el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,110)+'px';
+  const fc=document.getElementById('fchars'); if(fc) fc.textContent=el.value.length+' caracteres';
+}
+function handleKey(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); enviar(); } }
+
+// ══════════════════════════════════════════════════════════
+// ENVIAR MENSAJE
+// ══════════════════════════════════════════════════════════
+async function enviar(){
+  const ti = document.getElementById('tinput');
+  const sb = document.getElementById('sbtn');
+  const texto = ti ? ti.value.trim() : '';
+  if(!texto||!curTel) return;
+
+  sb.disabled = true;
+  const h = hora();
+  const c = convs.find(x=>x.tel===curTel);
+  if(!c){ sb.disabled=false; return; }
+
+  const mObj = {dir:'out', texto, h, st:'Enviando…', pending:true};
+  c.msgs.push(mObj);
+
+  ti.value=''; ti.style.height='auto';
+  const fc=document.getElementById('fchars'); if(fc) fc.textContent='0 caracteres';
+
+  actualizarMensajes(); scrollFin(); setFootStatus('Enviando…');
+
+  let waOk = false;
+  if(CFG.watok&&CFG.wapid){
+    const res = await enviarWA(curTel, texto);
+    waOk = res.ok;
+    setFootStatus(waOk ? 'Enviado por WhatsApp' : '⚠ WA: '+res.err+' — guardando en Sheet');
+  } else { setFootStatus('Sin token WA — guardando en Sheet para reenvío del bot'); }
+
+  if(!DEMO){
+    const rn = rowMap[curTel];
+    if(rn){
+      const okG = await escribirCelda(rn, 7, texto);
+      const okH = await escribirCelda(rn, 8, waOk?'ENVIADO':'');
+      setFootStatus(okG ? (waOk?'✓ Enviado y guardado en Sheet':'✓ Guardado en Sheet — el bot lo enviará') : '⚠ Error guardando en Sheet');
+    } else {
+      const ok = await appendFila([fecha(),curTel,c.nombre,'',texto,c.estado,texto,waOk?'ENVIADO':'']);
+      if(ok){ setFootStatus('✓ Nueva fila creada en Sheet'); setTimeout(()=>{ sincronizar(); },1000); }
+    }
+  } else { setFootStatus('Modo demo — no se guarda en Sheet'); }
+
+  mObj.pending = false;
+  mObj.st = waOk ? 'Enviado' : (DEMO ? 'Demo' : 'En cola (bot lo enviará)');
+  actualizarMensajes(); renderLista(); sb.disabled = false;
+}
+
+// ══════════════════════════════════════════════════════════
+// ACCIONES Y START
+// ══════════════════════════════════════════════════════════
+async function setEstado(estado){
+  const c = convs.find(x=>x.tel===curTel);
+  if(!c) return;
+  c.estado = estado;
+  if(!DEMO){ const rn = rowMap[curTel]; if(rn) await escribirCelda(rn, 6, estado); }
+  renderChat(); renderLista(); renderStats();
+}
+
+function usarQR(idx){ const ti = document.getElementById('tinput'); if(!ti) return; ti.value = QR[idx].t; onInput(ti); ti.focus(); }
+function togglePx(btn, px){ btn.classList.toggle('on'); const ti = document.getElementById('tinput'); if(!ti) return; if(btn.classList.contains('on')){ ti.value += (ti.value&&!ti.value.endsWith('\\n')?' ':'')+px; onInput(ti); ti.focus(); } }
+
+function abrirNuevo(){ document.getElementById('ovl-new').style.display='flex'; }
+function cerrarNuevo(){ document.getElementById('ovl-new').style.display='none'; }
+async function crearNuevo(){
+  const nombre = document.getElementById('n-nombre').value.trim();
+  const tel    = document.getElementById('n-tel').value.trim().replace(/\\D/g,'');
+  if(!nombre||!tel){ alert('Nombre y teléfono son obligatorios.'); return; }
+  const existe = convs.find(c=>c.tel===tel);
+  if(existe){ cerrarNuevo(); selConv(tel); return; }
+  const c = {tel, nombre, estado:'pendiente', ext:true, unread:false, rowNum:null, px:[], msgs:[]};
+  convs.push(c);
+  if(!DEMO){ const ok = await appendFila([fecha(),tel,nombre,'','','pendiente','','']); if(ok) setTimeout(sincronizar, 800); }
+  document.getElementById('n-nombre').value=''; document.getElementById('n-tel').value='';
+  cerrarNuevo(); renderStats(); renderLista(); selConv(tel);
+}
+
+function iniciarUI(){ renderStats(); renderLista(); }
+async function iniciar(){ setSyncStatus('busy','Conectando…'); await sincronizar(); iniciarUI(); if(syncTimer) clearInterval(syncTimer); syncTimer = setInterval(sincronizar, 30000); }
+
+cargarCfg();
+const savedCreds = sessionStorage.getItem('cpsl_creds');
+const savedCfg   = localStorage.getItem(CFG_KEY);
+if(savedCreds && savedCfg){
+  try{
+    const sc = JSON.parse(savedCfg);
+    CFG = {...sc, creds: savedCreds};
+    document.getElementById('ovl-cfg').style.display='none';
+    document.getElementById('app').style.display='grid';
+    iniciar();
+  } catch{ }
+}
+</script>
 </body>
-</html>
-"""
+</html>"""
 
 @app.route("/chat", methods=["GET"])
 def panel_chat(): return HTML_CHAT
 
-@app.route("/api/historial", methods=["GET"])
-def api_historial(): return jsonify(get_historial()), 200
+@app.route("/webhook", methods=["GET", "POST"])
+def webhook():
+    if request.method == "GET":
+        mode, token, challenge = (request.args.get(k) for k in ["hub.mode","hub.verify_token","hub.challenge"])
+        if mode == "subscribe" and token == Config.VERIFY_TOKEN: return challenge, 200
+        return "Token invalido", 403
 
-@app.route("/api/descargar_respaldo", methods=["GET"])
-def descargar_respaldo():
-    h = get_historial()
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["Fecha", "Telefono", "Nombre IMO", "Tipo Mensaje", "Texto"])
-    for m in h:
-        tipo_str = "Bot/Panel envió" if m.get("tipo") == "out" else "Contacto respondió"
-        writer.writerow([m.get("hora", ""), m.get("telefono", ""), m.get("nombre", ""), tipo_str, m.get("texto", "")])
-    return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=Respaldo_Chats.csv"})
-
-@app.route("/api/descargar_dataset", methods=["GET"])
-def descargar_dataset():
-    if os.path.exists(Config.DATASET_PATH):
-        with open(Config.DATASET_PATH, "r", encoding="utf-8-sig") as f: data = f.read()
-    else: data = "Fecha,Telefono,Mensaje Usuario,Respuesta IA,Modelo\nSin datos aun"
-    return Response(data, mimetype="text/csv", headers={"Content-Disposition":f"attachment;filename=Dataset_Entrenamiento.csv"})
-
-@app.route("/api/enviar", methods=["POST"])
-def api_enviar():
-    data = request.json; tel = data.get("telefono"); msg = data.get("mensaje")
-    if tel and msg:
-        sesion = get_sesion(tel)
-        perfil = sesion.get("perfil")
-        if not perfil: perfil = obtener_perfil_crm(tel)
-        nombre_mostrar = f"({perfil['rol']}) {perfil['nombre']}" if perfil['nombre'] else "NUEVO CONTACTO"
-        WhatsAppAPI.enviar_mensaje(tel, msg, nombre_mostrar, registrar_sheets=True, mensaje_usuario="[ENVIADO DESDE PANEL PRIVADO]")
-        return jsonify({"status": "ok"}), 200
-    return jsonify({"error": "Faltan datos"}), 400
-
-@app.route("/api/mensaje_simulador", methods=["POST"])
-def mensaje_simulador():
-    data = request.json; tel = data.get("telefono"); texto = data.get("texto")
-    if not tel or not texto: return jsonify({"error": "Faltan datos"}), 400
-    procesar_mensaje(tel, texto)
-    sesion = get_sesion(tel)
-    perfil = sesion.get("perfil", {})
-    nombre_mostrar = f"({perfil.get('rol', 'PROSPECTO')}) {perfil.get('nombre', 'Simulado')}" if perfil.get('nombre') else "SIMULACIÓN"
-    append_historial(tel, nombre_mostrar, texto, "in")
-    return jsonify({"status": "ok"}), 200
-
-@app.route("/webhook", methods=["GET"])
-def verificar_webhook():
-    mode, token, challenge = (request.args.get(k) for k in ["hub.mode","hub.verify_token","hub.challenge"])
-    if mode == "subscribe" and token == Config.VERIFY_TOKEN: return challenge, 200
-    return "Token invalido", 403
-
-@app.route("/webhook", methods=["POST"])
-def recibir_mensaje():
     data = request.get_json(silent=True)
     if not data: return jsonify({"status":"ok"}), 200
     try:
@@ -1006,19 +1451,12 @@ def recibir_mensaje():
         
         if tipo == "text":
             texto = str(msg["text"]["body"]).replace("=", "").replace("+", "").replace("@", "")
-            
-            # Ponemos el mensaje en la cola asíncrona para que Webhook cierre rápido
             cola_mensajes.put({"telefono": telefono, "texto": texto})
-
         elif tipo in ("audio","image","document","video","sticker"):
             WhatsAppAPI.enviar_mensaje(telefono, "Comprendido. Por favor responde con texto o el número de la opción deseada para poder apoyarte.")
             
     except Exception as e: logger.error(f"Error Webhook: {e}", exc_info=True)
     return jsonify({"status":"ok"}), 200
-
-@app.route("/status", methods=["GET"])
-def status(): 
-    return jsonify({"status": "activo", "version": "v59_anti_timeout_deepseek"}), 200
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
