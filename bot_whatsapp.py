@@ -1,10 +1,10 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V71: Lógica Comercial Estricta (Todos pagaron C1) + Panel Web Real-Time
+✅ Versión V72: Cloud-Native (Cero Pérdida de Datos en Render) + Simulador Restaurado
 """
 
-import os, re, json, time, csv, io, random, logging, queue, threading
+import os, re, json, time, csv, io, random, logging, threading
 from flask import Flask, request, jsonify, Response
 from datetime import datetime
 import requests as req_lib
@@ -31,14 +31,13 @@ class Config:
     VERIFY_TOKEN = os.environ.get("WA_VERIFY_TOKEN", "cpsl2026")
     EXCEL_PATH = os.environ.get("EXCEL_PATH", "campana_imos_c1_e27.xlsx")
     CSV_BD_PATH = os.environ.get("CSV_BD_PATH", get_csv_bd_path())
-    SESSIONS_PATH = os.environ.get("SESSIONS_PATH", "sesiones.json")
+    SESSIONS_PATH = "sesiones.json"
     HISTORIAL_PATH = "historial_chat.json"
-    BACKUP_ABSOLUTO_CSV = "backup_absoluto_mensajes.csv"
     SHEET_ID = os.environ.get("SHEET_ID", "")
     CREDS_JSON = os.environ.get("GOOGLE_CREDENTIALS", "")
 
 # ══════════════════════════════════════════════════════════════════════════
-# 2. GESTOR DE ESTADO CONCURRENTE Y CAJA NEGRA
+# 2. GESTOR DE ESTADO LOCAL (CACHÉ TEMPORAL)
 # ══════════════════════════════════════════════════════════════════════════
 class SessionManager:
     @staticmethod
@@ -83,18 +82,6 @@ class SessionManager:
                 with open(Config.HISTORIAL_PATH, "w", encoding="utf-8") as f: json.dump(h[-10000:], f, ensure_ascii=False, indent=2)
             except: pass
 
-    @staticmethod
-    def guardar_backup_absoluto(telefono, nombre, mensaje, direccion, estado_sistema):
-        with FileLock(Config.BACKUP_ABSOLUTO_CSV + ".lock"):
-            try:
-                archivo_existe = os.path.exists(Config.BACKUP_ABSOLUTO_CSV)
-                with open(Config.BACKUP_ABSOLUTO_CSV, "a", encoding="utf-8-sig", newline="") as f:
-                    writer = csv.writer(f)
-                    if not archivo_existe: 
-                        writer.writerow(["Fecha y Hora", "Telefono", "Nombre", "Direccion (In/Out)", "Mensaje", "Estado Sistema"])
-                    writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), telefono, nombre, direccion, mensaje, estado_sistema])
-            except: pass
-
 def get_sesion(tel): return SessionManager.get_sesion(tel)
 def set_sesion(tel, d): SessionManager.set_sesion(tel, d)
 def borrar_sesion(tel): SessionManager.borrar_sesion(tel)
@@ -107,10 +94,8 @@ def get_historial():
     return []
 
 # ══════════════════════════════════════════════════════════════════════════
-# 3. GOOGLE SHEETS (MOTOR 1)
+# 3. GOOGLE SHEETS (MOTOR PRINCIPAL - ESCRITURA INMEDIATA SIN COLAS)
 # ══════════════════════════════════════════════════════════════════════════
-cola_sheets = queue.Queue()
-
 class GoogleSheetsAPI:
     @classmethod
     def registrar_accion(cls, telefono, imo_nombre, mensaje, respuesta_bot, estado="", respuesta_manual="", enviado_status=""):
@@ -135,6 +120,7 @@ class GoogleSheetsAPI:
             sig = pk.sign(msg_jwt, padding.PKCS1v15(), hashes.SHA256())
             jwt = (msg_jwt + b"." + base64.urlsafe_b64encode(sig).rstrip(b"=")).decode()
             r = req_lib.post("https://oauth2.googleapis.com/token", data={"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": jwt}, timeout=10)
+            
             if r.status_code == 200:
                 token = r.json()["access_token"]
                 url = f"https://sheets.googleapis.com/v4/spreadsheets/{Config.SHEET_ID}/values/Hoja%201!A:H:append"
@@ -144,24 +130,12 @@ class GoogleSheetsAPI:
                 req_lib.post(url, params={"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"}, 
                              json={"values": valores}, 
                              headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=10)
-        except Exception as e: logger.error(f"Error Sheets: {e}")
+        except Exception as e: logger.error(f"Error Sheets Inmediato: {e}")
 
-def worker_sheets():
-    while True:
-        try:
-            tarea = cola_sheets.get()
-            GoogleSheetsAPI.registrar_accion(
-                tarea['tel'], tarea['nom'], tarea['msg'], tarea['resp'], 
-                tarea['est'], tarea.get('resp_man', ""), tarea.get('env_stat', "")
-            )
-        except: pass
-        finally: cola_sheets.task_done()
-
-threading.Thread(target=worker_sheets, daemon=True).start()
-
-def registrar_en_sheets_async(tel, nom, msg, resp, est="", resp_man="", env_stat=""):
+def registrar_en_sheets_inmediato(tel, nom, msg, resp, est="", resp_man="", env_stat=""):
+    """🚀 V72: Escribe directamente en un hilo independiente. Si Render se reinicia, el hilo ya envió la data."""
     if str(tel).startswith("SIM_"): return 
-    cola_sheets.put({'tel': tel, 'nom': nom, 'msg': msg, 'resp': resp, 'est': est, 'resp_man': resp_man, 'env_stat': env_stat})
+    threading.Thread(target=GoogleSheetsAPI.registrar_accion, args=(tel, nom, msg, resp, est, resp_man, env_stat), daemon=False).start()
 
 # ══════════════════════════════════════════════════════════════════════════
 # 4. CONECTORES DE WHATSAPP API
@@ -170,8 +144,8 @@ class WhatsAppAPI:
     @staticmethod
     def enviar_mensaje(telefono, texto, nombre_mostrar="", registrar_sheets=True, estado_menu=""):
         if str(telefono).startswith("SIM_"):
-            SessionManager.append_historial(telefono, f"🤖 [BOT SIMULADO]", texto, "out")
-            SessionManager.guardar_backup_absoluto(telefono, nombre_mostrar, texto, "OUT", "SIMULADOR")
+            append_historial(telefono, nombre_mostrar, texto, "out")
+            registrar_en_sheets_inmediato(telefono, nombre_mostrar, "", texto[:500], estado_menu or "SIMULADOR")
             return True
 
         url = f"https://graph.facebook.com/v19.0/{Config.PHONE_ID}/messages"
@@ -181,10 +155,9 @@ class WhatsAppAPI:
             r = req_lib.post(url, json=payload, headers=headers, timeout=10)
             if r.status_code == 200:
                 append_historial(telefono, nombre_mostrar, texto, "out")
-                SessionManager.guardar_backup_absoluto(telefono, nombre_mostrar, texto, "OUT", estado_menu or "INTERACTIVO")
                 if registrar_sheets:
                     estado_actual = "SISTEMA" if nombre_mostrar == "SISTEMA" else "INTERACTIVO"
-                    registrar_en_sheets_async(telefono, nombre_mostrar, "", texto[:500], estado_menu or estado_actual)
+                    registrar_en_sheets_inmediato(telefono, nombre_mostrar, "", texto[:500], estado_menu or estado_actual)
                 return True
         except: pass
         return False
@@ -234,12 +207,6 @@ def cargar_px_del_imo(telefono):
         except: return "", []
 
 def obtener_perfil_crm(telefono):
-    """
-    Cerebro CRM Lógica Estricta V71:
-    - Si está en la base, YA PAGÓ C1.
-    - Pendiente = Lo que le falta cursar/asistir.
-    - MJ = Requiere preguntar si es Graduado o En Proceso.
-    """
     perfil = {"rol": "PROSPECTO", "nombre": None, "pendiente": None, "imo_nombre": None, "imo_tel": None}
     es_imo = False
     
@@ -287,8 +254,6 @@ def obtener_perfil_crm(telefono):
                                 perfil["px_nombre"] = nombre_completo
                                 perfil["px_mj_stat"] = mj_stat
                                 
-                                # Lógica estricta de negocio: Si está en la base, pagó C1.
-                                # Vemos a qué NO ha asistido para marcar su "Pendiente".
                                 si_c1 = (c1_stat == "SI" or c1_stat == "S")
                                 si_c2 = (c2_stat == "SI" or c2_stat == "S")
                                 si_mj = (mj_stat == "SI" or mj_stat == "S")
@@ -304,7 +269,7 @@ def obtener_perfil_crm(telefono):
                                     rol_temp = "PX_UPSELL_MJ"
                                 elif si_mj:
                                     pendiente = "Ninguno (Maestría iniciada)"
-                                    rol_temp = "MJ" # Requiere preguntar si es graduado o en proceso
+                                    rol_temp = "MJ"
                                 else:
                                     pendiente = "Entrenamiento a validar"
                                     rol_temp = "PX"
@@ -369,7 +334,6 @@ def buscar_pendientes_imo_csv(telefono):
     except: return []
 
 def buscar_todos_imo_csv(telefono):
-    """Búsqueda integral de comunidad (Para IMO, MJ o Graduados)"""
     try:
         if not os.path.exists(Config.CSV_BD_PATH): return []
         with open(Config.CSV_BD_PATH, "r", encoding="utf-8-sig") as f:
@@ -464,29 +428,22 @@ def marcar_stop(telefono):
             wb.save(Config.EXCEL_PATH); wb.close()
         except: pass
 
-# 🚀 MOTOR DE FECHAS DINÁMICO (HARD CUTOFF)
 def get_fecha_activa(tipo_evento):
     ahora = datetime.now()
-    
     if tipo_evento == "C1":
-        # Viernes 1 de Mayo 2026. Límite: Jueves 30 Abril 16:00
         limite_c1_e27 = datetime(2026, 4, 30, 16, 0)
         if ahora < limite_c1_e27: return "Viernes 01 de Mayo de 2026 (Equipo 27)"
         else: return "Viernes 05 de Junio de 2026 (Equipo 28)"
-        
     elif tipo_evento == "C2":
-        # Jueves 9 de Abril 2026. Límite: Jueves 9 Abril 16:00
         limite_c2_e26 = datetime(2026, 4, 9, 16, 0)
         if ahora < limite_c2_e26: return "Jueves 09 de Abril de 2026 (Equipo 26)"
         else: return "Jueves 07 de Mayo de 2026 (Equipo 27)"
-        
     elif tipo_evento == "MJ":
         return "Próxima fecha sujeta a confirmación de coordinación."
-        
     return "Fecha a confirmar"
 
 # ══════════════════════════════════════════════════════════════════════════
-# 6. ESTRUCTURAS DE MENÚS (V71: Optimizados por Perfil)
+# 6. ESTRUCTURAS DE MENÚS
 # ══════════════════════════════════════════════════════════════════════════
 COORDINADORAS_CONTACTOS = {"Diana": "51912379744", "Joyce": "51933599903", "Leyla": "51919502385", "Zuley": "51933599864"}
 
@@ -560,7 +517,7 @@ def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre, motivo):
     return coord_nombre
 
 # ══════════════════════════════════════════════════════════════════════════
-# 7. PROCESADOR DE ESTADOS (FLUJO ESTRICTO DE NEGOCIO)
+# 7. PROCESADOR DE ESTADOS (FLUJO ESTRICTO SIN IA)
 # ══════════════════════════════════════════════════════════════════════════
 def flujo_principal(telefono, texto):
     try:
@@ -577,7 +534,6 @@ def flujo_principal(telefono, texto):
             
         nombre_mostrar = f"({perfil['rol']}) {perfil.get('nombre', 'Nuevo')}" if perfil.get('nombre') else "NUEVO CONTACTO"
 
-        # 1. Filtro Encuesta
         if sesion.get("menu_state") == "esperando_encuesta":
             if texto_limpio in ["1", "2", "3", "4", "5"]:
                 enviar_mensaje(telefono, "¡Gracias por tu calificación! 🌟\n_Escribe MENU para reiniciar._", nombre_mostrar, True, "ENCUESTA CSAT")
@@ -585,38 +541,33 @@ def flujo_principal(telefono, texto):
             else: enviar_mensaje(telefono, "Por favor califica con un número del 1 al 5.", nombre_mostrar, True, "ERROR CSAT")
             return
 
-        # 2. Inactividad
         try:
             last_time = datetime.strptime(sesion.get("last_interaction", "2000-01-01 00:00:00"), "%Y-%m-%d %H:%M:%S")
             minutos_inactividad = (datetime.now() - last_time).total_seconds() / 60.0
         except: minutos_inactividad = 9999
         sesion["last_interaction"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        # 3. Stop
         if texto_limpio == "STOP":
             marcar_stop(telefono); borrar_sesion(telefono)
             enviar_mensaje(telefono, "Has sido dado de baja. No recibirás más mensajes.", nombre_mostrar, True, "SE DIO DE BAJA")
             return
 
-        # 4. RESOLUCIÓN DE ROL PRINCIPAL (Nuevos perfiles)
         rol = perfil.get("rol", "PROSPECTO")
         if rol == "IMO": main_key = "main_imo"
         elif rol == "MJ": main_key = "main_mj"
         elif rol == "PX_REZAGADO_C1": main_key = "main_px_rezagado_c1"
         elif rol == "PX_UPSELL_C2": main_key = "main_px_upsell_c2"
         elif rol == "PX_UPSELL_MJ": main_key = "main_px_upsell_mj"
-        elif rol == "PX": main_key = "main_px_rezagado_c1" # Fallback a rezagado generico
+        elif rol == "PX": main_key = "main_px_rezagado_c1"
         else: main_key = "main_prospecto"
 
         def render_menu(m_key):
             if m_key == "info_fechas":
-                return f"📅 *Fechas Disponibles (Sujeto a Cierre)*\n\n🚀 *Capítulo 1 (C1):*\n{get_fecha_activa('C1')}\n\n🔥 *Capítulo 2 (C2):*\n{get_fecha_activa('C2')}\n\n👑 *Maestría (MJ):*\n{get_fecha_activa('MJ')}\n\n_Nota: Todo cierre de inscripciones es el jueves a las 4:00 PM previo al evento._\n\n1️⃣ Hablar con coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal"
-            
+                return f"📅 *Fechas Disponibles*\n\n🚀 *C1:* {get_fecha_activa('C1')}\n🔥 *C2:* {get_fecha_activa('C2')}\n👑 *MJ:* {get_fecha_activa('MJ')}\n\n1️⃣ Hablar con coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal"
             txt = MENU_STRUCTURE[m_key]["text"]
             if "{" in txt: txt = txt.format(nombre=perfil.get("nombre", "Líder"), imo=perfil.get("imo_nombre", "tu líder"), pendiente=perfil.get("pendiente", "tu nivel"))
             return txt
 
-        # 5. Captura de Motivo de Derivación
         if sesion.get("menu_state") == "capturando_motivo":
             if texto_limpio not in ["0", "MENU"]:
                 motivo = texto
@@ -658,7 +609,7 @@ def flujo_principal(telefono, texto):
                     return
 
                 elif siguiente_estado == "px_confirma":
-                    msg_exito = f"¡Extraordinario, {perfil['nombre']}! 🎉\nHemos registrado tu confirmación a tu siguiente nivel. Le avisaremos automáticamente a tu líder {perfil['imo_nombre']}.\n\n_Escribe 0 para volver al menú._"
+                    msg_exito = f"¡Extraordinario, {perfil['nombre']}! 🎉\nHemos registrado tu confirmación a tu siguiente nivel. Le avisaremos a tu líder {perfil['imo_nombre']}.\n\n_Escribe 0 para volver al menú._"
                     enviar_mensaje(telefono, msg_exito, nombre_mostrar, True, "CONFIRMÓ ASISTENCIA")
                     if perfil["imo_tel"]: threading.Thread(target=actualizar_excel, args=([{"px": perfil["nombre"], "estatus": "CONFIRMADO"}], perfil["imo_tel"]), daemon=True).start()
                     sesion["menu_state"] = "esperando_fecha"; set_sesion(telefono, sesion)
@@ -667,7 +618,7 @@ def flujo_principal(telefono, texto):
                 elif siguiente_estado == "ver_pendientes_imo":
                     lista = buscar_pendientes_imo_csv(telefono)
                     if lista: msg = f"📊 *Reporte de tu Equipo (Rezagados)*\n\n" + "\n".join(lista) + "\n\n_Escribe *0* para volver._"
-                    else: msg = "¡Felicidades! 🎉 Todos tus participantes se han sentado o no tienes pendientes en la base.\n\n_Escribe *0* para volver._"
+                    else: msg = "¡Felicidades! 🎉 Todos tus participantes se han sentado o no tienes pendientes.\n\n_Escribe *0* para volver._"
                     enviar_mensaje(telefono, msg, nombre_mostrar, True, "REPORTE PENDIENTES")
                     hist = sesion.get("menu_history", []); 
                     if estado_actual != main_key and (not hist or hist[-1] != estado_actual): hist.append(estado_actual)
@@ -677,7 +628,7 @@ def flujo_principal(telefono, texto):
                 elif siguiente_estado == "ver_todos_imo":
                     lista_todos = buscar_todos_imo_csv(telefono)
                     if lista_todos: msg = f"📊 *Reporte de Tus Enrolados / Comunidad*\n\n" + "\n".join(lista_todos) + "\n\n_Escribe *0* para volver._"
-                    else: msg = "Aún no tienes enrolados registrados a tu nombre en la base de datos de esta campaña.\n\n_Escribe *0* para volver._"
+                    else: msg = "Aún no tienes enrolados registrados a tu nombre en la base.\n\n_Escribe *0* para volver._"
                     enviar_mensaje(telefono, msg, nombre_mostrar, True, "REPORTE TODOS ENROLADOS")
                     hist = sesion.get("menu_history", [])
                     if estado_actual != main_key and (not hist or hist[-1] != estado_actual): hist.append(estado_actual)
@@ -696,7 +647,7 @@ def flujo_principal(telefono, texto):
                 sesion["menu_state"] = siguiente_estado; sesion["menu_history"] = hist; set_sesion(telefono, sesion)
                 
                 if siguiente_estado in MENU_STRUCTURE: enviar_mensaje(telefono, render_menu(siguiente_estado), nombre_mostrar, True, siguiente_estado)
-                elif siguiente_estado == "action_imo": enviar_mensaje(telefono, f"¡Hola líder! 👋\n\nEstás en el *Portal IMO*. Envíame el estatus de tus participantes y lo validaremos.\n\n_Escribe *0* para volver._", nombre_mostrar, True, "REPORTE MANUAL IMO")
+                elif siguiente_estado == "action_imo": enviar_mensaje(telefono, f"¡Hola líder! 👋\n\nEstás en el *Portal IMO*. Envíame el estatus de tus participantes.\n\n_Escribe *0* para volver._", nombre_mostrar, True, "REPORTE MANUAL IMO")
             else:
                 if not texto_limpio.isnumeric():
                     msg = "Para brindarte atención humana, por favor dime en un solo mensaje: *¿Qué necesitas consultar?*"
@@ -884,10 +835,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="sidebar">
     <div class="sb-header">
       <div class="sb-top">
-        <span class="sb-title">Mesa de Control C1 E27</span>
+        <span class="sb-title">Panel V72 - CRM Inquebrantable</span>
         <div class="sync-row">
           <div class="sync-dot" id="sdot"></div>
           <span class="sync-text" id="stxt">—</span>
+          <button class="sim-btn btn-cfg" style="background:#1a73e8; color:white; border:none;" onclick="iniciarSimulador()">🧪 Simular</button>
           <button class="btn-cfg" onclick="abrirCfg()">⚙</button>
         </div>
       </div>
@@ -917,7 +869,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="empty">
       <div style="width:44px;height:44px;border-radius:50%;background:#E1F5EE;display:flex;align-items:center;justify-content:center;font-size:20px">💬</div>
       <span>Selecciona una conversación</span>
-      <span style="font-size:11px;color:#b4b2a9">Dual-Sync activo (Tiempo Real) - Hora Perú</span>
+      <span style="font-size:11px;color:#b4b2a9">Conectado a Google Sheets (Tiempo Real)</span>
     </div>
   </div>
 </div>
@@ -928,15 +880,12 @@ const DEMO_KEY = 'cpsl_demo_v2';
 
 const QR = [
   {l:'Info C1', t:'Hola, aquí tienes la información del Capítulo 1:\\n\\nHotel José Antonio Deluxe\\nCalle Bellavista 133, Miraflores\\n\\nViernes: registro 9:00am, inicio 10:00am\\nSábado: ingreso 9:00am, inicio 10:00am\\nDomingo: inicio 9:00am, cierre 9:00pm\\n\\nComunicaciones Crear Poder Sin Límites Perú'},
-  {l:'Confirmar', t:'Hola, gracias por informarnos. Confirmación registrada.\\n\\nLos esperamos en el Hotel José Antonio Deluxe. Mesa de registro a las 9:00am.\\n\\nComunicaciones Crear Poder Sin Límites Perú'},
-  {l:'No asiste', t:'Hola, recibido. La inscripción sigue activa para el siguiente equipo inmediato.\\n\\nComunicaciones Crear Poder Sin Límites Perú'},
-  {l:'Cambio nombre', t:'Hola, los cambios de nombre se gestionan con tu coordinadora antes del miércoles previo hasta las 6:00pm.\\n\\nComunicaciones Crear Poder Sin Límites Perú'}
+  {l:'Confirmar', t:'Hola, gracias por informarnos. Confirmación registrada.\\n\\nLos esperamos en el Hotel José Antonio Deluxe. Mesa de registro a las 9:00am.\\n\\nComunicaciones Crear Poder Sin Límites Perú'}
 ];
 
 let CFG = {}; let DEMO = false; let convs = []; let curTel = null; let filtro = 'todos';
 let syncing = false; let syncTimer = null; let rowMap = {}; let _tok = null; let _tokExp = 0;
 
-// Notificaciones (Bloop)
 let audioNotif = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3');
 
 function esc(s){ return String(s).split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;').split('"').join('&quot;').split("'").join('&#39;'); }
@@ -1007,9 +956,7 @@ function usarDemoMode(){
 }
 
 function cargarDemoData(){
-  convs = [
-    {tel:'51970786474', nombre:'Calle Guizado Naysha', estado:'pendiente', ext:false, unread:true, rowNum:2, px:[], msgs:[{dir:'in',texto:'Buenas noches si van ir ese capitulo 1',h:'01:12',st:'',row:2,tipo:'in'}]},
-  ];
+  convs = [];
 }
 
 async function getToken(){
@@ -1124,46 +1071,10 @@ async function enviarWA(tel, texto){
   } catch(e){ return {ok:false, err:e.message}; }
 }
 
-async function sincronizarMensajesInstantaneos() {
-    try {
-        let res = await fetch('/api/historial');
-        let data = await res.json();
-        let cambios = false;
-
-        for(let m of data) {
-            let tel = m.telefono;
-            let c = convs.find(x => x.tel === tel);
-            if (!c) {
-                c = {tel: tel, nombre: m.nombre || '+' + tel, estado: 'pendiente', ext: true, unread: false, rowNum: null, px: [], msgs: []};
-                convs.push(c);
-                cambios = true;
-            }
-            
-            let ya = c.msgs.some(x => x.texto === m.texto);
-            if (!ya) {
-                let dir = m.tipo === 'in' ? 'in' : 'out';
-                c.msgs.push({dir: dir, texto: m.texto, h: m.hora, st: dir === 'out' ? 'Enviado' : '', tipo: dir, row: 999999});
-                if (dir === 'in' && curTel !== tel) {
-                    c.unread = true;
-                    // Notificación Visual y Sonora
-                    document.title = "🔴 Nuevo Mensaje - CPSL";
-                    try{ audioNotif.play(); }catch(e){}
-                }
-                cambios = true;
-            }
-        }
-
-        if (cambios) {
-            renderLista();
-            if (curTel) actualizarMensajes();
-        }
-    } catch (e) {}
-}
-
 async function sincronizarSheets(){
   if(syncing||DEMO) return;
   syncing = true;
-  setSyncStatus('busy','Sincronizando Sheets…');
+  setSyncStatus('busy','Leyendo de Google Sheets…');
   try{
     const rows = await leerSheet();
     if(!rows){ syncing=false; return; }
@@ -1175,7 +1086,11 @@ async function sincronizarSheets(){
       if(i===0) return;
       const tel    = (row[1]||'').toString().trim();
       const nombre = (row[2]||'').trim();
+      const msgRec = (row[3]||'').trim();
+      const botRep = (row[4]||'').trim();
       const estado = (row[5]||'pendiente').toLowerCase();
+      const respMan= (row[6]||'').trim(); 
+      const h      = (row[0]||'').slice(-5) || ahora;
       if(!tel) return;
 
       rowMap[tel] = i+1;
@@ -1186,9 +1101,36 @@ async function sincronizarSheets(){
       }
       if(nombre && c.nombre==='+'+tel){ c.nombre=nombre; cambios=true; }
       if(estado && c.estado!==estado){ c.estado=estado; cambios=true; }
+
+      if(msgRec){
+        if(!c.msgs.some(m=>m.row===i && m.tipo==='in')){
+          c.msgs.push({dir:'in', texto:msgRec, h, st:'', tipo:'in', row:i});
+          if(curTel!==tel) {
+              c.unread=true;
+              document.title = "🔴 Nuevo Mensaje - CPSL";
+              try{ audioNotif.play(); }catch(e){}
+          }
+          cambios=true;
+        }
+      }
+      if(botRep){
+        if(!c.msgs.some(m=>m.row===i && m.tipo==='bot')){
+          c.msgs.push({dir:'out', texto:botRep, h, st:'Enviado (bot)', fuente:'bot', tipo:'bot', row:i});
+          cambios=true;
+        }
+      }
+      if(respMan){
+        if(!c.msgs.some(m=>m.row===i && m.tipo==='man')){
+          c.msgs.push({dir:'out', texto:respMan, h, st:'Enviado (Manual)', fuente:'manual', tipo:'man', row:i});
+          cambios=true;
+        }
+      }
     });
 
-    if(cambios){ renderStats(); renderLista(); if(curTel) actualizarMensajes(); }
+    if(cambios){ 
+        convs.forEach(c => c.msgs.sort((a,b)=>a.row - b.row));
+        renderStats(); renderLista(); if(curTel) actualizarMensajes(); 
+    }
     setSyncStatus('ok', hora());
   } catch(e){
     setSyncStatus('err','Sync: '+e.message);
@@ -1208,7 +1150,7 @@ function renderLista(){
     const mq = !q || c.nombre.toLowerCase().includes(q) || c.tel.includes(q);
     const mt = filtro==='todos' ||(filtro==='externo'&&c.ext) ||(!c.ext&&c.estado===filtro);
     return mq && mt;
-  }).sort((a,b)=>(b.unread-a.unread)||((b.msgs[b.msgs.length-1]?.h||'')>(a.msgs[a.msgs.length-1]?.h||'')?1:-1));
+  }).sort((a,b)=>(b.unread-a.unread)||((b.msgs[b.msgs.length-1]?.row||0)>(a.msgs[a.msgs.length-1]?.row||0)?1:-1));
 
   const el = document.getElementById('list');
   if(!el) return;
@@ -1238,7 +1180,7 @@ function selConv(tel){
     curTel = tel; 
     const c = convs.find(x=>x.tel===tel); 
     if(c) c.unread=false; 
-    document.title = "CPSL — Comunicaciones"; // Limpia notificación visual
+    document.title = "CPSL — Panel"; 
     renderLista(); 
     renderChat(); 
 }
@@ -1270,7 +1212,6 @@ function renderChat(){
       '<div class="qr-row">' + QR.map((r,i)=>'<button class="qr" onclick="usarQR('+i+')">'+esc(r.l)+'</button>').join('') + '</div>' +
       '<div class="input-row">' +
         '<textarea class="tinput" id="tinput" placeholder="Escribe tu respuesta… (Enter = enviar | Shift+Enter = nueva línea)" onkeydown="handleKey(event)" oninput="onInput(this)"></textarea>' +
-        '<button class="send" style="background:#534AB7; padding:8px;" onclick="enviarMedia()" title="Enviar Imagen (En desarrollo)">📎</button>' +
         '<button class="send" id="sbtn" onclick="enviar()">Enviar</button>' +
       '</div>' +
       '<div class="foot-meta"><span id="fchars">0 caracteres</span><span id="fstatus"></span></div>' +
@@ -1278,10 +1219,6 @@ function renderChat(){
 
   poblarMensajes(c); scrollFin();
   const ti = document.getElementById('tinput'); if(ti) ti.focus();
-}
-
-function enviarMedia() {
-    alert("🚀 Opción 'Enviar Imagen' habilitada. (Integración de Media de la API de Meta en proceso para la siguiente versión).");
 }
 
 function actualizarMensajes(){
@@ -1342,7 +1279,8 @@ async function enviar(){
   if(!DEMO){
     const ok = await appendFila([fecha(), curTel, c.nombre, '', '', 'RESPUESTA MANUAL', texto, waOk ? 'ENVIADO' : 'ERROR WA']);
     if(ok){ 
-        setFootStatus('✓ Registrado en Sheets con Fecha y Hora'); 
+        setFootStatus('✓ Registrado en Sheets'); 
+        setTimeout(()=>{ sincronizarSheets(); }, 1000); 
     } else {
         setFootStatus('⚠ Error guardando en Sheet');
     }
@@ -1374,6 +1312,21 @@ function togglePx(btn, px){
     } 
 }
 
+function iniciarSimulador() {
+    let num = prompt("Ingresa el número a simular:\\nEj: 51999888777");
+    if (!num) return;
+    num = num.split('').filter(c => c >= '0' && c <= '9').join('');
+    let simTel = "SIM_" + num;
+    curTel = simTel;
+    
+    fetch('/api/mensaje_simulador', { 
+        method: 'POST', headers: {'Content-Type': 'application/json'}, 
+        body: JSON.stringify({telefono: simTel, texto: "MENU"}) 
+    }).then(() => {
+        setTimeout(sincronizarSheets, 1500); // Dar tiempo al bot de responder y escribir en Google Sheets
+    });
+}
+
 function abrirNuevo(){ document.getElementById('ovl-new').style.display='flex'; }
 function cerrarNuevo(){ document.getElementById('ovl-new').style.display='none'; }
 async function crearNuevo(){
@@ -1385,20 +1338,19 @@ async function crearNuevo(){
   if(existe){ cerrarNuevo(); selConv(tel); return; }
   const c = {tel, nombre, estado:'pendiente', ext:true, unread:false, rowNum:null, px:[], msgs:[]};
   convs.push(c);
-  if(!DEMO){ const ok = await appendFila([fecha(),tel,nombre,'','','pendiente','','']); }
+  if(!DEMO){ const ok = await appendFila([fecha(),tel,nombre,'','','pendiente','','']); if(ok) setTimeout(sincronizarSheets, 800); }
   document.getElementById('n-nombre').value=''; document.getElementById('n-tel').value='';
   cerrarNuevo(); renderStats(); renderLista(); selConv(tel);
 }
 
 function iniciarUI(){ renderStats(); renderLista(); }
 async function iniciar(){ 
-    setSyncStatus('busy','Conectando…'); 
+    setSyncStatus('busy','Conectando a Sheets…'); 
     await sincronizarSheets(); 
     iniciarUI(); 
     
-    setInterval(sincronizarMensajesInstantaneos, 2500); 
     if(syncTimer) clearInterval(syncTimer); 
-    syncTimer = setInterval(sincronizarSheets, 30000); 
+    syncTimer = setInterval(sincronizarSheets, 8000); // 🚀 V72: Pull de Sheets cada 8 segundos
 }
 
 cargarCfg();
@@ -1428,7 +1380,7 @@ def descargar_respaldo():
     if os.path.exists(Config.BACKUP_ABSOLUTO_CSV):
         with open(Config.BACKUP_ABSOLUTO_CSV, "r", encoding="utf-8-sig") as f: data = f.read()
     else: data = "Fecha y Hora,Telefono,Nombre,Direccion (In/Out),Mensaje,Estado Sistema\nSin datos aun"
-    return Response(data, mimetype="text/csv", headers={"Content-Disposition":f"attachment;filename=Backup_Absoluto_V70.csv"})
+    return Response(data, mimetype="text/csv", headers={"Content-Disposition":f"attachment;filename=Backup_Absoluto_V72.csv"})
 
 @app.route("/api/enviar", methods=["POST"])
 def api_enviar():
@@ -1451,7 +1403,7 @@ def mensaje_simulador():
     nombre_mostrar = f"({perfil.get('rol', 'PROSPECTO')}) {perfil.get('nombre', 'Simulado')}" if perfil.get('nombre') else "SIMULACIÓN"
     
     append_historial(tel, nombre_mostrar, texto, "in")
-    SessionManager.guardar_backup_absoluto(tel, nombre_mostrar, texto, "IN", "SIMULADOR")
+    registrar_en_sheets_inmediato(tel, nombre_mostrar, texto, "", "SIMULADOR", "", "")
     
     threading.Thread(target=flujo_principal, args=(tel, texto), daemon=True).start()
     return jsonify({"status": "ok"}), 200
@@ -1481,8 +1433,8 @@ def webhook():
             nombre_cached = f"({perfil['rol']}) {perfil['nombre']}" if perfil.get('nombre') else "NUEVO CONTACTO"
             
             append_historial(telefono, nombre_cached, texto, "in")
-            # 🚀 V70: Escribimos EN GOOGLE SHEETS de forma 100% sincrónica ANTES de lanzar el bot. (Cero pérdidas)
-            GoogleSheetsAPI.registrar_accion(telefono, nombre_cached, texto, "", "RECIBIDO", "", "")
+            # 🚀 V72: Escritura en la Nube Inmediata (Sin colas que se borran)
+            registrar_en_sheets_inmediato(telefono, nombre_cached, texto, "", "RECIBIDO", "", "")
             SessionManager.guardar_backup_absoluto(telefono, nombre_cached, texto, "IN", "RECIBIDO")
 
             threading.Thread(target=flujo_principal, args=(telefono, texto), daemon=True).start()
@@ -1494,7 +1446,7 @@ def webhook():
             nombre_cached = f"({perfil['rol']}) {perfil['nombre']}" if perfil.get('nombre') else "NUEVO CONTACTO"
             
             append_historial(telefono, nombre_cached, "[MULTIMEDIA RECIBIDO]", "in")
-            GoogleSheetsAPI.registrar_accion(telefono, nombre_cached, "[MULTIMEDIA RECIBIDO]", "", "RECIBIDO", "", "")
+            registrar_en_sheets_inmediato(telefono, nombre_cached, "[MULTIMEDIA RECIBIDO]", "", "RECIBIDO", "", "")
             SessionManager.guardar_backup_absoluto(telefono, nombre_cached, "[MULTIMEDIA RECIBIDO]", "IN", "ERROR_MULTIMEDIA")
             
             WhatsAppAPI.enviar_mensaje(telefono, "Comprendido. Por favor responde con texto o el número de la opción deseada para poder apoyarte.", registrar_sheets=True, estado_menu="ERROR_MULTIMEDIA")
