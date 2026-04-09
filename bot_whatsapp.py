@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V80: Masterpiece (Cero Fricción IMO, Smart Queue, Silencio Bot, Anti-Audios)
+✅ Versión V81: Bugfix Inactividad + Calendario LIMA 2026 + Cutoffs Exactos
 """
 
 import os, re, json, time, csv, io, random, logging, threading, queue
@@ -43,7 +43,7 @@ class Config:
     CREDS_JSON = os.environ.get("GOOGLE_CREDENTIALS", "")
 
 # ══════════════════════════════════════════════════════════════════════════
-# 2. GESTOR DE ESTADO LOCAL Y CAJA NEGRA (SINCRÓNICO)
+# 2. GESTOR DE ESTADO LOCAL Y CAJA NEGRA
 # ══════════════════════════════════════════════════════════════════════════
 class SessionManager:
     @staticmethod
@@ -113,7 +113,7 @@ def get_historial():
     return []
 
 # ══════════════════════════════════════════════════════════════════════════
-# 3. GOOGLE SHEETS (SMART QUEUE ANTI-BLOQUEO V80)
+# 3. GOOGLE SHEETS (SMART QUEUE)
 # ══════════════════════════════════════════════════════════════════════════
 cola_sheets = queue.Queue()
 
@@ -154,7 +154,6 @@ class GoogleSheetsAPI:
         except Exception as e: logger.error(f"Error Sheets: {e}")
 
 def worker_sheets():
-    """Hilo trabajador: Dosifica el envío a Google Sheets (1.5s) para evitar el Error 429 Too Many Requests"""
     while True:
         try:
             tarea = cola_sheets.get()
@@ -203,7 +202,7 @@ def enviar_mensaje(telefono, texto, nombre_imo="", registrar_sheets=True, estado
     return WhatsAppAPI.enviar_mensaje(telefono, texto, nombre_imo, registrar_sheets, estado_menu)
 
 # ══════════════════════════════════════════════════════════════════════════
-# 5. UTILIDADES, CRM OMNICANAL Y RELOJ DINÁMICO
+# 5. UTILIDADES Y CRM OMNICANAL
 # ══════════════════════════════════════════════════════════════════════════
 def norm_tel(tel):
     t = re.sub(r'\D', '', str(tel))
@@ -371,7 +370,6 @@ def buscar_pendientes_imo_csv(telefono):
     except: return []
 
 def buscar_todos_imo_csv(telefono):
-    """Búsqueda integral de comunidad (Participantes/Enrolados)"""
     try:
         if not os.path.exists(Config.CSV_BD_PATH): return []
         with open(Config.CSV_BD_PATH, "r", encoding="utf-8-sig") as f:
@@ -457,29 +455,76 @@ def marcar_stop(telefono):
             wb.save(Config.EXCEL_PATH); wb.close()
         except: pass
 
+# ══════════════════════════════════════════════════════════════════════════
+# 6. RELOJ DINÁMICO Y CALENDARIO LIMA 2026 (V81)
+# ══════════════════════════════════════════════════════════════════════════
+MESES = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+
+def formatear_fecha(dt, equipo):
+    mes = MESES[dt.month]
+    return f"Viernes {dt.day:02d} de {mes} de 2026 (Equipo {equipo})" if dt.weekday() == 4 else f"Jueves {dt.day:02d} de {mes} de 2026 (Equipo {equipo})"
+
 def get_fecha_activa(tipo_evento):
-    """🚀 V80: Reloj Dinámico Inquebrantable (Lima)"""
     ahora = ahora_lima()
     
+    # Base de datos extraída de PROGRAMACION 2026 CREAR LIMA
+    eventos_c1 = [
+        {"eq": "26", "inicio": datetime(2026, 3, 27, 9, 0, tzinfo=TZ_LIMA)},
+        {"eq": "27", "inicio": datetime(2026, 5, 1, 9, 0, tzinfo=TZ_LIMA)},
+        {"eq": "28", "inicio": datetime(2026, 6, 5, 9, 0, tzinfo=TZ_LIMA)},
+        {"eq": "29", "inicio": datetime(2026, 7, 10, 9, 0, tzinfo=TZ_LIMA)},
+        {"eq": "30", "inicio": datetime(2026, 8, 14, 9, 0, tzinfo=TZ_LIMA)},
+        {"eq": "31", "inicio": datetime(2026, 9, 18, 9, 0, tzinfo=TZ_LIMA)},
+        {"eq": "32", "inicio": datetime(2026, 10, 23, 9, 0, tzinfo=TZ_LIMA)},
+        {"eq": "33", "inicio": datetime(2026, 11, 27, 9, 0, tzinfo=TZ_LIMA)}
+    ]
+    
+    eventos_c2 = [
+        {"eq": "26", "inicio": datetime(2026, 4, 9, 13, 0, tzinfo=TZ_LIMA)},
+        {"eq": "27", "inicio": datetime(2026, 5, 14, 13, 0, tzinfo=TZ_LIMA)},
+        {"eq": "28", "inicio": datetime(2026, 6, 18, 13, 0, tzinfo=TZ_LIMA)},
+        {"eq": "29", "inicio": datetime(2026, 7, 23, 13, 0, tzinfo=TZ_LIMA)},
+        {"eq": "30", "inicio": datetime(2026, 8, 27, 13, 0, tzinfo=TZ_LIMA)},
+        {"eq": "31", "inicio": datetime(2026, 10, 1, 13, 0, tzinfo=TZ_LIMA)},
+        {"eq": "32", "inicio": datetime(2026, 11, 5, 13, 0, tzinfo=TZ_LIMA)},
+        {"eq": "33", "inicio": datetime(2026, 12, 10, 13, 0, tzinfo=TZ_LIMA)}
+    ]
+    
+    eventos_mj = [
+        {"eq": "24,25,26", "inicio": datetime(2026, 4, 17, 17, 0, tzinfo=TZ_LIMA)},
+        {"eq": "25,26,27", "inicio": datetime(2026, 5, 22, 17, 0, tzinfo=TZ_LIMA)},
+        {"eq": "26,27,28", "inicio": datetime(2026, 6, 26, 17, 0, tzinfo=TZ_LIMA)},
+        {"eq": "27,28,29", "inicio": datetime(2026, 7, 31, 17, 0, tzinfo=TZ_LIMA)},
+        {"eq": "28,29,30", "inicio": datetime(2026, 9, 4, 17, 0, tzinfo=TZ_LIMA)},
+        {"eq": "29,30,31", "inicio": datetime(2026, 10, 9, 17, 0, tzinfo=TZ_LIMA)},
+        {"eq": "30,31,32", "inicio": datetime(2026, 11, 13, 17, 0, tzinfo=TZ_LIMA)},
+        {"eq": "31,32,33", "inicio": datetime(2026, 12, 18, 17, 0, tzinfo=TZ_LIMA)}
+    ]
+
     if tipo_evento == "C1":
-        limite_c1 = datetime(2026, 5, 1, 11, 30, tzinfo=TZ_LIMA)
-        if ahora < limite_c1: return "Viernes 01 de Mayo de 2026 (Equipo 27)"
-        else: return "Viernes 05 de Junio de 2026 (Equipo 28)"
-        
+        for ev in eventos_c1:
+            # Limite: Viernes 11:30 AM
+            limite = ev["inicio"].replace(hour=11, minute=30)
+            if ahora <= limite: return formatear_fecha(ev["inicio"], ev["eq"])
+            
     elif tipo_evento == "C2":
-        limite_c2 = datetime(2026, 4, 9, 15, 30, tzinfo=TZ_LIMA)
-        if ahora < limite_c2: return "Jueves 09 de Abril de 2026 (Equipo 26)"
-        else: return "Jueves 14 de Mayo de 2026 (Equipo 27)"
-        
+        for ev in eventos_c2:
+            # Limite: Jueves 3:30 PM
+            limite = ev["inicio"].replace(hour=15, minute=30)
+            if ahora <= limite: return formatear_fecha(ev["inicio"], ev["eq"])
+            
     elif tipo_evento == "MJ":
-        limite_mj = datetime(2026, 4, 17, 19, 0, tzinfo=TZ_LIMA)
-        if ahora < limite_mj: return "Viernes 17 de Abril de 2026 (Equipos 24, 25, 26)"
-        else: return "Viernes 22 de Mayo de 2026 (Equipos 25, 26, 27)"
-        
-    return "Fecha a confirmar"
+        for ev in eventos_mj:
+            # Limite: Viernes 7:00 PM
+            limite = ev["inicio"].replace(hour=19, minute=0)
+            if ahora <= limite:
+                mes = MESES[ev["inicio"].month]
+                return f"Viernes {ev['inicio'].day:02d} de {mes} de 2026 (Equipos {ev['eq']})"
+
+    return "Nuevas fechas por confirmar."
 
 # ══════════════════════════════════════════════════════════════════════════
-# 6. ESTRUCTURAS DE MENÚS (V80 - Fricción Cero)
+# 7. ESTRUCTURAS DE MENÚS (NODO CERO)
 # ══════════════════════════════════════════════════════════════════════════
 COORDINADORAS_CONTACTOS = {"Diana": "51912379744", "Joyce": "51933599903", "Leyla": "51919502385", "Zuley": "51933599864"}
 
@@ -489,7 +534,6 @@ MENU_STRUCTURE = {
         "options": {"1": "info_entrenamientos", "2": "pagos", "3": "pre_action_humano_actualizar_numero", "4": "pre_action_humano_coordinacion", "0": "action_salir"}
     },
     "main_imo": {
-        # V80: Opciones directas sin pedir DNI
         "text": "🌟 *Bienvenido Líder IMO {nombre}*\nCanal Corporativo Oficial. Selecciona una opción:\n\n1️⃣ Ver mis rezagados (Pendientes C1/C2)\n2️⃣ Ver estado de TODOS mis enrolados\n3️⃣ Hablar con Coordinación IMO\n0️⃣ Finalizar",
         "options": {"1": "ver_pendientes_imo", "2": "ver_todos_imo", "3": "pre_action_humano_soporte_imo", "0": "action_salir"}
     },
@@ -554,7 +598,7 @@ def notificar_coordinadora_interna(prospecto_tel, prospecto_nombre, motivo):
     return coord_nombre
 
 # ══════════════════════════════════════════════════════════════════════════
-# 7. PROCESADOR DE ESTADOS (FLUJO ESTRICTO V80)
+# 8. PROCESADOR DE ESTADOS (FLUJO ESTRICTO V81 - FIX BUCLE)
 # ══════════════════════════════════════════════════════════════════════════
 def flujo_principal(telefono, texto):
     try:
@@ -571,11 +615,9 @@ def flujo_principal(telefono, texto):
             
         nombre_mostrar = f"({perfil['rol']}) {perfil.get('nombre', 'Nuevo')}" if perfil.get('nombre') else "NUEVO CONTACTO"
 
-        # 🚀 V80: Silencio Bot (Si está esperando humano, no interrumpe ni evalúa menús)
+        # Modo Silencio
         if sesion.get("menu_state") == "esperando_humano":
-            if texto_limpio not in ["0", "MENU", "MENÚ", "INICIO"]:
-                # Solo guarda historial, no responde nada.
-                return
+            if texto_limpio not in ["0", "MENU", "MENÚ", "INICIO"]: return
 
         # Filtro de Encuesta
         if sesion.get("menu_state") == "esperando_encuesta":
@@ -585,7 +627,7 @@ def flujo_principal(telefono, texto):
             else: enviar_mensaje(telefono, "Por favor califica con un número del 1 al 5.", nombre_mostrar, True, "ERROR CSAT")
             return
 
-        # Filtro de Captura de Motivo
+        # Filtro Handoff
         if sesion.get("menu_state") == "capturando_motivo":
             if texto_limpio not in ["0", "MENU", "MENÚ", "INICIO"]:
                 motivo = texto
@@ -596,11 +638,14 @@ def flujo_principal(telefono, texto):
                 set_sesion(telefono, sesion)
                 return
 
-        # --- EVALUACIÓN DE ESTADO ---
+        # --- EVALUACIÓN DE INACTIVIDAD (FIX: ZONA HORARIA UNIFICADA) ---
         try:
             last_time = datetime.strptime(sesion.get("last_interaction", "2000-01-01 00:00:00"), "%Y-%m-%d %H:%M:%S")
-            minutos_inactividad = (datetime.now() - last_time).total_seconds() / 60.0
-        except: minutos_inactividad = 9999
+            ahora_local_naive = ahora_lima().replace(tzinfo=None)
+            minutos_inactividad = (ahora_local_naive - last_time).total_seconds() / 60.0
+        except Exception as e: 
+            minutos_inactividad = 9999
+            
         sesion["last_interaction"] = ahora_lima().strftime("%Y-%m-%d %H:%M:%S")
         
         if texto_limpio == "STOP":
@@ -619,7 +664,7 @@ def flujo_principal(telefono, texto):
 
         def render_menu(m_key):
             if m_key == "info_fechas":
-                return f"📅 *Fechas Disponibles (Únicas Vigentes)*\n\n🚀 *C1:* {get_fecha_activa('C1')}\n🔥 *C2:* {get_fecha_activa('C2')}\n👑 *MJ:* {get_fecha_activa('MJ')}\n\n1️⃣ Hablar con Coordinación\n9️⃣ Regresar\n0️⃣ Menú principal"
+                return f"📅 *Fechas Disponibles*\n\n🚀 *C1:* {get_fecha_activa('C1')}\n🔥 *C2:* {get_fecha_activa('C2')}\n👑 *MJ:* {get_fecha_activa('MJ')}\n\n1️⃣ Hablar con Coordinación\n9️⃣ Regresar\n0️⃣ Menú principal"
             txt = MENU_STRUCTURE[m_key]["text"]
             if "{" in txt: txt = txt.format(nombre=perfil.get("nombre", "Líder"), imo=perfil.get("imo_nombre", "tu líder"), pendiente=perfil.get("pendiente", "tu nivel"))
             return txt
@@ -647,7 +692,6 @@ def flujo_principal(telefono, texto):
             if siguiente_estado:
                 sesion["menu_errors"] = 0
                 
-                # V80: DNI como puerta de emergencia
                 if siguiente_estado == "pre_action_humano_actualizar_numero":
                     sesion["contexto_derivacion"] = "ACTUALIZAR NÚMERO (LÍDER/PARTICIPANTE)"
                     msg = "Para actualizar tu registro corporativo y restaurar tus accesos, por favor indícame en un solo mensaje:\n*¿Cuál es tu Nombre Completo y tu DNI?*"
@@ -670,7 +714,6 @@ def flujo_principal(telefono, texto):
                     sesion["menu_state"] = "capturando_motivo"; sesion["menu_history"] = hist; set_sesion(telefono, sesion)
                     return
 
-                # V80: IMOs reportes directos (1 click) sin DNI
                 elif siguiente_estado == "ver_pendientes_imo":
                     lista = buscar_pendientes_imo_csv(telefono)
                     if lista: msg = f"📊 *Reporte de tu Equipo (Rezagados)*\n\n" + "\n".join(lista) + "\n\n_Escribe *0* para volver._"
@@ -683,7 +726,7 @@ def flujo_principal(telefono, texto):
 
                 elif siguiente_estado == "ver_todos_imo":
                     sentados, no_sentados = reporte_sentados_imo(telefono)
-                    msg = f"📊 *Reporte Especial de Comunidad IMO*\n\n✅ *Sentados / Activos:*\n"
+                    msg = f"📊 *Reporte Especial de Comunidad*\n\n✅ *Sentados / Activos:*\n"
                     msg += "\n".join(sentados) if sentados else "Ninguno en esta base"
                     msg += "\n\n⏳ *No Sentados / Rezagados:*\n"
                     msg += "\n".join(no_sentados) if no_sentados else "Ninguno en esta base"
@@ -726,11 +769,14 @@ def flujo_principal(telefono, texto):
                     enviar_mensaje(telefono, f"⚠️ *Opción no válida*. Responde únicamente con el *número*.\n\n{render_menu(estado_actual)}", nombre_mostrar, True, "ERROR_MENU")
                 set_sesion(telefono, sesion)
 
+        elif estado_actual in ["esperando_humano", "esperando_fecha", "ver_todos_imo", "ver_pendientes_imo"]:
+            set_sesion(telefono, sesion)
+
     except Exception as e:
         logger.error(f"Error en flujo principal: {e}", exc_info=True)
 
 # ══════════════════════════════════════════════════════════════════════════
-# 8. PANEL WEB (HTML), ENDPOINTS Y SIMULADOR
+# 9. PANEL WEB (HTML), ENDPOINTS Y SIMULADOR
 # ══════════════════════════════════════════════════════════════════════════
 HTML_CHAT = """<!DOCTYPE html>
 <html lang="es">
@@ -1445,7 +1491,7 @@ def descargar_respaldo():
     if os.path.exists(Config.BACKUP_ABSOLUTO_CSV):
         with open(Config.BACKUP_ABSOLUTO_CSV, "r", encoding="utf-8-sig") as f: data = f.read()
     else: data = "Fecha y Hora,Telefono,Nombre,Direccion (In/Out),Mensaje,Estado Sistema\nSin datos aun"
-    return Response(data, mimetype="text/csv", headers={"Content-Disposition":f"attachment;filename=Backup_Absoluto_V80.csv"})
+    return Response(data, mimetype="text/csv", headers={"Content-Disposition":f"attachment;filename=Backup_Absoluto_V81.csv"})
 
 @app.route("/api/enviar", methods=["POST"])
 def api_enviar():
@@ -1499,7 +1545,7 @@ def webhook():
             nombre_cached = f"({perfil['rol']}) {perfil['nombre']}" if perfil.get('nombre') else "NUEVO CONTACTO"
             
             append_historial(telefono, nombre_cached, texto, "in")
-            # 🚀 V80: Escudo de Audios/Multimedia durante Handoff
+            # 🚀 V81: Escudo de Audios/Multimedia durante Handoff
             if sesion.get("menu_state") == "capturando_motivo":
                 pass # Pasa directo a evaluar en flujo_principal
 
@@ -1519,7 +1565,7 @@ def webhook():
             SessionManager.guardar_backup_absoluto(telefono, nombre_cached, "[MULTIMEDIA RECIBIDO]", "IN", "RECIBIDO")
             registrar_en_sheets_smart(telefono, nombre_cached, "[MULTIMEDIA RECIBIDO]", "", "RECIBIDO", "", "")
             
-            # 🚀 V80: Escudo Anti-Audios en Handoff
+            # 🚀 V81: Escudo Anti-Audios en Handoff
             if sesion.get("menu_state") == "capturando_motivo":
                 WhatsAppAPI.enviar_mensaje(telefono, "Por políticas de registro y rapidez, por favor escríbeme tu consulta *únicamente en texto*. No procesamos audios en esta etapa.", registrar_sheets=True, estado_menu="ERROR_MULTIMEDIA")
             elif sesion.get("menu_state") != "esperando_humano":
