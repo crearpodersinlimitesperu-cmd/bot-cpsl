@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V76: Timekeeper (Cutoffs exactos) + Forzado UTC-5 (Hora Lima) + UX
+✅ Versión V77: Producción Total (Nodo Cero + Reloj Lima + Panel Real-Time + Dual Sync)
 """
 
 import os, re, json, time, csv, io, random, logging, threading
@@ -17,9 +17,8 @@ logger = logging.getLogger("BotCrear")
 app = Flask(__name__)
 
 # ══════════════════════════════════════════════════════════════════════════
-# 1. CONFIGURACIÓN Y CONSTANTES (UTC-5 LIMA)
+# 1. CONFIGURACIÓN Y ZONA HORARIA (LIMA)
 # ══════════════════════════════════════════════════════════════════════════
-# 🚀 Forzamos la zona horaria de Perú para que Render no se confunda con UTC
 TZ_LIMA = timezone(timedelta(hours=-5))
 
 def ahora_lima():
@@ -150,7 +149,7 @@ class GoogleSheetsAPI:
                 req_lib.post(url, params={"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"}, 
                              json={"values": valores}, 
                              headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=10)
-        except Exception as e: logger.error(f"Error Sheets Inmediato: {e}")
+        except Exception as e: logger.error(f"Error Sheets: {e}")
 
 def registrar_en_sheets_inmediato(tel, nom, msg, resp, est="", resp_man="", env_stat=""):
     if str(tel).startswith("SIM_"): return 
@@ -228,7 +227,7 @@ def cargar_px_del_imo(telefono):
         except: return "", []
 
 def obtener_perfil_crm(telefono):
-    perfil = {"rol": "PROSPECTO", "nombre": None, "imo_nombre": None, "imo_tel": None}
+    perfil = {"rol": "PROSPECTO", "nombre": None, "pendiente": None, "imo_nombre": None, "imo_tel": None}
     es_imo = False
     
     imo_nom, px_list = cargar_px_del_imo(telefono)
@@ -312,8 +311,49 @@ def obtener_perfil_crm(telefono):
         
     return perfil
 
+def buscar_pendientes_imo_csv(telefono):
+    try:
+        if not os.path.exists(Config.CSV_BD_PATH): return []
+        pendientes = []
+        with open(Config.CSV_BD_PATH, "r", encoding="utf-8-sig") as f:
+            primera_linea = f.readline()
+            delimitador = ';' if ';' in primera_linea else ','
+            f.seek(0)
+            reader = csv.DictReader(f, delimiter=delimitador)
+            if not reader.fieldnames: return []
+            keys = {k.strip().lower(): k for k in reader.fieldnames if k}
+            
+            imo_tel_key = next((k for k in keys.values() if "tel" in k.lower() and "imo" in k.lower()), None)
+            nom_key = next((k for k in keys.values() if "nombre" in k.lower()), None)
+            ape_key = next((k for k in keys.values() if "apellido" in k.lower()), None)
+            c1_key = next((k for k in keys.values() if "c1" == k.lower().strip()), None)
+            c2_key = next((k for k in keys.values() if "c2" == k.lower().strip()), None)
+
+            if not imo_tel_key: return []
+
+            for row in reader:
+                if not row or not row.get(imo_tel_key): continue
+                if son_mismo_numero(str(row.get(imo_tel_key, "")), telefono):
+                    c1_stat = str(row.get(c1_key, "NO")).strip().upper() if c1_key else "NO"
+                    c2_stat = str(row.get(c2_key, "NO")).strip().upper() if c2_key else "NO"
+
+                    falta = ""
+                    if c1_stat != "SI" and c1_stat != "S": falta = "C1"
+                    elif c2_stat != "SI" and c2_stat != "S": falta = "C2"
+
+                    if falta:
+                        n_base = str(row.get(nom_key, "")).strip()
+                        a_base = str(row.get(ape_key, "")).strip() if ape_key else ""
+                        n = n_base.split()[0] if n_base.split() else ""
+                        a = a_base.split()[0] if a_base.split() else ""
+                        if n and a: nombre_completo = f"{n} {a}".title()
+                        elif n: nombre_completo = n.title()
+                        else: continue
+                        pendientes.append(f"• {nombre_completo} (Falta {falta})")
+        return pendientes
+    except: return []
+
 def buscar_todos_imo_csv(telefono):
-    """Búsqueda integral de comunidad"""
     try:
         if not os.path.exists(Config.CSV_BD_PATH): return []
         with open(Config.CSV_BD_PATH, "r", encoding="utf-8-sig") as f:
@@ -375,7 +415,7 @@ def buscar_todos_imo_csv(telefono):
     except: return []
 
 def reporte_sentados_imo(telefono):
-    """🧠 V76: Divide a la comunidad de un IMO en Sentados y No Sentados"""
+    """🧠 V77: Divide a la comunidad de un IMO en Sentados y No Sentados"""
     todos = buscar_todos_imo_csv(telefono)
     sentados = []
     no_sentados = []
@@ -401,7 +441,7 @@ def marcar_stop(telefono):
         except: pass
 
 def get_fecha_activa(tipo_evento):
-    """🚀 V76: RELOJ DINÁMICO INQUEBRANTABLE (Con Zona Horaria Lima Forzada)"""
+    """🚀 V77: RELOJ DINÁMICO INQUEBRANTABLE (Con Zona Horaria Lima Forzada)"""
     ahora = ahora_lima()
     
     if tipo_evento == "C1":
@@ -425,7 +465,7 @@ def get_fecha_activa(tipo_evento):
     return "Fecha a confirmar"
 
 # ══════════════════════════════════════════════════════════════════════════
-# 6. ESTRUCTURAS DE MENÚS (V76 - UX DE ALTO RENDIMIENTO)
+# 6. ESTRUCTURAS DE MENÚS (V77 - UX NODO CERO)
 # ══════════════════════════════════════════════════════════════════════════
 COORDINADORAS_CONTACTOS = {"Diana": "51912379744", "Joyce": "51933599903", "Leyla": "51919502385", "Zuley": "51933599864"}
 
@@ -494,7 +534,7 @@ MENU_STRUCTURE = {
 
 def notificar_coordinadora_interna(prospecto_tel, prospecto_nombre, motivo):
     coord_nombre, coord_tel = random.choice(list(COORDINADORAS_CONTACTOS.items()))
-    msg = f"🚨 *NUEVO TICKET ASIGNADO* 🚀\n*Nombre:* {prospecto_nombre or 'No especificado'}\n*Teléfono:* wa.me/{prospecto_tel}\n*Requerimiento del Cliente:* {motivo}"
+    msg = f"🚨 *NUEVO TICKET ASIGNADO* 🚀\n*Nombre:* {prospecto_nombre or 'No especificado'}\n*Teléfono:* wa.me/{prospecto_tel}\n*Requerimiento:* {motivo}"
     enviar_mensaje(coord_tel, msg, f"COORDINADORA: {coord_nombre}", True, "ALERTA TICKET")
     return coord_nombre
 
@@ -599,6 +639,7 @@ def flujo_principal(telefono, texto):
             if siguiente_estado:
                 sesion["menu_errors"] = 0
                 
+                # 🚀 V77: Handoff Universal Dinámico
                 if siguiente_estado.startswith("pre_action_humano"):
                     contexto = siguiente_estado.replace("pre_action_humano_", "").upper()
                     if contexto == "PRE_ACTION_HUMANO": contexto = "SOPORTE GENERAL"
@@ -655,7 +696,7 @@ def flujo_principal(telefono, texto):
             else:
                 if not texto_limpio.isnumeric():
                     sesion["contexto_derivacion"] = "TEXTO LIBRE"
-                    msg = "Para brindarte atención humana, por favor dime en un solo mensaje: *¿Qué necesitas consultar?*"
+                    msg = "Para brindarte atención humana, por favor dime en un solo mensaje: *¿Qué necesitas consultar o resolver?*"
                     enviar_mensaje(telefono, msg, nombre_mostrar, True, "PREGUNTANDO MOTIVO AUTO")
                     sesion["menu_state"] = "capturando_motivo"
                     set_sesion(telefono, sesion)
@@ -1394,7 +1435,7 @@ def descargar_respaldo():
     if os.path.exists(Config.BACKUP_ABSOLUTO_CSV):
         with open(Config.BACKUP_ABSOLUTO_CSV, "r", encoding="utf-8-sig") as f: data = f.read()
     else: data = "Fecha y Hora,Telefono,Nombre,Direccion (In/Out),Mensaje,Estado Sistema\nSin datos aun"
-    return Response(data, mimetype="text/csv", headers={"Content-Disposition":f"attachment;filename=Backup_Absoluto_V76.csv"})
+    return Response(data, mimetype="text/csv", headers={"Content-Disposition":f"attachment;filename=Backup_Absoluto_V77.csv"})
 
 @app.route("/api/enviar", methods=["POST"])
 def api_enviar():
