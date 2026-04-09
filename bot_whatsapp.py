@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V77: Producción Total (Nodo Cero + Reloj Lima + Panel Real-Time + Dual Sync)
+✅ Versión V78: Tono Corporativo (Cero Asesores) + Identidad IMO (Cambio de número)
 """
 
 import os, re, json, time, csv, io, random, logging, threading
@@ -149,7 +149,7 @@ class GoogleSheetsAPI:
                 req_lib.post(url, params={"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"}, 
                              json={"values": valores}, 
                              headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=10)
-        except Exception as e: logger.error(f"Error Sheets: {e}")
+        except Exception as e: logger.error(f"Error Sheets Inmediato: {e}")
 
 def registrar_en_sheets_inmediato(tel, nom, msg, resp, est="", resp_man="", env_stat=""):
     if str(tel).startswith("SIM_"): return 
@@ -415,7 +415,7 @@ def buscar_todos_imo_csv(telefono):
     except: return []
 
 def reporte_sentados_imo(telefono):
-    """🧠 V77: Divide a la comunidad de un IMO en Sentados y No Sentados"""
+    """🧠 V78: Divide a la comunidad de un IMO en Sentados y No Sentados"""
     todos = buscar_todos_imo_csv(telefono)
     sentados = []
     no_sentados = []
@@ -441,23 +441,20 @@ def marcar_stop(telefono):
         except: pass
 
 def get_fecha_activa(tipo_evento):
-    """🚀 V77: RELOJ DINÁMICO INQUEBRANTABLE (Con Zona Horaria Lima Forzada)"""
+    """🚀 V78: RELOJ DINÁMICO INQUEBRANTABLE (Con Zona Horaria Lima Forzada)"""
     ahora = ahora_lima()
     
     if tipo_evento == "C1":
-        # Cutoff: Viernes a las 11:30 AM
         limite_c1 = datetime(2026, 5, 1, 11, 30, tzinfo=TZ_LIMA)
         if ahora < limite_c1: return "Viernes 01 de Mayo de 2026 (Equipo 27)"
         else: return "Viernes 05 de Junio de 2026 (Equipo 28)"
         
     elif tipo_evento == "C2":
-        # Cutoff: Jueves a las 15:30 (3:30 PM)
         limite_c2 = datetime(2026, 4, 9, 15, 30, tzinfo=TZ_LIMA)
         if ahora < limite_c2: return "Jueves 09 de Abril de 2026 (Equipo 26)"
         else: return "Jueves 14 de Mayo de 2026 (Equipo 27)"
         
     elif tipo_evento == "MJ":
-        # Cutoff: Viernes a las 19:00 (7:00 PM)
         limite_mj = datetime(2026, 4, 17, 19, 0, tzinfo=TZ_LIMA)
         if ahora < limite_mj: return "Viernes 17 de Abril de 2026 (Equipos 24, 25, 26)"
         else: return "Viernes 22 de Mayo de 2026 (Equipos 25, 26, 27)"
@@ -465,29 +462,29 @@ def get_fecha_activa(tipo_evento):
     return "Fecha a confirmar"
 
 # ══════════════════════════════════════════════════════════════════════════
-# 6. ESTRUCTURAS DE MENÚS (V77 - UX NODO CERO)
+# 6. ESTRUCTURAS DE MENÚS (V78 - TONO CORPORATIVO OFICIAL)
 # ══════════════════════════════════════════════════════════════════════════
 COORDINADORAS_CONTACTOS = {"Diana": "51912379744", "Joyce": "51933599903", "Leyla": "51919502385", "Zuley": "51933599864"}
 
 MENU_STRUCTURE = {
     "main_prospecto": {
-        "text": "🌟 *Bienvenido a Crear Poder Sin Límites Perú*\n\n1️⃣ Información de los Entrenamientos\n2️⃣ Inversión y Métodos de Pago\n3️⃣ Hablar con un Asesor\n0️⃣ Finalizar",
-        "options": {"1": "info_entrenamientos", "2": "pagos", "3": "pre_action_humano_asesor", "0": "action_salir"}
+        "text": "🌟 *Bienvenido a Crear Poder Sin Límites Perú*\nCanal Corporativo Oficial. Responde con el número de tu elección:\n\n1️⃣ Información de los Entrenamientos\n2️⃣ Inversión y Métodos de Pago\n3️⃣ Soy Alumno / Líder (Cambié de número)\n4️⃣ Hablar con Coordinación\n0️⃣ Finalizar",
+        "options": {"1": "info_entrenamientos", "2": "pagos", "3": "pre_action_humano_actualizar_numero", "4": "pre_action_humano_coordinacion", "0": "action_salir"}
     },
     "main_imo": {
-        "text": "🌟 *Bienvenido Líder IMO {nombre}*\n\n1️⃣ Ver mis rezagados (Pendientes C1/C2)\n2️⃣ Ver estado de TODOS mis enrolados\n3️⃣ Requerimientos IMO (DNI / Reporte Sentados)\n4️⃣ Hablar con Soporte IMO\n0️⃣ Finalizar",
+        "text": "🌟 *Bienvenido Líder IMO {nombre}*\nCanal Corporativo Oficial. Selecciona una opción:\n\n1️⃣ Ver mis rezagados (Pendientes C1/C2)\n2️⃣ Ver estado de TODOS mis enrolados\n3️⃣ Requerimientos IMO (DNI / Reporte Sentados)\n4️⃣ Hablar con Coordinación IMO\n0️⃣ Finalizar",
         "options": {"1": "ver_pendientes_imo", "2": "ver_todos_imo", "3": "pedir_dni_imo", "4": "pre_action_humano_soporte_imo", "0": "action_salir"}
     },
     "main_px_rezagado_c1": {
-        "text": "🌟 *Hola {nombre}.*\nTienes pendiente vivir tu *Capítulo 1 (Fase de Descubrimiento)*. ¡Tu transformación te espera!\n\n1️⃣ Confirmar mi asistencia para la próxima fecha\n2️⃣ Ver fechas y horarios del C1\n3️⃣ Solicitar reprogramación a mi coordinadora\n4️⃣ Ver a mis invitados enrolados\n0️⃣ Finalizar",
+        "text": "🌟 *Hola {nombre}.*\nTienes pendiente vivir tu *Capítulo 1 (Fase de Descubrimiento)*. ¡Tu transformación te espera!\n\n1️⃣ Confirmar mi asistencia para la próxima fecha\n2️⃣ Ver fechas y horarios del C1\n3️⃣ Solicitar reprogramación a Coordinación\n4️⃣ Ver a mis invitados enrolados\n0️⃣ Finalizar",
         "options": {"1": "pre_action_humano_confirma", "2": "info_fechas", "3": "pre_action_humano_reprogramacion", "4": "ver_todos_imo", "0": "action_salir"}
     },
     "main_px_upsell_c2": {
-        "text": "🌟 *¡Hola {nombre}! Diste el primer paso en C1.*\nTu siguiente nivel de transformación profunda te espera. Tienes pendiente tu *Capítulo 2 (C2)*.\n\n1️⃣ Información y fechas del Capítulo 2 (C2)\n2️⃣ Confirmar asistencia / Inversión\n3️⃣ Ver a mis invitados enrolados\n4️⃣ Hablar con mi coordinadora\n0️⃣ Finalizar",
+        "text": "🌟 *¡Hola {nombre}! Diste el primer paso en C1.*\nTu siguiente nivel de transformación profunda te espera. Tienes pendiente tu *Capítulo 2 (C2)*.\n\n1️⃣ Información y fechas del Capítulo 2 (C2)\n2️⃣ Confirmar asistencia / Inversión\n3️⃣ Ver a mis invitados enrolados\n4️⃣ Hablar con Coordinación\n0️⃣ Finalizar",
         "options": {"1": "info_fechas", "2": "pagos", "3": "ver_todos_imo", "4": "pre_action_humano_asesoria", "0": "action_salir"}
     },
     "main_px_upsell_mj": {
-        "text": "🌟 *¡Felicidades por completar tu C2, {nombre}!*\nEl último paso para llevar tu liderazgo a tu familia y finanzas es la *Maestría (MJ)*.\n\n1️⃣ Información y fechas de Maestría (MJ)\n2️⃣ Confirmar inscripción / Inversión\n3️⃣ Ver a mis invitados enrolados\n4️⃣ Hablar con mi coordinadora\n0️⃣ Finalizar",
+        "text": "🌟 *¡Felicidades por completar tu C2, {nombre}!*\nEl último paso para llevar tu liderazgo a tu familia y finanzas es la *Maestría (MJ)*.\n\n1️⃣ Información y fechas de Maestría (MJ)\n2️⃣ Confirmar inscripción / Inversión\n3️⃣ Ver a mis invitados enrolados\n4️⃣ Hablar con Coordinación\n0️⃣ Finalizar",
         "options": {"1": "info_fechas", "2": "pagos", "3": "ver_todos_imo", "4": "pre_action_humano_asesoria", "0": "action_salir"}
     },
     "main_mj": {
@@ -495,15 +492,15 @@ MENU_STRUCTURE = {
         "options": {"1": "mj_graduado", "2": "mj_proceso", "3": "mj_deserto", "0": "action_salir"}
     },
     "mj_graduado": {
-        "text": "🌟 *¡Un honor saludarte, Graduado/Aliado {nombre}!*\nTu liderazgo inspira a otros. ¿En qué podemos apoyarte hoy?\n\n1️⃣ Enrolar a un nuevo participante\n2️⃣ Ver TODOS mis enrolados y estatus\n3️⃣ Hablar con una coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal",
+        "text": "🌟 *¡Un honor saludarte, Graduado/Aliado {nombre}!*\nTu liderazgo inspira a otros. ¿En qué podemos apoyarte hoy?\n\n1️⃣ Enrolar a un nuevo participante\n2️⃣ Ver TODOS mis enrolados y estatus\n3️⃣ Hablar con Coordinación\n9️⃣ Regresar\n0️⃣ Menú principal",
         "options": {"1": "pre_action_humano_enrolar", "2": "ver_todos_imo", "3": "pre_action_humano_soporte", "9": "volver", "0": "main"}
     },
     "mj_proceso": {
-        "text": "🌟 *¡Sigue firme en tus 100 días, {nombre}!*\n\n1️⃣ Ver mis enrolados y pendientes\n2️⃣ Registrar un enrolamiento (Mi proceso)\n3️⃣ Soporte con mi coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal",
+        "text": "🌟 *¡Sigue firme en tus 100 días, {nombre}!*\n\n1️⃣ Ver mis enrolados y pendientes\n2️⃣ Registrar un enrolamiento (Mi proceso)\n3️⃣ Hablar con Coordinación\n9️⃣ Regresar\n0️⃣ Menú principal",
         "options": {"1": "ver_todos_imo", "2": "pre_action_humano_registro_enrolado", "3": "pre_action_humano_soporte", "9": "volver", "0": "main"}
     },
     "mj_deserto": {
-        "text": "Comprendemos. Cada persona tiene su propio ritmo. Si deseas retomar tu proceso, las puertas están abiertas.\n\n1️⃣ Hablar con una coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal",
+        "text": "Comprendemos. Cada persona tiene su propio ritmo. Si deseas retomar tu proceso, las puertas están abiertas.\n\n1️⃣ Hablar con Coordinación (Retomar)\n9️⃣ Regresar\n0️⃣ Menú principal",
         "options": {"1": "pre_action_humano_retomar", "9": "volver", "0": "main"}
     },
     "info_entrenamientos": {
@@ -511,15 +508,15 @@ MENU_STRUCTURE = {
         "options": {"1": "info_c1", "2": "info_c2", "3": "info_mj", "4": "info_fechas", "9": "volver", "0": "main"}
     },
     "info_c1": {
-        "text": "🚀 *Capítulo 1 (C1)*: Fase de Descubrimiento. 3 días diseñados para romper paradigmas.\n\n1️⃣ Hablar con un asesor\n9️⃣ Regresar\n0️⃣ Menú principal",
+        "text": "🚀 *Capítulo 1 (C1)*: Fase de Descubrimiento. 3 días diseñados para romper paradigmas.\n\n1️⃣ Contactar a Coordinación\n9️⃣ Regresar\n0️⃣ Menú principal",
         "options": {"1": "pre_action_humano_info_c1", "9": "volver", "0": "main"}
     },
     "info_c2": {
-        "text": "🔥 *Capítulo 2 (C2)*: Transformación profunda. 4 días inmersivos.\n\n1️⃣ Hablar con un asesor\n9️⃣ Regresar\n0️⃣ Menú principal",
+        "text": "🔥 *Capítulo 2 (C2)*: Transformación profunda. 4 días inmersivos.\n\n1️⃣ Contactar a Coordinación\n9️⃣ Regresar\n0️⃣ Menú principal",
         "options": {"1": "pre_action_humano_info_c2", "9": "volver", "0": "main"}
     },
     "info_mj": {
-        "text": "👑 *Maestría (MJ)*: Liderazgo y acción. 100 días para crear hábitos inquebrantables.\n\n1️⃣ Hablar con un asesor\n9️⃣ Regresar\n0️⃣ Menú principal",
+        "text": "👑 *Maestría (MJ)*: Liderazgo y acción. 100 días para crear hábitos inquebrantables.\n\n1️⃣ Contactar a Coordinación\n9️⃣ Regresar\n0️⃣ Menú principal",
         "options": {"1": "pre_action_humano_info_mj", "9": "volver", "0": "main"}
     },
     "info_fechas": {
@@ -534,8 +531,8 @@ MENU_STRUCTURE = {
 
 def notificar_coordinadora_interna(prospecto_tel, prospecto_nombre, motivo):
     coord_nombre, coord_tel = random.choice(list(COORDINADORAS_CONTACTOS.items()))
-    msg = f"🚨 *NUEVO TICKET ASIGNADO* 🚀\n*Nombre:* {prospecto_nombre or 'No especificado'}\n*Teléfono:* wa.me/{prospecto_tel}\n*Requerimiento:* {motivo}"
-    enviar_mensaje(coord_tel, msg, f"COORDINADORA: {coord_nombre}", True, "ALERTA TICKET")
+    msg = f"🚨 *NUEVO TICKET CORPORATIVO* 🚀\n*Nombre:* {prospecto_nombre or 'No especificado'}\n*Teléfono:* wa.me/{prospecto_tel}\n*Requerimiento:* {motivo}"
+    enviar_mensaje(coord_tel, msg, f"COORDINACIÓN: {coord_nombre}", True, "ALERTA TICKET")
     return coord_nombre
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -569,7 +566,7 @@ def flujo_principal(telefono, texto):
                 motivo = texto
                 contexto = sesion.get("contexto_derivacion", "GENERAL")
                 c_nom = notificar_coordinadora_interna(telefono, perfil["nombre"], f"[{contexto}] {motivo}")
-                enviar_mensaje(telefono, f"¡Excelente! Tu consulta ha sido derivada a nuestra coordinadora *{c_nom}*. Te responderá por este chat pronto.\n\n_Escribe *0* para volver al menú._", nombre_mostrar, True, "DERIVACIÓN EXITOSA")
+                enviar_mensaje(telefono, f"¡Excelente! Tu consulta ha sido derivada a Coordinación. Te responderemos por este chat muy pronto.\n\n_Escribe *0* para volver al menú._", nombre_mostrar, True, "DERIVACIÓN EXITOSA")
                 sesion["menu_state"] = "esperando_humano"
                 set_sesion(telefono, sesion)
                 return
@@ -593,7 +590,7 @@ def flujo_principal(telefono, texto):
             last_time = datetime.strptime(sesion.get("last_interaction", "2000-01-01 00:00:00"), "%Y-%m-%d %H:%M:%S")
             minutos_inactividad = (datetime.now() - last_time).total_seconds() / 60.0
         except: minutos_inactividad = 9999
-        sesion["last_interaction"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        sesion["last_interaction"] = ahora_lima().strftime("%Y-%m-%d %H:%M:%S")
         
         if texto_limpio == "STOP":
             marcar_stop(telefono); borrar_sesion(telefono)
@@ -611,7 +608,7 @@ def flujo_principal(telefono, texto):
 
         def render_menu(m_key):
             if m_key == "info_fechas":
-                return f"📅 *Fechas Disponibles (Únicas Vigentes)*\n\n🚀 *C1:* {get_fecha_activa('C1')}\n🔥 *C2:* {get_fecha_activa('C2')}\n👑 *MJ:* {get_fecha_activa('MJ')}\n\n1️⃣ Hablar con coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal"
+                return f"📅 *Fechas Disponibles (Únicas Vigentes)*\n\n🚀 *C1:* {get_fecha_activa('C1')}\n🔥 *C2:* {get_fecha_activa('C2')}\n👑 *MJ:* {get_fecha_activa('MJ')}\n\n1️⃣ Hablar con Coordinación\n9️⃣ Regresar\n0️⃣ Menú principal"
             txt = MENU_STRUCTURE[m_key]["text"]
             if "{" in txt: txt = txt.format(nombre=perfil.get("nombre", "Líder"), imo=perfil.get("imo_nombre", "tu líder"), pendiente=perfil.get("pendiente", "tu nivel"))
             return txt
@@ -639,8 +636,17 @@ def flujo_principal(telefono, texto):
             if siguiente_estado:
                 sesion["menu_errors"] = 0
                 
-                # 🚀 V77: Handoff Universal Dinámico
-                if siguiente_estado.startswith("pre_action_humano"):
+                # 🚀 V78: Filtros Handoff y Puerta para IMOs no registrados
+                if siguiente_estado == "pre_action_humano_actualizar_numero":
+                    sesion["contexto_derivacion"] = "ACTUALIZAR NÚMERO (IMO/ALUMNO)"
+                    msg = "Para actualizar tu registro corporativo y restaurar tus accesos, por favor indícame en un solo mensaje:\n*¿Cuál es tu Nombre Completo y tu DNI?*"
+                    enviar_mensaje(telefono, msg, nombre_mostrar, True, "PIDIENDO DNI PARA ACTUALIZAR")
+                    hist = sesion.get("menu_history", [])
+                    if estado_actual != main_key and (not hist or hist[-1] != estado_actual): hist.append(estado_actual)
+                    sesion["menu_state"] = "capturando_motivo"; sesion["menu_history"] = hist; set_sesion(telefono, sesion)
+                    return
+
+                elif siguiente_estado.startswith("pre_action_humano"):
                     contexto = siguiente_estado.replace("pre_action_humano_", "").upper()
                     if contexto == "PRE_ACTION_HUMANO": contexto = "SOPORTE GENERAL"
                     sesion["contexto_derivacion"] = contexto
@@ -696,7 +702,7 @@ def flujo_principal(telefono, texto):
             else:
                 if not texto_limpio.isnumeric():
                     sesion["contexto_derivacion"] = "TEXTO LIBRE"
-                    msg = "Para brindarte atención humana, por favor dime en un solo mensaje: *¿Qué necesitas consultar o resolver?*"
+                    msg = "Para brindarte atención corporativa, por favor dime en un solo mensaje: *¿Qué necesitas consultar o resolver?*"
                     enviar_mensaje(telefono, msg, nombre_mostrar, True, "PREGUNTANDO MOTIVO AUTO")
                     sesion["menu_state"] = "capturando_motivo"
                     set_sesion(telefono, sesion)
@@ -707,7 +713,7 @@ def flujo_principal(telefono, texto):
                 if errores >= 3:
                     sesion["menu_errors"] = 0
                     c_nom = notificar_coordinadora_interna(telefono, perfil["nombre"], "Usuario atascado en el menú.")
-                    enviar_mensaje(telefono, f"Noto que estamos teniendo problemas. He notificado a *{c_nom}* para que te asista.\n\n_Escribe *0* para menú principal._", nombre_mostrar, True, "ERROR_DERIVADO")
+                    enviar_mensaje(telefono, f"Noto que estamos teniendo problemas. He notificado a Coordinación para que te asista.\n\n_Escribe *0* para menú principal._", nombre_mostrar, True, "ERROR_DERIVADO")
                     sesion["menu_state"] = "esperando_humano"
                 else:
                     enviar_mensaje(telefono, f"⚠️ *Opción no válida*. Responde únicamente con el *número*.\n\n{render_menu(estado_actual)}", nombre_mostrar, True, "ERROR_MENU")
@@ -727,7 +733,7 @@ HTML_CHAT = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CPSL — Centro de Comunicaciones C1 E27</title>
+<title>CPSL — Centro de Comunicaciones Corporativo</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f4f0;color:#1a1a18;height:100vh;overflow:hidden}
@@ -925,7 +931,7 @@ const QR = [
   {l:'Info C1', t:'Hola, aquí tienes la información del Capítulo 1:\\n\\nHotel José Antonio Deluxe\\nCalle Bellavista 133, Miraflores\\n\\nViernes: registro 9:00am, inicio 10:00am\\nSábado: ingreso 9:00am, inicio 10:00am\\nDomingo: inicio 9:00am, cierre 9:00pm\\n\\nComunicaciones Crear Poder Sin Límites Perú'},
   {l:'Confirmar', t:'Hola, gracias por informarnos. Confirmación registrada.\\n\\nLos esperamos en el Hotel José Antonio Deluxe. Mesa de registro a las 9:00am.\\n\\nComunicaciones Crear Poder Sin Límites Perú'},
   {l:'No asiste', t:'Hola, recibido. La inscripción sigue activa para el siguiente equipo inmediato.\\n\\nComunicaciones Crear Poder Sin Límites Perú'},
-  {l:'Cambio nombre', t:'Hola, los cambios de nombre se gestionan con tu coordinadora antes del miércoles previo hasta las 6:00pm.\\n\\nComunicaciones Crear Poder Sin Límites Perú'}
+  {l:'Cambio nombre', t:'Hola, los cambios de nombre se gestionan con Coordinación antes del miércoles previo hasta las 6:00pm.\\n\\nComunicaciones Crear Poder Sin Límites Perú'}
 ];
 
 let CFG = {}; let DEMO = false; let convs = []; let curTel = null; let filtro = 'todos';
