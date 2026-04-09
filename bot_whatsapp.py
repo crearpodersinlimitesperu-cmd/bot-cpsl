@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V69: Menús Limpios (Sin IA) + Doble Base de Datos (Local CSV + Sheets)
+✅ Versión V70: Reloj Dinámico (Cutoff Jueves 4PM) + Filtro de Derivación + Menús Comunidad
 """
 
 import os, re, json, time, csv, io, random, logging, queue, threading
@@ -10,7 +10,6 @@ from datetime import datetime
 import requests as req_lib
 from openpyxl import load_workbook
 from filelock import FileLock
-from http import HTTPStatus
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("BotCrear")
@@ -35,14 +34,14 @@ class Config:
     SESSIONS_PATH = os.environ.get("SESSIONS_PATH", "sesiones.json")
     HISTORIAL_PATH = "historial_chat.json"
     
-    # 🚀 LA CAJA NEGRA: Respaldo absoluto local que jamás se borra
+    # 🚀 LA CAJA NEGRA: Respaldo absoluto local
     BACKUP_ABSOLUTO_CSV = "backup_absoluto_mensajes.csv"
     
     SHEET_ID = os.environ.get("SHEET_ID", "")
     CREDS_JSON = os.environ.get("GOOGLE_CREDENTIALS", "")
 
 # ══════════════════════════════════════════════════════════════════════════
-# 2. GESTOR DE ESTADO CONCURRENTE Y DOBLE RESPALDO
+# 2. GESTOR DE ESTADO CONCURRENTE Y CAJA NEGRA
 # ══════════════════════════════════════════════════════════════════════════
 class SessionManager:
     @staticmethod
@@ -89,7 +88,6 @@ class SessionManager:
 
     @staticmethod
     def guardar_backup_absoluto(telefono, nombre, mensaje, direccion, estado_sistema):
-        """🚀 MOTOR 2: Guardado inquebrantable en disco local"""
         with FileLock(Config.BACKUP_ABSOLUTO_CSV + ".lock"):
             try:
                 archivo_existe = os.path.exists(Config.BACKUP_ABSOLUTO_CSV)
@@ -112,7 +110,7 @@ def get_historial():
     return []
 
 # ══════════════════════════════════════════════════════════════════════════
-# 3. SISTEMA DE COLAS PARA GOOGLE SHEETS (MOTOR 1)
+# 3. GOOGLE SHEETS (MOTOR 1)
 # ══════════════════════════════════════════════════════════════════════════
 cola_sheets = queue.Queue()
 
@@ -195,16 +193,11 @@ class WhatsAppAPI:
         return False
 
 def enviar_mensaje(telefono, texto, nombre_imo="", registrar_sheets=True, estado_menu="INTERACTIVO"):
-    sesion = get_sesion(telefono)
-    if sesion.get("primera_vez", True) and not str(nombre_imo).startswith("COORDINADORA") and nombre_imo != "SISTEMA":
-        aclaracion = "\n\n🤖 _Nota: Soy el asistente virtual. Para atención personalizada, usa el menú para conectar con nuestras coordinadoras:_\n\n" + COORDINADORAS
-        texto += aclaracion if "Coordinadoras" not in texto else "\n\n🤖 _Nota: Asistente Automático._"
-        sesion["primera_vez"] = False
-        set_sesion(telefono, sesion)
+    # Mensaje silencioso, sin nombres de coordinadoras.
     return WhatsAppAPI.enviar_mensaje(telefono, texto, nombre_imo, registrar_sheets, estado_menu)
 
 # ══════════════════════════════════════════════════════════════════════════
-# 5. UTILIDADES Y RECONOCIMIENTO OMNICANAL
+# 5. UTILIDADES, CRM OMNICANAL Y RELOJ DINÁMICO
 # ══════════════════════════════════════════════════════════════════════════
 def norm_tel(tel):
     t = re.sub(r'\D', '', str(tel))
@@ -449,77 +442,95 @@ def marcar_stop(telefono):
             wb.save(Config.EXCEL_PATH); wb.close()
         except: pass
 
+# 🚀 MOTOR DE FECHAS DINÁMICO (HARD CUTOFF)
+def get_fecha_activa(tipo_evento):
+    ahora = datetime.now()
+    
+    if tipo_evento == "C1":
+        # Viernes 1 de Mayo 2026. Límite: Jueves 30 Abril 16:00
+        limite_c1_e27 = datetime(2026, 4, 30, 16, 0)
+        if ahora < limite_c1_e27: return "Viernes 01 de Mayo de 2026 (Equipo 27)"
+        else: return "Viernes 05 de Junio de 2026 (Equipo 28)"
+        
+    elif tipo_evento == "C2":
+        # Jueves 9 de Abril 2026. Límite: Jueves 9 Abril 16:00
+        limite_c2_e26 = datetime(2026, 4, 9, 16, 0)
+        if ahora < limite_c2_e26: return "Jueves 09 de Abril de 2026 (Equipo 26)"
+        else: return "Jueves 07 de Mayo de 2026 (Equipo 27)"
+        
+    elif tipo_evento == "MJ":
+        return "Próxima fecha sujeta a confirmación de coordinación."
+        
+    return "Fecha a confirmar"
+
 # ══════════════════════════════════════════════════════════════════════════
-# 6. ESTRUCTURAS DE MENÚS (MODIFICADAS: SIN OPCIONES DE IA)
+# 6. ESTRUCTURAS DE MENÚS REVISADAS (V70)
 # ══════════════════════════════════════════════════════════════════════════
-COORDINADORAS_CONTACTOS = {"Diana Moscoso": "51912379744", "Joyce Marín": "51933599903", "Leyla Pasquel": "51919502385", "Zuley Urteaga": "51933599864"}
-COORDINADORAS = f"Coordinadoras C1 y C2:\n• Diana Moscoso: +51 912 379 744\n• Joyce Marin: +51 933 599 903\n• Leyla Pasquel: +51 919 502 385\n• Zuley Urteaga: +51 933 599 864"
+COORDINADORAS_CONTACTOS = {"Diana": "51912379744", "Joyce": "51933599903", "Leyla": "51919502385", "Zuley": "51933599864"}
 
 MENU_STRUCTURE = {
     "main_prospecto": {
-        "text": "🌟 *Bienvenido a Crear Poder Sin Límites Perú* 🌟\nSoy tu asistente de atención.\n\n1️⃣ *Explorar Entrenamientos* (C1, C2 y Maestría)\n2️⃣ *Inversión y Pagos*\n3️⃣ *Atención Personalizada* (Hablar con Coordinadora)\n0️⃣ *Finalizar sesión*",
-        "options": {"1": "info_entrenamientos", "2": "pagos", "3": "action_humano", "0": "action_salir"}
+        "text": "🌟 *Bienvenido a Crear Poder Sin Límites Perú*\n\n1️⃣ Información de los Entrenamientos\n2️⃣ Inversión y Métodos de Pago\n3️⃣ Hablar con un Asesor\n0️⃣ Finalizar",
+        "options": {"1": "info_entrenamientos", "2": "pagos", "3": "pre_action_humano", "0": "action_salir"}
     },
     "main_imo": {
-        "text": "🌟 *Bienvenido Líder IMO {nombre}* 🌟\nEs un honor apoyarte. Selecciona una opción:\n\n1️⃣ *Reportar Asistencia* de mis participantes\n2️⃣ *Ver mis participantes pendientes (C1/C2)*\n3️⃣ *Ver TODOS mis enrolados y estatus*\n4️⃣ *Explorar Entrenamientos*\n5️⃣ *Hablar con una Coordinadora*\n0️⃣ *Finalizar sesión*",
-        "options": {"1": "action_imo", "2": "ver_pendientes_imo", "3": "ver_todos_imo", "4": "info_entrenamientos", "5": "action_humano", "0": "action_salir"}
+        "text": "🌟 *Bienvenido Líder IMO {nombre}*\n\n1️⃣ Ver mis rezagados (Pendientes)\n2️⃣ Ver estado de TODOS mis enrolados\n3️⃣ Reportar estatus de mi equipo\n4️⃣ Hablar con Soporte IMO\n0️⃣ Finalizar",
+        "options": {"1": "ver_pendientes_imo", "2": "ver_todos_imo", "3": "action_imo", "4": "pre_action_humano", "0": "action_salir"}
     },
     "main_px": {
-        "text": "🌟 *Bienvenido de vuelta, {nombre}* 🌟\nVemos que tienes pendiente tu: *{pendiente}*.\n\n1️⃣ *¡CONFIRMAR MI ASISTENCIA!*\n2️⃣ *Ver fechas y horarios*\n3️⃣ *Solicitar reprogramación*\n4️⃣ *Hablar con coordinadora*\n0️⃣ *Finalizar sesión*",
-        "options": {"1": "px_confirma", "2": "info_fechas", "3": "action_humano", "4": "action_humano", "0": "action_salir"}
+        "text": "🌟 *Hola {nombre}. Tienes pendiente vivir tu {pendiente}.*\n\n1️⃣ Confirmar asistencia a la próxima fecha\n2️⃣ Ver calendario de fechas\n3️⃣ Ver mis enrolados / invitados\n4️⃣ Hablar con mi coordinadora\n0️⃣ Finalizar",
+        "options": {"1": "px_confirma", "2": "info_fechas", "3": "ver_todos_imo", "4": "pre_action_humano", "0": "action_salir"}
     },
     "main_mj": {
-        "text": "🌟 *Hola Líder {nombre}* 🌟\nVemos en nuestra base de datos que has participado en Maestría. ¿Cuál es tu estatus actual en el proceso?\n\n1️⃣ Soy Graduado 🎓\n2️⃣ Estoy en proceso ⏳\n3️⃣ Me retiré / Deserté 🛑\n4️⃣ Quiero enrolar a alguien 🚀\n0️⃣ Finalizar sesión",
-        "options": {"1": "mj_graduado", "2": "mj_proceso", "3": "mj_deserto", "4": "action_humano", "0": "action_salir"}
+        "text": "🌟 *Hola Líder {nombre}*\nVemos que has participado en Maestría. ¿Cuál es tu estatus actual?\n\n1️⃣ Soy Graduado (Aliado) 🎓\n2️⃣ Estoy en proceso (100 Días) ⏳\n3️⃣ Me retiré / Deserté 🛑\n4️⃣ Quiero enrolar a alguien 🚀\n0️⃣ Finalizar",
+        "options": {"1": "mj_graduado", "2": "mj_proceso", "3": "mj_deserto", "4": "pre_action_humano", "0": "action_salir"}
     },
     "mj_graduado": {
-        "text": "¡Felicidades por tu graduación! 🎉 Como líder, ¿en qué te podemos apoyar hoy?\n\n1️⃣ Quiero enrolar a un nuevo participante\n2️⃣ Ver TODOS mis enrolados y estatus\n3️⃣ Hablar con una coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal",
-        "options": {"1": "action_humano", "2": "ver_todos_imo", "3": "action_humano", "9": "volver", "0": "main"}
+        "text": "🌟 *¡Un honor saludarte, Graduado/Aliado {nombre}!*\n\n1️⃣ Enrolar a un nuevo participante\n2️⃣ Ver TODOS mis enrolados y estatus\n3️⃣ Hablar con una coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal",
+        "options": {"1": "pre_action_humano", "2": "ver_todos_imo", "3": "pre_action_humano", "9": "volver", "0": "main"}
     },
     "mj_proceso": {
-        "text": "¡Excelente! Sigue firme en tus 100 días de transformación. 💪\n\n1️⃣ Hablar con mi coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal",
-        "options": {"1": "action_humano", "9": "volver", "0": "main"}
+        "text": "🌟 *¡Sigue firme en tus 100 días, {nombre}!*\n\n1️⃣ Ver mis enrolados y pendientes\n2️⃣ Hablar con mi coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal",
+        "options": {"1": "ver_todos_imo", "2": "pre_action_humano", "9": "volver", "0": "main"}
     },
     "mj_deserto": {
-        "text": "Comprendemos. Cada persona tiene su propio ritmo y momento. Si alguna vez deseas retomar tu proceso de transformación, las puertas siempre están abiertas.\n\n1️⃣ Hablar con una coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal",
-        "options": {"1": "action_humano", "9": "volver", "0": "main"}
+        "text": "Comprendemos. Cada persona tiene su propio ritmo. Si deseas retomar tu proceso, las puertas están abiertas.\n\n1️⃣ Hablar con una coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal",
+        "options": {"1": "pre_action_humano", "9": "volver", "0": "main"}
     },
     "info_entrenamientos": {
         "text": "📘 *Explorar Entrenamientos*\n\n1️⃣ Capítulo 1 (C1)\n2️⃣ Capítulo 2 (C2)\n3️⃣ Maestría (MJ)\n4️⃣ Fechas y lugares\n9️⃣ Regresar\n0️⃣ Menú principal",
         "options": {"1": "info_c1", "2": "info_c2", "3": "info_mj", "4": "info_fechas", "9": "volver", "0": "main"}
     },
     "info_c1": {
-        "text": "🚀 *Capítulo 1 (C1)*: Fase de Descubrimiento. 3 días diseñados para romper paradigmas.\n\n1️⃣ Contactar a un asesor\n9️⃣ Regresar\n0️⃣ Menú principal",
-        "options": {"1": "action_humano", "9": "volver", "0": "main"}
+        "text": "🚀 *Capítulo 1 (C1)*: Fase de Descubrimiento. 3 días diseñados para romper paradigmas.\n\n1️⃣ Hablar con un asesor\n9️⃣ Regresar\n0️⃣ Menú principal",
+        "options": {"1": "pre_action_humano", "9": "volver", "0": "main"}
     },
     "info_c2": {
-        "text": "🔥 *Capítulo 2 (C2)*: Transformación profunda. 4 días inmersivos.\n\n9️⃣ Regresar\n0️⃣ Menú principal",
-        "options": {"9": "volver", "0": "main"}
+        "text": "🔥 *Capítulo 2 (C2)*: Transformación profunda. 4 días inmersivos.\n\n1️⃣ Hablar con un asesor\n9️⃣ Regresar\n0️⃣ Menú principal",
+        "options": {"1": "pre_action_humano", "9": "volver", "0": "main"}
     },
     "info_mj": {
-        "text": "👑 *Maestría (MJ)*: Liderazgo y acción. 100 días para crear hábitos inquebrantables.\n\n9️⃣ Regresar\n0️⃣ Menú principal",
-        "options": {"9": "volver", "0": "main"}
+        "text": "👑 *Maestría (MJ)*: Liderazgo y acción. 100 días para crear hábitos inquebrantables.\n\n1️⃣ Hablar con un asesor\n9️⃣ Regresar\n0️⃣ Menú principal",
+        "options": {"1": "pre_action_humano", "9": "volver", "0": "main"}
     },
     "info_fechas": {
-        "text": "📅 *Fechas y Lugares*\nHotel José Antonio Deluxe (Miraflores, Lima).\n\n1️⃣ Solicitar calendario a coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal",
-        "options": {"1": "action_humano", "9": "volver", "0": "main"}
+        "text": "dinamico", # Se renderiza en el flujo
+        "options": {"1": "pre_action_humano", "9": "volver", "0": "main"}
     },
     "pagos": {
-        "text": "💳 *Inversión y Pagos*\nBCP a nombre de Creación Cuántica E.I.R.L. (Cuenta Soles: 1934218307060).\n\n1️⃣ Enviar voucher a Coordinadora\n2️⃣ Ayuda con factura/boleta\n9️⃣ Regresar\n0️⃣ Menú principal",
-        "options": {"1": "action_humano", "2": "action_humano", "9": "volver", "0": "main"}
+        "text": "💳 *Inversión y Pagos*\nBCP a nombre de Creación Cuántica E.I.R.L. (Cuenta Soles: 1934218307060).\n\n1️⃣ Enviar voucher / Factura\n9️⃣ Regresar\n0️⃣ Menú principal",
+        "options": {"1": "pre_action_humano", "9": "volver", "0": "main"}
     }
 }
 
-def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre, necesidad):
+def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre, motivo):
     coord_nombre, coord_tel = random.choice(list(COORDINADORAS_CONTACTOS.items()))
-    msg = f"🚨 *NUEVO CONTACTO PARA CREAR* 🚀\n*Nombre:* {prospecto_nombre or 'No especificado'}\n*Teléfono:* wa.me/{prospecto_tel}\n*Necesidad:* {necesidad}"
-    sesion_coord = get_sesion(coord_tel)
-    sesion_coord["primera_vez"] = False; set_sesion(coord_tel, sesion_coord)
+    msg = f"🚨 *ATENCIÓN REQUERIDA* 🚀\n*Nombre:* {prospecto_nombre or 'No especificado'}\n*Teléfono:* wa.me/{prospecto_tel}\n*Consulta:* {motivo}"
     enviar_mensaje(coord_tel, msg, f"COORDINADORA: {coord_nombre}", True, "ALERTA LEAD")
     return coord_nombre
 
 # ══════════════════════════════════════════════════════════════════════════
-# 7. PROCESADOR DE ESTADOS (FLUJO SIN IA)
+# 7. PROCESADOR DE ESTADOS (FLUJO SIN IA Y CON FILTRO HUMANO)
 # ══════════════════════════════════════════════════════════════════════════
 def flujo_principal(telefono, texto):
     try:
@@ -536,31 +547,46 @@ def flujo_principal(telefono, texto):
             
         nombre_mostrar = f"({perfil['rol']}) {perfil.get('nombre', 'Nuevo')}" if perfil.get('nombre') else "NUEVO CONTACTO"
 
+        # 1. Filtro Encuesta Salida
         if sesion.get("menu_state") == "esperando_encuesta":
             if texto_limpio in ["1", "2", "3", "4", "5"]:
-                enviar_mensaje(telefono, "¡Gracias por tu calificación! 🌟 Valoramos mucho tu opinión para seguir mejorando.\n\n_Escribe MENU para reiniciar._", nombre_mostrar, True, "ENCUESTA CSAT")
+                enviar_mensaje(telefono, "¡Gracias por tu calificación! 🌟\n_Escribe MENU para reiniciar._", nombre_mostrar, True, "ENCUESTA CSAT")
                 borrar_sesion(telefono)
             else: enviar_mensaje(telefono, "Por favor califica con un número del 1 al 5.", nombre_mostrar, True, "ERROR CSAT")
             return
 
+        # 2. Inactividad
         try:
             last_time = datetime.strptime(sesion.get("last_interaction", "2000-01-01 00:00:00"), "%Y-%m-%d %H:%M:%S")
             minutos_inactividad = (datetime.now() - last_time).total_seconds() / 60.0
         except: minutos_inactividad = 9999
-
         sesion["last_interaction"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
+        # 3. Stop
         if texto_limpio == "STOP":
             marcar_stop(telefono); borrar_sesion(telefono)
-            enviar_mensaje(telefono, "Has sido dado de baja. No recibirás más mensajes.\n\n*Crear Poder Sin Límites*", nombre_mostrar, True, "SE DIO DE BAJA (STOP)")
+            enviar_mensaje(telefono, "Has sido dado de baja. No recibirás más mensajes.", nombre_mostrar, True, "SE DIO DE BAJA")
             return
 
         main_key = "main_imo" if perfil["rol"] == "IMO" else "main_mj" if perfil["rol"] == "MJ" else "main_px" if perfil["rol"] == "PX" else "main_prospecto"
 
         def render_menu(m_key):
+            if m_key == "info_fechas":
+                return f"📅 *Fechas Disponibles (Sujeto a Cierre)*\n\n🚀 *Capítulo 1 (C1):*\n{get_fecha_activa('C1')}\n\n🔥 *Capítulo 2 (C2):*\n{get_fecha_activa('C2')}\n\n👑 *Maestría (MJ):*\n{get_fecha_activa('MJ')}\n\n_Nota: Todo cierre de inscripciones es el jueves a las 4:00 PM previo al evento._\n\n1️⃣ Hablar con coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal"
+            
             txt = MENU_STRUCTURE[m_key]["text"]
-            if "{" in txt: txt = txt.format(nombre=perfil.get("nombre", "Participante"), imo=perfil.get("imo_nombre", "tu líder"), pendiente=perfil.get("pendiente", "tu entrenamiento"))
+            if "{" in txt: txt = txt.format(nombre=perfil.get("nombre", "Líder"), imo=perfil.get("imo_nombre", "tu líder"), pendiente=perfil.get("pendiente", "tu nivel"))
             return txt
+
+        # 4. Estado: Capturando Motivo para Derivación (FILTRO)
+        if sesion.get("menu_state") == "capturando_motivo":
+            if texto_limpio not in ["0", "MENU"]:
+                motivo = texto
+                c_nom = notificar_coordinadora_aleatoria(telefono, perfil["nombre"], f"Motivo: {motivo}")
+                enviar_mensaje(telefono, f"¡Excelente! Tu consulta ('{motivo[:30]}...') ha sido derivada a *{c_nom}*. Te responderá por este chat pronto.\n\n_Escribe *0* para volver al menú._", nombre_mostrar, True, "DERIVACIÓN EXITOSA")
+                sesion["menu_state"] = "esperando_humano"
+                set_sesion(telefono, sesion)
+                return
 
         if minutos_inactividad > 30 or "menu_state" not in sesion or texto_limpio in ["0", "MENU", "MENÚ", "INICIO"]:
             sesion["menu_state"] = main_key; sesion["menu_history"] = []; sesion["menu_errors"] = 0; set_sesion(telefono, sesion)
@@ -585,8 +611,16 @@ def flujo_principal(telefono, texto):
             if siguiente_estado:
                 sesion["menu_errors"] = 0
                 
-                if siguiente_estado == "px_confirma":
-                    msg_exito = f"¡Extraordinario, {perfil['nombre']}! 🎉\nHemos registrado tu confirmación. Le avisaremos automáticamente a tu líder {perfil['imo_nombre']} para que esté al tanto.\n\n_Escribe 0 para volver al menú._"
+                if siguiente_estado == "pre_action_humano":
+                    msg = "Para que nuestro equipo te ayude rápidamente, por favor responde en un solo mensaje:\n*¿Qué necesitas consultar o resolver?*"
+                    enviar_mensaje(telefono, msg, nombre_mostrar, True, "PREGUNTANDO MOTIVO")
+                    hist = sesion.get("menu_history", [])
+                    if estado_actual != main_key and (not hist or hist[-1] != estado_actual): hist.append(estado_actual)
+                    sesion["menu_state"] = "capturando_motivo"; sesion["menu_history"] = hist; set_sesion(telefono, sesion)
+                    return
+
+                elif siguiente_estado == "px_confirma":
+                    msg_exito = f"¡Extraordinario, {perfil['nombre']}! 🎉\nHemos registrado tu confirmación. Le avisaremos automáticamente a tu líder {perfil['imo_nombre']}.\n\n_Escribe 0 para volver al menú._"
                     enviar_mensaje(telefono, msg_exito, nombre_mostrar, True, "CONFIRMÓ ASISTENCIA")
                     if perfil["imo_tel"]: threading.Thread(target=actualizar_excel, args=([{"px": perfil["nombre"], "estatus": "CONFIRMADO"}], perfil["imo_tel"]), daemon=True).start()
                     sesion["menu_state"] = "esperando_fecha"; set_sesion(telefono, sesion)
@@ -604,7 +638,7 @@ def flujo_principal(telefono, texto):
 
                 elif siguiente_estado == "ver_todos_imo":
                     lista_todos = buscar_todos_imo_csv(telefono)
-                    if lista_todos: msg = f"📊 *Reporte Completo de tu Equipo*\n\n" + "\n".join(lista_todos) + "\n\n_Escribe *0* para volver._"
+                    if lista_todos: msg = f"📊 *Reporte Completo de Enrolados*\n\n" + "\n".join(lista_todos) + "\n\n_Escribe *0* para volver._"
                     else: msg = "No encontramos participantes vinculados a tu número.\n\n_Escribe *0* para volver._"
                     enviar_mensaje(telefono, msg, nombre_mostrar, True, "REPORTE TODOS ENROLADOS")
                     hist = sesion.get("menu_history", [])
@@ -612,15 +646,9 @@ def flujo_principal(telefono, texto):
                     sesion["menu_state"] = "ver_todos_imo"; sesion["menu_history"] = hist; set_sesion(telefono, sesion)
                     return
 
-                elif siguiente_estado == "action_humano":
-                    c_nom = notificar_coordinadora_aleatoria(telefono, perfil["nombre"], f"Necesita asistencia desde el menú: {estado_actual}")
-                    enviar_mensaje(telefono, f"¡Comprendido! He notificado a nuestra coordinadora *{c_nom}*. Ella te escribirá en breve. 🚀\n\n_Escribe *0* para cancelar._", nombre_mostrar, True, "DERIVADO A HUMANO")
-                    sesion["menu_state"] = "esperando_humano"; set_sesion(telefono, sesion)
-                    return
-                    
                 elif siguiente_estado == "action_salir":
                     sesion["menu_state"] = "esperando_encuesta"; set_sesion(telefono, sesion)
-                    enviar_mensaje(telefono, "Antes de irte, ¿Cómo calificarías tu experiencia con nuestro sistema?\n\nResponde con un número del *1 al 5*:\n1️⃣ = Mala\n5️⃣ = ¡Excelente!", nombre_mostrar, True, "ENCUESTA SALIDA")
+                    enviar_mensaje(telefono, "Antes de irte, ¿Cómo calificarías tu experiencia en este chat?\n\nResponde con un número del *1 al 5*:\n1️⃣ = Mala\n5️⃣ = ¡Excelente!", nombre_mostrar, True, "ENCUESTA SALIDA")
                     return
                     
                 elif siguiente_estado == "main": siguiente_estado = main_key
@@ -630,13 +658,13 @@ def flujo_principal(telefono, texto):
                 sesion["menu_state"] = siguiente_estado; sesion["menu_history"] = hist; set_sesion(telefono, sesion)
                 
                 if siguiente_estado in MENU_STRUCTURE: enviar_mensaje(telefono, render_menu(siguiente_estado), nombre_mostrar, True, siguiente_estado)
-                elif siguiente_estado == "action_imo": enviar_mensaje(telefono, f"¡Hola líder! 👋\n\nEstás en el *Portal IMO*. Envíame el estatus de tus participantes.\n\n_Escribe *0* para volver._", nombre_mostrar, True, "REPORTE MANUAL IMO")
+                elif siguiente_estado == "action_imo": enviar_mensaje(telefono, f"¡Hola líder! 👋\n\nEstás en el *Portal IMO*. Envíame el estatus de tus participantes y lo validaremos.\n\n_Escribe *0* para volver._", nombre_mostrar, True, "REPORTE MANUAL IMO")
             else:
-                # 🚀 FIX V69: Si no selecciona número, se asume que necesita hablar con alguien inmediatamente
                 if not texto_limpio.isnumeric():
-                    c_nom = notificar_coordinadora_aleatoria(telefono, perfil["nombre"], f"Ha escrito texto libre: {texto}")
-                    enviar_mensaje(telefono, f"¡Hola! Para brindarte una atención 100% humana y precisa, he notificado a nuestra coordinadora *{c_nom}*. Ella te asistirá en breve.\n\n_(Si deseas volver al menú principal, escribe *0*)_", nombre_mostrar, True, "DERIVACIÓN DIRECTA")
-                    sesion["menu_state"] = "esperando_humano"
+                    # 🚀 FIX PROSPECTOS SIN IA: Si escriben texto libre, se asume que necesitan un humano y se les pide el motivo.
+                    msg = "Para brindarte atención humana, por favor dime en un solo mensaje: *¿Qué necesitas consultar?*"
+                    enviar_mensaje(telefono, msg, nombre_mostrar, True, "PREGUNTANDO MOTIVO AUTO")
+                    sesion["menu_state"] = "capturando_motivo"
                     set_sesion(telefono, sesion)
                     return
                 
@@ -645,14 +673,14 @@ def flujo_principal(telefono, texto):
                 if errores >= 3:
                     sesion["menu_errors"] = 0
                     c_nom = notificar_coordinadora_aleatoria(telefono, perfil["nombre"], "El usuario se atascó en el menú.")
-                    enviar_mensaje(telefono, f"Noto que estamos teniendo problemas. 🤖\nHe notificado a la coordinadora *{c_nom}* para que te asista de manera humana.\n\n_Escribe *0* para menú principal._", nombre_mostrar, True, "ERROR_DERIVADO")
+                    enviar_mensaje(telefono, f"Noto que estamos teniendo problemas. He notificado a *{c_nom}* para que te asista.\n\n_Escribe *0* para menú principal._", nombre_mostrar, True, "ERROR_DERIVADO")
                     sesion["menu_state"] = "esperando_humano"
                 else:
                     enviar_mensaje(telefono, f"⚠️ *Opción no válida*. Responde únicamente con el *número*.\n\n{render_menu(estado_actual)}", nombre_mostrar, True, "ERROR_MENU")
                 set_sesion(telefono, sesion)
 
         elif estado_actual == "action_imo":
-            enviar_mensaje(telefono, f"Estatus recibido. Procesando y derivando a la mesa de control...\n\n_Escribe *0* para volver al menú._", nombre_mostrar, True, "ESTATUS RECIBIDO IMO")
+            enviar_mensaje(telefono, f"Estatus recibido. Procesando...\n\n_Escribe *0* para volver al menú._", nombre_mostrar, True, "ESTATUS RECIBIDO IMO")
             
         elif estado_actual in ["esperando_humano", "esperando_fecha", "ver_todos_imo", "ver_pendientes_imo"]:
             set_sesion(telefono, sesion)
@@ -865,8 +893,7 @@ const QR = [
   {l:'Info C1', t:'Hola, aquí tienes la información del Capítulo 1 — Equipo 27:\\n\\nHotel José Antonio Deluxe\\nCalle Bellavista 133, Miraflores, Lima\\n\\nViernes 1 mayo: registro 9:00am, inicio 10:00am\\nSábado 2 mayo: ingreso 9:00am, inicio 10:00am\\nDomingo 3 mayo: inicio 9:00am, cierre 9:00pm\\n\\nComunicaciones Crear Poder Sin Límites Perú'},
   {l:'Confirmar', t:'Hola, gracias por informarnos. Confirmación registrada.\\n\\nLos esperamos en el Hotel José Antonio Deluxe. Mesa de registro a las 9:00am.\\n\\nComunicaciones Crear Poder Sin Límites Perú'},
   {l:'No asiste', t:'Hola, recibido. La inscripción sigue activa para el siguiente equipo inmediato.\\n\\nComunicaciones Crear Poder Sin Límites Perú'},
-  {l:'Cambio nombre', t:'Hola, los cambios de nombre se gestionan con tu coordinadora antes del miércoles previo hasta las 6:00pm.\\n\\nComunicaciones Crear Poder Sin Límites Perú'},
-  {l:'Pedir estatus', t:'Hola, queremos actualizar el registro de tus participantes para el C1 E27 (1, 2 y 3 de mayo).\\n\\nIndícanos el estatus: Confirma / Siguiente equipo / No asiste / Pendiente\\n\\nComunicaciones Crear Poder Sin Límites Perú'}
+  {l:'Cambio nombre', t:'Hola, los cambios de nombre se gestionan con tu coordinadora antes del miércoles previo hasta las 6:00pm.\\n\\nComunicaciones Crear Poder Sin Límites Perú'}
 ];
 
 let CFG = {}; let DEMO = false; let convs = []; let curTel = null; let filtro = 'todos';
@@ -1341,13 +1368,10 @@ def api_historial(): return jsonify(get_historial()), 200
 
 @app.route("/api/descargar_respaldo", methods=["GET"])
 def descargar_respaldo():
-    """🚀 MOTOR 2 (LOCAL): Descarga la Caja Negra Absoluta de Mensajes"""
     if os.path.exists(Config.BACKUP_ABSOLUTO_CSV):
-        with open(Config.BACKUP_ABSOLUTO_CSV, "r", encoding="utf-8-sig") as f:
-            data = f.read()
-    else:
-        data = "Fecha y Hora,Telefono,Nombre,Direccion (In/Out),Mensaje,Estado Sistema\nSin datos aun"
-    return Response(data, mimetype="text/csv", headers={"Content-Disposition":f"attachment;filename=Backup_Absoluto_V69.csv"})
+        with open(Config.BACKUP_ABSOLUTO_CSV, "r", encoding="utf-8-sig") as f: data = f.read()
+    else: data = "Fecha y Hora,Telefono,Nombre,Direccion (In/Out),Mensaje,Estado Sistema\nSin datos aun"
+    return Response(data, mimetype="text/csv", headers={"Content-Disposition":f"attachment;filename=Backup_Absoluto_V70.csv"})
 
 @app.route("/api/enviar", methods=["POST"])
 def api_enviar():
@@ -1357,7 +1381,7 @@ def api_enviar():
         perfil = sesion.get("perfil")
         if not perfil: perfil = obtener_perfil_crm(tel)
         nombre_mostrar = f"({perfil['rol']}) {perfil['nombre']}" if perfil['nombre'] else "NUEVO CONTACTO"
-        WhatsAppAPI.enviar_mensaje(tel, msg, nombre_mostrar, registrar_sheets=True, mensaje_usuario="[ENVIADO DESDE PANEL PRIVADO]", estado_menu="MANUAL_PANEL")
+        WhatsAppAPI.enviar_mensaje(tel, msg, nombre_mostrar, registrar_sheets=True, estado_menu="MANUAL_PANEL")
         return jsonify({"status": "ok"}), 200
     return jsonify({"error": "Faltan datos"}), 400
 
@@ -1368,10 +1392,8 @@ def mensaje_simulador():
     sesion = get_sesion(tel)
     perfil = sesion.get("perfil", {})
     nombre_mostrar = f"({perfil.get('rol', 'PROSPECTO')}) {perfil.get('nombre', 'Simulado')}" if perfil.get('nombre') else "SIMULACIÓN"
-    
     append_historial(tel, nombre_mostrar, texto, "in")
     SessionManager.guardar_backup_absoluto(tel, nombre_mostrar, texto, "IN", "SIMULADOR")
-    
     threading.Thread(target=flujo_principal, args=(tel, texto), daemon=True).start()
     return jsonify({"status": "ok"}), 200
 
@@ -1394,13 +1416,11 @@ def webhook():
         
         if tipo == "text":
             texto = str(msg["text"]["body"]).replace("=", "").replace("+", "").replace("@", "")
-            
             sesion = get_sesion(telefono)
             perfil = sesion.get("perfil")
             if not perfil: perfil = obtener_perfil_crm(telefono)
             nombre_cached = f"({perfil['rol']}) {perfil['nombre']}" if perfil.get('nombre') else "NUEVO CONTACTO"
             
-            # Doble Respaldo INMEDIATO (Motor 1 Nube + Motor 2 Local)
             append_historial(telefono, nombre_cached, texto, "in")
             registrar_en_sheets_async(telefono, nombre_cached, texto, "", "RECIBIDO")
             SessionManager.guardar_backup_absoluto(telefono, nombre_cached, texto, "IN", "RECIBIDO")
