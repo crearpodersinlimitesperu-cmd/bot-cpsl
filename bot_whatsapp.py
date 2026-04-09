@@ -1,7 +1,7 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V70: Reloj Dinámico (Cutoff Jueves 4PM) + Filtro de Derivación + Menús Comunidad
+✅ Versión V71: Lógica Comercial Estricta (Todos pagaron C1) + Panel Web Real-Time
 """
 
 import os, re, json, time, csv, io, random, logging, queue, threading
@@ -33,10 +33,7 @@ class Config:
     CSV_BD_PATH = os.environ.get("CSV_BD_PATH", get_csv_bd_path())
     SESSIONS_PATH = os.environ.get("SESSIONS_PATH", "sesiones.json")
     HISTORIAL_PATH = "historial_chat.json"
-    
-    # 🚀 LA CAJA NEGRA: Respaldo absoluto local
     BACKUP_ABSOLUTO_CSV = "backup_absoluto_mensajes.csv"
-    
     SHEET_ID = os.environ.get("SHEET_ID", "")
     CREDS_JSON = os.environ.get("GOOGLE_CREDENTIALS", "")
 
@@ -193,7 +190,6 @@ class WhatsAppAPI:
         return False
 
 def enviar_mensaje(telefono, texto, nombre_imo="", registrar_sheets=True, estado_menu="INTERACTIVO"):
-    # Mensaje silencioso, sin nombres de coordinadoras.
     return WhatsAppAPI.enviar_mensaje(telefono, texto, nombre_imo, registrar_sheets, estado_menu)
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -238,6 +234,12 @@ def cargar_px_del_imo(telefono):
         except: return "", []
 
 def obtener_perfil_crm(telefono):
+    """
+    Cerebro CRM Lógica Estricta V71:
+    - Si está en la base, YA PAGÓ C1.
+    - Pendiente = Lo que le falta cursar/asistir.
+    - MJ = Requiere preguntar si es Graduado o En Proceso.
+    """
     perfil = {"rol": "PROSPECTO", "nombre": None, "pendiente": None, "imo_nombre": None, "imo_tel": None}
     es_imo = False
     
@@ -285,10 +287,30 @@ def obtener_perfil_crm(telefono):
                                 perfil["px_nombre"] = nombre_completo
                                 perfil["px_mj_stat"] = mj_stat
                                 
-                                pendiente = "Capítulo 1 (C1)"
-                                if c1_stat == "SI": pendiente = "Capítulo 2 (C2)"
-                                if c1_stat == "SI" and c2_stat == "SI": pendiente = "Maestría (MJ)"
+                                # Lógica estricta de negocio: Si está en la base, pagó C1.
+                                # Vemos a qué NO ha asistido para marcar su "Pendiente".
+                                si_c1 = (c1_stat == "SI" or c1_stat == "S")
+                                si_c2 = (c2_stat == "SI" or c2_stat == "S")
+                                si_mj = (mj_stat == "SI" or mj_stat == "S")
+                                
+                                if not si_c1:
+                                    pendiente = "Capítulo 1 (C1)"
+                                    rol_temp = "PX_REZAGADO_C1"
+                                elif si_c1 and not si_c2:
+                                    pendiente = "Capítulo 2 (C2)"
+                                    rol_temp = "PX_UPSELL_C2"
+                                elif si_c1 and si_c2 and not si_mj:
+                                    pendiente = "Maestría (MJ)"
+                                    rol_temp = "PX_UPSELL_MJ"
+                                elif si_mj:
+                                    pendiente = "Ninguno (Maestría iniciada)"
+                                    rol_temp = "MJ" # Requiere preguntar si es graduado o en proceso
+                                else:
+                                    pendiente = "Entrenamiento a validar"
+                                    rol_temp = "PX"
+
                                 perfil["px_pendiente"] = pendiente
+                                perfil["rol_base"] = rol_temp
                                 perfil["imo_nombre"] = nombre_pila(str(row.get(imo_nom_key, "Tu líder")).strip()) if imo_nom_key else "Tu líder"
                                 perfil["imo_tel"] = str(row.get(imo_tel_key, "")) if imo_tel_key else ""
                         except IndexError: continue
@@ -300,8 +322,7 @@ def obtener_perfil_crm(telefono):
     elif perfil.get("px_nombre"):
         perfil["nombre"] = perfil["px_nombre"]
         perfil["pendiente"] = perfil.get("px_pendiente")
-        if perfil.get("px_mj_stat") == "SI": perfil["rol"] = "MJ"
-        else: perfil["rol"] = "PX"
+        perfil["rol"] = perfil.get("rol_base", "PX")
         
     return perfil
 
@@ -332,8 +353,8 @@ def buscar_pendientes_imo_csv(telefono):
                     c2_stat = str(row.get(c2_key, "NO")).strip().upper() if c2_key else "NO"
 
                     falta = ""
-                    if c1_stat != "SI": falta = "C1"
-                    elif c2_stat != "SI": falta = "C2"
+                    if c1_stat != "SI" and c1_stat != "S": falta = "C1"
+                    elif c2_stat != "SI" and c2_stat != "S": falta = "C2"
 
                     if falta:
                         n_base = str(row.get(nom_key, "")).strip()
@@ -348,6 +369,7 @@ def buscar_pendientes_imo_csv(telefono):
     except: return []
 
 def buscar_todos_imo_csv(telefono):
+    """Búsqueda integral de comunidad (Para IMO, MJ o Graduados)"""
     try:
         if not os.path.exists(Config.CSV_BD_PATH): return []
         with open(Config.CSV_BD_PATH, "r", encoding="utf-8-sig") as f:
@@ -401,9 +423,9 @@ def buscar_todos_imo_csv(telefono):
                     c2 = str(px_actual.get(c2_key, "NO")).strip().upper() if c2_key else "NO"
                     mj = str(px_actual.get(mj_key, "NO")).strip().upper() if mj_key else "NO"
                     
-                    if mj == "SI": estatus = "🎓 Graduado (MJ)"
-                    elif c2 == "SI": estatus = "🔥 En Proceso (C2)"
-                    elif c1 == "SI": estatus = "🚀 Inició (C1)"
+                    if mj == "SI" or mj == "S": estatus = "🎓 MJ Iniciado/Graduado"
+                    elif c2 == "SI" or c2 == "S": estatus = "🔥 En Proceso (C2)"
+                    elif c1 == "SI" or c1 == "S": estatus = "🚀 Inició (C1)"
                     else: estatus = "⏳ Rezagado (Falta C1)"
 
                     resultados.append(f"• {nombre_completo} - {estatus}")
@@ -464,7 +486,7 @@ def get_fecha_activa(tipo_evento):
     return "Fecha a confirmar"
 
 # ══════════════════════════════════════════════════════════════════════════
-# 6. ESTRUCTURAS DE MENÚS REVISADAS (V70)
+# 6. ESTRUCTURAS DE MENÚS (V71: Optimizados por Perfil)
 # ══════════════════════════════════════════════════════════════════════════
 COORDINADORAS_CONTACTOS = {"Diana": "51912379744", "Joyce": "51933599903", "Leyla": "51919502385", "Zuley": "51933599864"}
 
@@ -474,24 +496,32 @@ MENU_STRUCTURE = {
         "options": {"1": "info_entrenamientos", "2": "pagos", "3": "pre_action_humano", "0": "action_salir"}
     },
     "main_imo": {
-        "text": "🌟 *Bienvenido Líder IMO {nombre}*\n\n1️⃣ Ver mis rezagados (Pendientes)\n2️⃣ Ver estado de TODOS mis enrolados\n3️⃣ Reportar estatus de mi equipo\n4️⃣ Hablar con Soporte IMO\n0️⃣ Finalizar",
+        "text": "🌟 *Bienvenido Líder IMO {nombre}*\n\n1️⃣ Ver mis rezagados (Pendientes C1/C2)\n2️⃣ Ver estado de TODOS mis enrolados\n3️⃣ Reportar estatus de mi equipo\n4️⃣ Hablar con Soporte IMO\n0️⃣ Finalizar",
         "options": {"1": "ver_pendientes_imo", "2": "ver_todos_imo", "3": "action_imo", "4": "pre_action_humano", "0": "action_salir"}
     },
-    "main_px": {
-        "text": "🌟 *Hola {nombre}. Tienes pendiente vivir tu {pendiente}.*\n\n1️⃣ Confirmar asistencia a la próxima fecha\n2️⃣ Ver calendario de fechas\n3️⃣ Ver mis enrolados / invitados\n4️⃣ Hablar con mi coordinadora\n0️⃣ Finalizar",
-        "options": {"1": "px_confirma", "2": "info_fechas", "3": "ver_todos_imo", "4": "pre_action_humano", "0": "action_salir"}
+    "main_px_rezagado_c1": {
+        "text": "🌟 *Hola {nombre}.*\nTienes pendiente vivir tu *Capítulo 1 (Fase de Descubrimiento)*. ¡Tu transformación te espera!\n\n1️⃣ Confirmar mi asistencia para la próxima fecha\n2️⃣ Ver fechas y horarios del C1\n3️⃣ Solicitar reprogramación a mi coordinadora\n4️⃣ Ver a mis invitados enrolados\n0️⃣ Finalizar",
+        "options": {"1": "px_confirma", "2": "info_fechas", "3": "pre_action_humano", "4": "ver_todos_imo", "0": "action_salir"}
+    },
+    "main_px_upsell_c2": {
+        "text": "🌟 *¡Hola {nombre}! Diste el primer paso en C1.*\nTu siguiente nivel de transformación profunda te espera. Tienes pendiente tu *Capítulo 2 (C2)*.\n\n1️⃣ Información y fechas del Capítulo 2 (C2)\n2️⃣ Confirmar asistencia / Inversión\n3️⃣ Ver a mis invitados enrolados\n4️⃣ Hablar con mi coordinadora\n0️⃣ Finalizar",
+        "options": {"1": "info_fechas", "2": "pagos", "3": "ver_todos_imo", "4": "pre_action_humano", "0": "action_salir"}
+    },
+    "main_px_upsell_mj": {
+        "text": "🌟 *¡Felicidades por completar tu C2, {nombre}!*\nEl último paso para llevar tu liderazgo a tu familia y finanzas es la *Maestría (MJ)*.\n\n1️⃣ Información y fechas de Maestría (MJ)\n2️⃣ Confirmar inscripción / Inversión\n3️⃣ Ver a mis invitados enrolados\n4️⃣ Hablar con mi coordinadora\n0️⃣ Finalizar",
+        "options": {"1": "info_fechas", "2": "pagos", "3": "ver_todos_imo", "4": "pre_action_humano", "0": "action_salir"}
     },
     "main_mj": {
-        "text": "🌟 *Hola Líder {nombre}*\nVemos que has participado en Maestría. ¿Cuál es tu estatus actual?\n\n1️⃣ Soy Graduado (Aliado) 🎓\n2️⃣ Estoy en proceso (100 Días) ⏳\n3️⃣ Me retiré / Deserté 🛑\n4️⃣ Quiero enrolar a alguien 🚀\n0️⃣ Finalizar",
-        "options": {"1": "mj_graduado", "2": "mj_proceso", "3": "mj_deserto", "4": "pre_action_humano", "0": "action_salir"}
+        "text": "🌟 *Hola Líder {nombre}*\nVemos que has participado en Maestría. ¿Cuál es tu estatus actual?\n\n1️⃣ Soy Graduado (Aliado) 🎓\n2️⃣ Estoy en proceso (100 Días) ⏳\n3️⃣ Me retiré / Deserté 🛑\n0️⃣ Finalizar",
+        "options": {"1": "mj_graduado", "2": "mj_proceso", "3": "mj_deserto", "0": "action_salir"}
     },
     "mj_graduado": {
-        "text": "🌟 *¡Un honor saludarte, Graduado/Aliado {nombre}!*\n\n1️⃣ Enrolar a un nuevo participante\n2️⃣ Ver TODOS mis enrolados y estatus\n3️⃣ Hablar con una coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal",
+        "text": "🌟 *¡Un honor saludarte, Graduado/Aliado {nombre}!*\nTu liderazgo inspira a otros. ¿En qué podemos apoyarte hoy?\n\n1️⃣ Enrolar a un nuevo participante\n2️⃣ Ver TODOS mis enrolados y estatus\n3️⃣ Hablar con una coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal",
         "options": {"1": "pre_action_humano", "2": "ver_todos_imo", "3": "pre_action_humano", "9": "volver", "0": "main"}
     },
     "mj_proceso": {
-        "text": "🌟 *¡Sigue firme en tus 100 días, {nombre}!*\n\n1️⃣ Ver mis enrolados y pendientes\n2️⃣ Hablar con mi coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal",
-        "options": {"1": "ver_todos_imo", "2": "pre_action_humano", "9": "volver", "0": "main"}
+        "text": "🌟 *¡Sigue firme en tus 100 días, {nombre}!*\n\n1️⃣ Ver mis enrolados y pendientes\n2️⃣ Registrar un enrolamiento (Mi proceso)\n3️⃣ Soporte con mi coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal",
+        "options": {"1": "ver_todos_imo", "2": "pre_action_humano", "3": "pre_action_humano", "9": "volver", "0": "main"}
     },
     "mj_deserto": {
         "text": "Comprendemos. Cada persona tiene su propio ritmo. Si deseas retomar tu proceso, las puertas están abiertas.\n\n1️⃣ Hablar con una coordinadora\n9️⃣ Regresar\n0️⃣ Menú principal",
@@ -514,7 +544,7 @@ MENU_STRUCTURE = {
         "options": {"1": "pre_action_humano", "9": "volver", "0": "main"}
     },
     "info_fechas": {
-        "text": "dinamico", # Se renderiza en el flujo
+        "text": "dinamico", 
         "options": {"1": "pre_action_humano", "9": "volver", "0": "main"}
     },
     "pagos": {
@@ -530,7 +560,7 @@ def notificar_coordinadora_aleatoria(prospecto_tel, prospecto_nombre, motivo):
     return coord_nombre
 
 # ══════════════════════════════════════════════════════════════════════════
-# 7. PROCESADOR DE ESTADOS (FLUJO SIN IA Y CON FILTRO HUMANO)
+# 7. PROCESADOR DE ESTADOS (FLUJO ESTRICTO DE NEGOCIO)
 # ══════════════════════════════════════════════════════════════════════════
 def flujo_principal(telefono, texto):
     try:
@@ -547,7 +577,7 @@ def flujo_principal(telefono, texto):
             
         nombre_mostrar = f"({perfil['rol']}) {perfil.get('nombre', 'Nuevo')}" if perfil.get('nombre') else "NUEVO CONTACTO"
 
-        # 1. Filtro Encuesta Salida
+        # 1. Filtro Encuesta
         if sesion.get("menu_state") == "esperando_encuesta":
             if texto_limpio in ["1", "2", "3", "4", "5"]:
                 enviar_mensaje(telefono, "¡Gracias por tu calificación! 🌟\n_Escribe MENU para reiniciar._", nombre_mostrar, True, "ENCUESTA CSAT")
@@ -568,7 +598,15 @@ def flujo_principal(telefono, texto):
             enviar_mensaje(telefono, "Has sido dado de baja. No recibirás más mensajes.", nombre_mostrar, True, "SE DIO DE BAJA")
             return
 
-        main_key = "main_imo" if perfil["rol"] == "IMO" else "main_mj" if perfil["rol"] == "MJ" else "main_px" if perfil["rol"] == "PX" else "main_prospecto"
+        # 4. RESOLUCIÓN DE ROL PRINCIPAL (Nuevos perfiles)
+        rol = perfil.get("rol", "PROSPECTO")
+        if rol == "IMO": main_key = "main_imo"
+        elif rol == "MJ": main_key = "main_mj"
+        elif rol == "PX_REZAGADO_C1": main_key = "main_px_rezagado_c1"
+        elif rol == "PX_UPSELL_C2": main_key = "main_px_upsell_c2"
+        elif rol == "PX_UPSELL_MJ": main_key = "main_px_upsell_mj"
+        elif rol == "PX": main_key = "main_px_rezagado_c1" # Fallback a rezagado generico
+        else: main_key = "main_prospecto"
 
         def render_menu(m_key):
             if m_key == "info_fechas":
@@ -578,7 +616,7 @@ def flujo_principal(telefono, texto):
             if "{" in txt: txt = txt.format(nombre=perfil.get("nombre", "Líder"), imo=perfil.get("imo_nombre", "tu líder"), pendiente=perfil.get("pendiente", "tu nivel"))
             return txt
 
-        # 4. Estado: Capturando Motivo para Derivación (FILTRO)
+        # 5. Captura de Motivo de Derivación
         if sesion.get("menu_state") == "capturando_motivo":
             if texto_limpio not in ["0", "MENU"]:
                 motivo = texto
@@ -620,7 +658,7 @@ def flujo_principal(telefono, texto):
                     return
 
                 elif siguiente_estado == "px_confirma":
-                    msg_exito = f"¡Extraordinario, {perfil['nombre']}! 🎉\nHemos registrado tu confirmación. Le avisaremos automáticamente a tu líder {perfil['imo_nombre']}.\n\n_Escribe 0 para volver al menú._"
+                    msg_exito = f"¡Extraordinario, {perfil['nombre']}! 🎉\nHemos registrado tu confirmación a tu siguiente nivel. Le avisaremos automáticamente a tu líder {perfil['imo_nombre']}.\n\n_Escribe 0 para volver al menú._"
                     enviar_mensaje(telefono, msg_exito, nombre_mostrar, True, "CONFIRMÓ ASISTENCIA")
                     if perfil["imo_tel"]: threading.Thread(target=actualizar_excel, args=([{"px": perfil["nombre"], "estatus": "CONFIRMADO"}], perfil["imo_tel"]), daemon=True).start()
                     sesion["menu_state"] = "esperando_fecha"; set_sesion(telefono, sesion)
@@ -638,14 +676,14 @@ def flujo_principal(telefono, texto):
 
                 elif siguiente_estado == "ver_todos_imo":
                     lista_todos = buscar_todos_imo_csv(telefono)
-                    if lista_todos: msg = f"📊 *Reporte Completo de Enrolados*\n\n" + "\n".join(lista_todos) + "\n\n_Escribe *0* para volver._"
-                    else: msg = "No encontramos participantes vinculados a tu número.\n\n_Escribe *0* para volver._"
+                    if lista_todos: msg = f"📊 *Reporte de Tus Enrolados / Comunidad*\n\n" + "\n".join(lista_todos) + "\n\n_Escribe *0* para volver._"
+                    else: msg = "Aún no tienes enrolados registrados a tu nombre en la base de datos de esta campaña.\n\n_Escribe *0* para volver._"
                     enviar_mensaje(telefono, msg, nombre_mostrar, True, "REPORTE TODOS ENROLADOS")
                     hist = sesion.get("menu_history", [])
                     if estado_actual != main_key and (not hist or hist[-1] != estado_actual): hist.append(estado_actual)
                     sesion["menu_state"] = "ver_todos_imo"; sesion["menu_history"] = hist; set_sesion(telefono, sesion)
                     return
-
+                    
                 elif siguiente_estado == "action_salir":
                     sesion["menu_state"] = "esperando_encuesta"; set_sesion(telefono, sesion)
                     enviar_mensaje(telefono, "Antes de irte, ¿Cómo calificarías tu experiencia en este chat?\n\nResponde con un número del *1 al 5*:\n1️⃣ = Mala\n5️⃣ = ¡Excelente!", nombre_mostrar, True, "ENCUESTA SALIDA")
@@ -661,7 +699,6 @@ def flujo_principal(telefono, texto):
                 elif siguiente_estado == "action_imo": enviar_mensaje(telefono, f"¡Hola líder! 👋\n\nEstás en el *Portal IMO*. Envíame el estatus de tus participantes y lo validaremos.\n\n_Escribe *0* para volver._", nombre_mostrar, True, "REPORTE MANUAL IMO")
             else:
                 if not texto_limpio.isnumeric():
-                    # 🚀 FIX PROSPECTOS SIN IA: Si escriben texto libre, se asume que necesitan un humano y se les pide el motivo.
                     msg = "Para brindarte atención humana, por favor dime en un solo mensaje: *¿Qué necesitas consultar?*"
                     enviar_mensaje(telefono, msg, nombre_mostrar, True, "PREGUNTANDO MOTIVO AUTO")
                     sesion["menu_state"] = "capturando_motivo"
@@ -680,7 +717,7 @@ def flujo_principal(telefono, texto):
                 set_sesion(telefono, sesion)
 
         elif estado_actual == "action_imo":
-            enviar_mensaje(telefono, f"Estatus recibido. Procesando...\n\n_Escribe *0* para volver al menú._", nombre_mostrar, True, "ESTATUS RECIBIDO IMO")
+            enviar_mensaje(telefono, f"Estatus recibido. Procesando y derivando a la mesa de control...\n\n_Escribe *0* para volver al menú._", nombre_mostrar, True, "ESTATUS RECIBIDO IMO")
             
         elif estado_actual in ["esperando_humano", "esperando_fecha", "ver_todos_imo", "ver_pendientes_imo"]:
             set_sesion(telefono, sesion)
@@ -816,7 +853,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
     <div class="field">
       <label>Credenciales Google — JSON completo</label>
-      <textarea id="c-creds" placeholder='{"type":"service_account","project_id":"bot-cpsl","private_key":"...","client_email":"bot-cpsl-sheets@..."}'></textarea>
+      <textarea id="c-creds" placeholder='{"type":"service_account",...}'></textarea>
     </div>
     <div class="field">
       <label>WA Token</label>
@@ -847,7 +884,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="sidebar">
     <div class="sb-header">
       <div class="sb-top">
-        <span class="sb-title">Comunicaciones C1 E27</span>
+        <span class="sb-title">Mesa de Control C1 E27</span>
         <div class="sync-row">
           <div class="sync-dot" id="sdot"></div>
           <span class="sync-text" id="stxt">—</span>
@@ -880,7 +917,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="empty">
       <div style="width:44px;height:44px;border-radius:50%;background:#E1F5EE;display:flex;align-items:center;justify-content:center;font-size:20px">💬</div>
       <span>Selecciona una conversación</span>
-      <span style="font-size:11px;color:#b4b2a9">Dual-Sync activo (Tiempo Real)</span>
+      <span style="font-size:11px;color:#b4b2a9">Dual-Sync activo (Tiempo Real) - Hora Perú</span>
     </div>
   </div>
 </div>
@@ -890,7 +927,7 @@ const CFG_KEY  = 'cpsl_cfg_v2';
 const DEMO_KEY = 'cpsl_demo_v2';
 
 const QR = [
-  {l:'Info C1', t:'Hola, aquí tienes la información del Capítulo 1 — Equipo 27:\\n\\nHotel José Antonio Deluxe\\nCalle Bellavista 133, Miraflores, Lima\\n\\nViernes 1 mayo: registro 9:00am, inicio 10:00am\\nSábado 2 mayo: ingreso 9:00am, inicio 10:00am\\nDomingo 3 mayo: inicio 9:00am, cierre 9:00pm\\n\\nComunicaciones Crear Poder Sin Límites Perú'},
+  {l:'Info C1', t:'Hola, aquí tienes la información del Capítulo 1:\\n\\nHotel José Antonio Deluxe\\nCalle Bellavista 133, Miraflores\\n\\nViernes: registro 9:00am, inicio 10:00am\\nSábado: ingreso 9:00am, inicio 10:00am\\nDomingo: inicio 9:00am, cierre 9:00pm\\n\\nComunicaciones Crear Poder Sin Límites Perú'},
   {l:'Confirmar', t:'Hola, gracias por informarnos. Confirmación registrada.\\n\\nLos esperamos en el Hotel José Antonio Deluxe. Mesa de registro a las 9:00am.\\n\\nComunicaciones Crear Poder Sin Límites Perú'},
   {l:'No asiste', t:'Hola, recibido. La inscripción sigue activa para el siguiente equipo inmediato.\\n\\nComunicaciones Crear Poder Sin Límites Perú'},
   {l:'Cambio nombre', t:'Hola, los cambios de nombre se gestionan con tu coordinadora antes del miércoles previo hasta las 6:00pm.\\n\\nComunicaciones Crear Poder Sin Límites Perú'}
@@ -899,11 +936,14 @@ const QR = [
 let CFG = {}; let DEMO = false; let convs = []; let curTel = null; let filtro = 'todos';
 let syncing = false; let syncTimer = null; let rowMap = {}; let _tok = null; let _tokExp = 0;
 
+// Notificaciones (Bloop)
+let audioNotif = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3');
+
 function esc(s){ return String(s).split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;').split('"').join('&quot;').split("'").join('&#39;'); }
 function nl2br(s){ return esc(s).split('\\n').join('<br>'); }
 function ini(n){ const p=n.trim().split(' '); return ((p[0]||'')[0]+(p[1]||'')[0]||'').toUpperCase(); }
-function hora(){ return new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'}); }
-function fecha(){ return new Date().toLocaleString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
+function hora(){ return new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit', timeZone: 'America/Lima'}); }
+function fecha(){ return new Date().toLocaleString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit', timeZone: 'America/Lima'}); }
 
 function badgeClass(estado, ext){
   if(ext) return 'b-externo';
@@ -1103,7 +1143,12 @@ async function sincronizarMensajesInstantaneos() {
             if (!ya) {
                 let dir = m.tipo === 'in' ? 'in' : 'out';
                 c.msgs.push({dir: dir, texto: m.texto, h: m.hora, st: dir === 'out' ? 'Enviado' : '', tipo: dir, row: 999999});
-                if (dir === 'in' && curTel !== tel) c.unread = true;
+                if (dir === 'in' && curTel !== tel) {
+                    c.unread = true;
+                    // Notificación Visual y Sonora
+                    document.title = "🔴 Nuevo Mensaje - CPSL";
+                    try{ audioNotif.play(); }catch(e){}
+                }
                 cambios = true;
             }
         }
@@ -1189,7 +1234,14 @@ function setTab(el){
   renderLista();
 }
 
-function selConv(tel){ curTel = tel; const c = convs.find(x=>x.tel===tel); if(c) c.unread=false; renderLista(); renderChat(); }
+function selConv(tel){ 
+    curTel = tel; 
+    const c = convs.find(x=>x.tel===tel); 
+    if(c) c.unread=false; 
+    document.title = "CPSL — Comunicaciones"; // Limpia notificación visual
+    renderLista(); 
+    renderChat(); 
+}
 
 function renderChat(){
   const c = convs.find(x=>x.tel===curTel);
@@ -1218,6 +1270,7 @@ function renderChat(){
       '<div class="qr-row">' + QR.map((r,i)=>'<button class="qr" onclick="usarQR('+i+')">'+esc(r.l)+'</button>').join('') + '</div>' +
       '<div class="input-row">' +
         '<textarea class="tinput" id="tinput" placeholder="Escribe tu respuesta… (Enter = enviar | Shift+Enter = nueva línea)" onkeydown="handleKey(event)" oninput="onInput(this)"></textarea>' +
+        '<button class="send" style="background:#534AB7; padding:8px;" onclick="enviarMedia()" title="Enviar Imagen (En desarrollo)">📎</button>' +
         '<button class="send" id="sbtn" onclick="enviar()">Enviar</button>' +
       '</div>' +
       '<div class="foot-meta"><span id="fchars">0 caracteres</span><span id="fstatus"></span></div>' +
@@ -1225,6 +1278,10 @@ function renderChat(){
 
   poblarMensajes(c); scrollFin();
   const ti = document.getElementById('tinput'); if(ti) ti.focus();
+}
+
+function enviarMedia() {
+    alert("🚀 Opción 'Enviar Imagen' habilitada. (Integración de Media de la API de Meta en proceso para la siguiente versión).");
 }
 
 function actualizarMensajes(){
@@ -1392,8 +1449,10 @@ def mensaje_simulador():
     sesion = get_sesion(tel)
     perfil = sesion.get("perfil", {})
     nombre_mostrar = f"({perfil.get('rol', 'PROSPECTO')}) {perfil.get('nombre', 'Simulado')}" if perfil.get('nombre') else "SIMULACIÓN"
+    
     append_historial(tel, nombre_mostrar, texto, "in")
     SessionManager.guardar_backup_absoluto(tel, nombre_mostrar, texto, "IN", "SIMULADOR")
+    
     threading.Thread(target=flujo_principal, args=(tel, texto), daemon=True).start()
     return jsonify({"status": "ok"}), 200
 
@@ -1422,7 +1481,8 @@ def webhook():
             nombre_cached = f"({perfil['rol']}) {perfil['nombre']}" if perfil.get('nombre') else "NUEVO CONTACTO"
             
             append_historial(telefono, nombre_cached, texto, "in")
-            registrar_en_sheets_async(telefono, nombre_cached, texto, "", "RECIBIDO")
+            # 🚀 V70: Escribimos EN GOOGLE SHEETS de forma 100% sincrónica ANTES de lanzar el bot. (Cero pérdidas)
+            GoogleSheetsAPI.registrar_accion(telefono, nombre_cached, texto, "", "RECIBIDO", "", "")
             SessionManager.guardar_backup_absoluto(telefono, nombre_cached, texto, "IN", "RECIBIDO")
 
             threading.Thread(target=flujo_principal, args=(telefono, texto), daemon=True).start()
@@ -1434,7 +1494,7 @@ def webhook():
             nombre_cached = f"({perfil['rol']}) {perfil['nombre']}" if perfil.get('nombre') else "NUEVO CONTACTO"
             
             append_historial(telefono, nombre_cached, "[MULTIMEDIA RECIBIDO]", "in")
-            registrar_en_sheets_async(telefono, nombre_cached, "[MULTIMEDIA RECIBIDO]", "", "RECIBIDO")
+            GoogleSheetsAPI.registrar_accion(telefono, nombre_cached, "[MULTIMEDIA RECIBIDO]", "", "RECIBIDO", "", "")
             SessionManager.guardar_backup_absoluto(telefono, nombre_cached, "[MULTIMEDIA RECIBIDO]", "IN", "ERROR_MULTIMEDIA")
             
             WhatsAppAPI.enviar_mensaje(telefono, "Comprendido. Por favor responde con texto o el número de la opción deseada para poder apoyarte.", registrar_sheets=True, estado_menu="ERROR_MULTIMEDIA")
