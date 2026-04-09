@@ -1,12 +1,12 @@
 """
 Bot WhatsApp — Campaña Rezagados C1 E27
 Comunicaciones Crear Poder Sin Límites Perú
-✅ Versión V75: Filtro Universal Handoff + Reporte DNI IMO + Reloj Cutoff
+✅ Versión V76: Timekeeper (Cutoffs exactos) + Forzado UTC-5 (Hora Lima) + UX
 """
 
 import os, re, json, time, csv, io, random, logging, threading
 from flask import Flask, request, jsonify, Response
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import requests as req_lib
 from openpyxl import load_workbook
 from filelock import FileLock
@@ -17,8 +17,14 @@ logger = logging.getLogger("BotCrear")
 app = Flask(__name__)
 
 # ══════════════════════════════════════════════════════════════════════════
-# 1. CONFIGURACIÓN Y CONSTANTES
+# 1. CONFIGURACIÓN Y CONSTANTES (UTC-5 LIMA)
 # ══════════════════════════════════════════════════════════════════════════
+# 🚀 Forzamos la zona horaria de Perú para que Render no se confunda con UTC
+TZ_LIMA = timezone(timedelta(hours=-5))
+
+def ahora_lima():
+    return datetime.now(TZ_LIMA)
+
 def get_csv_bd_path():
     if os.path.exists("base_datos.csv"): return "base_datos.csv"
     for f in os.listdir("."):
@@ -79,7 +85,7 @@ class SessionManager:
                 h = []
                 if os.path.exists(Config.HISTORIAL_PATH):
                     with open(Config.HISTORIAL_PATH, "r", encoding="utf-8") as f: h = json.load(f)
-                h.append({"telefono": str(telefono), "nombre": nombre or "Desconocido", "texto": texto, "tipo": tipo, "hora": datetime.now().strftime("%d/%m %H:%M")})
+                h.append({"telefono": str(telefono), "nombre": nombre or "Desconocido", "texto": texto, "tipo": tipo, "hora": ahora_lima().strftime("%d/%m %H:%M")})
                 with open(Config.HISTORIAL_PATH, "w", encoding="utf-8") as f: json.dump(h[-10000:], f, ensure_ascii=False, indent=2)
             except: pass
 
@@ -92,7 +98,7 @@ class SessionManager:
                     writer = csv.writer(f)
                     if not archivo_existe: 
                         writer.writerow(["Fecha y Hora", "Telefono", "Nombre", "Direccion (In/Out)", "Mensaje", "Estado Sistema"])
-                    writer.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), telefono, nombre, direccion, mensaje, estado_sistema])
+                    writer.writerow([ahora_lima().strftime("%Y-%m-%d %H:%M:%S"), telefono, nombre, direccion, mensaje, estado_sistema])
             except Exception as e:
                 logger.error(f"Error en backup local: {e}")
 
@@ -138,9 +144,9 @@ class GoogleSheetsAPI:
             if r.status_code == 200:
                 token = r.json()["access_token"]
                 url = f"https://sheets.googleapis.com/v4/spreadsheets/{Config.SHEET_ID}/values/Hoja%201!A:H:append"
-                ahora = datetime.now().strftime("%d/%m/%Y %H:%M")
+                ahora_str = ahora_lima().strftime("%d/%m/%Y %H:%M")
                 
-                valores = [[ahora, str(telefono), imo_nombre, mensaje, respuesta_bot, estado, respuesta_manual, enviado_status]]
+                valores = [[ahora_str, str(telefono), imo_nombre, mensaje, respuesta_bot, estado, respuesta_manual, enviado_status]]
                 req_lib.post(url, params={"valueInputOption": "RAW", "insertDataOption": "INSERT_ROWS"}, 
                              json={"values": valores}, 
                              headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, timeout=10)
@@ -369,7 +375,7 @@ def buscar_todos_imo_csv(telefono):
     except: return []
 
 def reporte_sentados_imo(telefono):
-    """🧠 V75: Divide a la comunidad de un IMO en Sentados y No Sentados"""
+    """🧠 V76: Divide a la comunidad de un IMO en Sentados y No Sentados"""
     todos = buscar_todos_imo_csv(telefono)
     sentados = []
     no_sentados = []
@@ -382,7 +388,7 @@ def reporte_sentados_imo(telefono):
 
 def marcar_stop(telefono):
     if str(telefono).startswith("SIM_"): return 
-    hoy = datetime.now().strftime("%d/%m/%Y %H:%M")
+    hoy = ahora_lima().strftime("%d/%m/%Y %H:%M")
     with FileLock(Config.EXCEL_PATH + ".lock"):
         try:
             wb = load_workbook(Config.EXCEL_PATH)
@@ -395,23 +401,31 @@ def marcar_stop(telefono):
         except: pass
 
 def get_fecha_activa(tipo_evento):
-    """🚀 V75: Reloj Dinámico Inquebrantable (Hard Cutoff)"""
-    ahora = datetime.now()
+    """🚀 V76: RELOJ DINÁMICO INQUEBRANTABLE (Con Zona Horaria Lima Forzada)"""
+    ahora = ahora_lima()
+    
     if tipo_evento == "C1":
-        # Jueves previo a las 16:00
-        limite_c1 = datetime(2026, 4, 30, 16, 0)
+        # Cutoff: Viernes a las 11:30 AM
+        limite_c1 = datetime(2026, 5, 1, 11, 30, tzinfo=TZ_LIMA)
         if ahora < limite_c1: return "Viernes 01 de Mayo de 2026 (Equipo 27)"
         else: return "Viernes 05 de Junio de 2026 (Equipo 28)"
+        
     elif tipo_evento == "C2":
-        limite_c2 = datetime(2026, 4, 9, 16, 0)
+        # Cutoff: Jueves a las 15:30 (3:30 PM)
+        limite_c2 = datetime(2026, 4, 9, 15, 30, tzinfo=TZ_LIMA)
         if ahora < limite_c2: return "Jueves 09 de Abril de 2026 (Equipo 26)"
-        else: return "Jueves 07 de Mayo de 2026 (Equipo 27)"
+        else: return "Jueves 14 de Mayo de 2026 (Equipo 27)"
+        
     elif tipo_evento == "MJ":
-        return "Próxima fecha sujeta a confirmación de coordinación."
+        # Cutoff: Viernes a las 19:00 (7:00 PM)
+        limite_mj = datetime(2026, 4, 17, 19, 0, tzinfo=TZ_LIMA)
+        if ahora < limite_mj: return "Viernes 17 de Abril de 2026 (Equipos 24, 25, 26)"
+        else: return "Viernes 22 de Mayo de 2026 (Equipos 25, 26, 27)"
+        
     return "Fecha a confirmar"
 
 # ══════════════════════════════════════════════════════════════════════════
-# 6. ESTRUCTURAS DE MENÚS (V75 - UX DE ALTO RENDIMIENTO)
+# 6. ESTRUCTURAS DE MENÚS (V76 - UX DE ALTO RENDIMIENTO)
 # ══════════════════════════════════════════════════════════════════════════
 COORDINADORAS_CONTACTOS = {"Diana": "51912379744", "Joyce": "51933599903", "Leyla": "51919502385", "Zuley": "51933599864"}
 
@@ -502,9 +516,7 @@ def flujo_principal(telefono, texto):
             
         nombre_mostrar = f"({perfil['rol']}) {perfil.get('nombre', 'Nuevo')}" if perfil.get('nombre') else "NUEVO CONTACTO"
 
-        # --- FILTROS DE CAPTURA DE TEXTO (ANTES DE EVALUAR MENÚS) ---
-        
-        # 1. Filtro de Encuesta
+        # --- FILTROS DE CAPTURA DE TEXTO ---
         if sesion.get("menu_state") == "esperando_encuesta":
             if texto_limpio in ["1", "2", "3", "4", "5"]:
                 enviar_mensaje(telefono, "¡Gracias por tu calificación! 🌟\n_Escribe MENU para reiniciar._", nombre_mostrar, True, "ENCUESTA CSAT")
@@ -512,7 +524,6 @@ def flujo_principal(telefono, texto):
             else: enviar_mensaje(telefono, "Por favor califica con un número del 1 al 5.", nombre_mostrar, True, "ERROR CSAT")
             return
 
-        # 2. Filtro de Captura de Motivo (Filtro Anti-Spam para Coordinadoras)
         if sesion.get("menu_state") == "capturando_motivo":
             if texto_limpio not in ["0", "MENU"]:
                 motivo = texto
@@ -523,7 +534,6 @@ def flujo_principal(telefono, texto):
                 set_sesion(telefono, sesion)
                 return
 
-        # 3. Filtro de Captura de DNI IMO
         if sesion.get("menu_state") == "capturando_dni_imo":
             if texto_limpio not in ["0", "MENU"]:
                 dni = texto_limpio
@@ -589,7 +599,6 @@ def flujo_principal(telefono, texto):
             if siguiente_estado:
                 sesion["menu_errors"] = 0
                 
-                # 🚀 V75: Handoff Universal Dinámico
                 if siguiente_estado.startswith("pre_action_humano"):
                     contexto = siguiente_estado.replace("pre_action_humano_", "").upper()
                     if contexto == "PRE_ACTION_HUMANO": contexto = "SOPORTE GENERAL"
@@ -642,6 +651,7 @@ def flujo_principal(telefono, texto):
                 sesion["menu_state"] = siguiente_estado; sesion["menu_history"] = hist; set_sesion(telefono, sesion)
                 
                 if siguiente_estado in MENU_STRUCTURE: enviar_mensaje(telefono, render_menu(siguiente_estado), nombre_mostrar, True, siguiente_estado)
+                elif siguiente_estado == "action_imo": enviar_mensaje(telefono, f"¡Hola líder! 👋\n\nEstás en el *Portal IMO*. Envíame el estatus de tus participantes y lo validaremos.\n\n_Escribe *0* para volver._", nombre_mostrar, True, "REPORTE MANUAL IMO")
             else:
                 if not texto_limpio.isnumeric():
                     sesion["contexto_derivacion"] = "TEXTO LIBRE"
@@ -949,7 +959,9 @@ function usarDemoMode(){
   cargarDemoData(); iniciarUI();
 }
 
-function cargarDemoData(){ convs = []; }
+function cargarDemoData(){
+  convs = [];
+}
 
 async function getToken(){
   if(_tok && Date.now() < _tokExp - 60000) return _tok;
@@ -1382,7 +1394,7 @@ def descargar_respaldo():
     if os.path.exists(Config.BACKUP_ABSOLUTO_CSV):
         with open(Config.BACKUP_ABSOLUTO_CSV, "r", encoding="utf-8-sig") as f: data = f.read()
     else: data = "Fecha y Hora,Telefono,Nombre,Direccion (In/Out),Mensaje,Estado Sistema\nSin datos aun"
-    return Response(data, mimetype="text/csv", headers={"Content-Disposition":f"attachment;filename=Backup_Absoluto_V75.csv"})
+    return Response(data, mimetype="text/csv", headers={"Content-Disposition":f"attachment;filename=Backup_Absoluto_V76.csv"})
 
 @app.route("/api/enviar", methods=["POST"])
 def api_enviar():
@@ -1435,7 +1447,7 @@ def webhook():
             nombre_cached = f"({perfil['rol']}) {perfil['nombre']}" if perfil.get('nombre') else "NUEVO CONTACTO"
             
             append_historial(telefono, nombre_cached, texto, "in")
-            GoogleSheetsAPI.registrar_accion(telefono, nombre_cached, texto, "", "RECIBIDO", "", "")
+            registrar_en_sheets_inmediato(telefono, nombre_cached, texto, "", "RECIBIDO", "", "")
             SessionManager.guardar_backup_absoluto(telefono, nombre_cached, texto, "IN", "RECIBIDO")
 
             threading.Thread(target=flujo_principal, args=(telefono, texto), daemon=True).start()
@@ -1447,7 +1459,7 @@ def webhook():
             nombre_cached = f"({perfil['rol']}) {perfil['nombre']}" if perfil.get('nombre') else "NUEVO CONTACTO"
             
             append_historial(telefono, nombre_cached, "[MULTIMEDIA RECIBIDO]", "in")
-            GoogleSheetsAPI.registrar_accion(telefono, nombre_cached, "[MULTIMEDIA RECIBIDO]", "", "RECIBIDO", "", "")
+            registrar_en_sheets_inmediato(telefono, nombre_cached, "[MULTIMEDIA RECIBIDO]", "", "RECIBIDO", "", "")
             SessionManager.guardar_backup_absoluto(telefono, nombre_cached, "[MULTIMEDIA RECIBIDO]", "IN", "ERROR_MULTIMEDIA")
             
             WhatsAppAPI.enviar_mensaje(telefono, "Comprendido. Por favor responde con texto o el número de la opción deseada para poder apoyarte.", registrar_sheets=True, estado_menu="ERROR_MULTIMEDIA")
