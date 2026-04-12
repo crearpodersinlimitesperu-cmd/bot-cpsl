@@ -4,7 +4,444 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CPSL — Centro de Comunicaciones Corporativo</title>
+<style><!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPSL — Centro de Comunicaciones Corporativo</title>
 <style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f4f0;color:#1a1a18;height:100vh;overflow:hidden}
+.app{display:grid;grid-template-columns:320px 1fr;height:100vh}
+.sidebar{border-right:.5px solid #d3d1c7;display:flex;flex-direction:column;background:#f5f4f0;min-width:0}
+.sb-header{padding:12px 14px 10px;border-bottom:.5px solid #d3d1c7}
+.sb-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.sb-title{font-size:13px;font-weight:600}
+.sync-row{display:flex;align-items:center;gap:4px}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:#d3d1c7;transition:background .3s;flex-shrink:0}
+.sync-dot.ok{background:#1D9E75}
+.sync-dot.err{background:#A32D2D}
+.sync-text{font-size:10px;color:#888780}
+.btn-cfg{font-size:10px;padding:5px 10px;border:none;border-radius:6px;background:#1a73e8;color:#fff;cursor:pointer;font-weight:600;transition:background .2s}
+.btn-cfg:hover{background:#1557b0}
+.search{width:100%;padding:7px 10px;font-size:13px;border:.5px solid #b4b2a9;border-radius:8px;background:#fff;color:#1a1a18;outline:none}
+.search:focus{border-color:#1D9E75}
+.tabs{display:flex;gap:4px;padding:8px 14px;border-bottom:.5px solid #d3d1c7;flex-wrap:wrap}
+.tab{font-size:11px;padding:3px 8px;border-radius:20px;border:.5px solid #d3d1c7;background:transparent;color:#888780;cursor:pointer;white-space:nowrap}
+.tab.on{background:#fff;color:#1a1a18;border-color:#888780;font-weight:600}
+.tab.grad-tab{border-color:#E1BEE7;color:#6A1B9A}
+.tab.grad-tab.on{background:#F3E5F5;border-color:#6A1B9A;color:#4A148C;font-weight:700}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:.5px solid #d3d1c7}
+.stat{text-align:center;padding:7px 2px;border-right:.5px solid #d3d1c7}
+.stat:last-child{border-right:none}
+.stat-n{font-size:14px;font-weight:600}
+.stat-l{font-size:9px;color:#888780;text-transform:uppercase}
+.list{overflow-y:auto;flex:1}
+.item{padding:10px 14px;border-bottom:.5px solid #d3d1c7;cursor:pointer;transition:background .1s}
+.item:hover{background:#fff}
+.item.on{background:#fff;border-left:2px solid #1D9E75}
+.item-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px}
+.item-name{font-size:13px;font-weight:600;color:#1a1a18;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px}
+.item-time{font-size:10px;color:#888780;flex-shrink:0}
+.item-prev{font-size:12px;color:#5f5e5a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px}
+.item-bot{display:flex;align-items:center;justify-content:space-between;margin-top:3px}
+.dot-unread{width:7px;height:7px;border-radius:50%;background:#1D9E75;flex-shrink:0}
+.badge{display:inline-block;font-size:10px;padding:2px 6px;border-radius:10px;font-weight:600}
+.b-pendiente{background:#FAEEDA;color:#854F0B}
+.b-rol-grad{background:#F3E5F5;color:#4A148C}
+.b-rol-imo{background:#E1F5EE;color:#0F6E56}
+.b-rol-px{background:#f1f1f1;color:#666}
+
+/* ESTILO DEL BOTÓN NUEVO CHAT */
+.new-btn{margin:10px 14px;padding:8px;width:calc(100% - 28px);background:transparent;border:.5px dashed #b4b2a9;border-radius:8px;font-size:12px;color:#888780;cursor:pointer;text-align:center;transition:background 0.2s}
+.new-btn:hover{background:#fff;color:#1a1a18;border-color:#888780}
+
+.chat{display:flex;flex-direction:column;height:100vh;background:#fff;position:relative}
+.ch-header{padding:12px 18px;border-bottom:.5px solid #d3d1c7;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.ch-left{display:flex;align-items:center;gap:10px}
+.avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0}
+.av-imo{background:#E1F5EE;color:#0F6E56}
+.av-ext{background:#EEEDFE;color:#534AB7}
+.av-grad{background:#F3E5F5;color:#4A148C;border:1px solid #E1BEE7}
+.ch-name{font-size:14px;font-weight:600;color:#1a1a18}
+.ch-sub{font-size:11px;color:#888780;margin-top:1px;display:flex;gap:4px;align-items:center}
+.messages{flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:8px;background:#fafaf8}
+.msg{display:flex;flex-direction:column;max-width:76%}
+.msg.in{align-self:flex-start}
+.msg.out{align-self:flex-end}
+.msg-who{font-size:10px;color:#888780;margin-bottom:2px}
+.msg.out .msg-who{text-align:right}
+.bubble{padding:8px 12px;border-radius:12px;font-size:13px;line-height:1.5;word-break:break-word}
+.msg.in .bubble{background:#fff;color:#1a1a18;border:.5px solid #d3d1c7;border-radius:3px 12px 12px 12px}
+.msg.out .bubble{background:#1D9E75;color:#fff;border-radius:12px 3px 12px 12px}
+.input-row{display:flex;gap:7px;align-items:flex-end}
+.tinput{flex:1;padding:10px 14px;font-size:13px;border:.5px solid #b4b2a9;border-radius:20px;background:#f5f4f0;color:#1a1a18;resize:none;outline:none;min-height:40px;max-height:110px}
+.tinput:focus{border-color:#1D9E75;background:#fff}
+.send{padding:10px 18px;background:#1D9E75;color:#fff;border:none;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer}
+.footer{border-top:.5px solid #d3d1c7;padding:12px 18px;background:#fff;flex-shrink:0}
+
+/* ESTILOS DE LOS MODALES (NUEVO CHAT Y SIMULADOR) */
+.sim-overlay, .new-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:999;backdrop-filter:blur(2px)}
+.sim-phone{width:360px;height:640px;background:#efeae2;border-radius:30px;box-shadow:0 20px 40px rgba(0,0,0,0.3);display:flex;flex-direction:column;overflow:hidden;border:8px solid #333;position:relative}
+.sim-header{background:#005e54;color:#fff;padding:15px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 3px rgba(0,0,0,0.2);z-index:2}
+.sim-avatar{width:36px;height:36px;background:#dfe5e7;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px}
+.sim-info{flex:1}
+.sim-name{font-weight:600;font-size:15px}
+.sim-status{font-size:11px;opacity:0.8}
+.sim-close{background:none;border:none;color:#fff;font-size:24px;cursor:pointer}
+.sim-body{flex:1;background:url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');background-size:cover;overflow-y:auto;padding:15px;display:flex;flex-direction:column;gap:8px}
+.sim-msg{max-width:85%;padding:8px 12px;border-radius:8px;font-size:13.5px;line-height:1.4;position:relative;word-wrap:break-word}
+.sim-msg.bot{align-self:flex-start;background:#fff;border-top-left-radius:0;box-shadow:0 1px 1px rgba(0,0,0,0.1)}
+.sim-msg.user{align-self:flex-end;background:#dcf8c6;border-top-right-radius:0;box-shadow:0 1px 1px rgba(0,0,0,0.1)}
+.sim-time{font-size:10px;color:#999;display:block;text-align:right;margin-top:4px}
+.sim-footer{background:#f0f0f0;padding:10px;display:flex;gap:8px;align-items:center}
+.sim-input{flex:1;padding:12px 15px;border-radius:20px;border:none;outline:none;font-size:14px}
+.sim-send{width:40px;height:40px;border-radius:50%;background:#008f68;color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px}
+.sim-send:hover{background:#007555}
+
+/* Modal Nuevo Chat */
+.modal{background:#fff;border-radius:12px;padding:28px 32px;width:380px;max-height:90vh;overflow-y:auto}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;font-weight:600;color:#5f5e5a;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
+.field input{width:100%;padding:8px 10px;font-size:13px;border:.5px solid #b4b2a9;border-radius:8px;background:#fafaf8;color:#1a1a18;outline:none}
+.field input:focus{border-color:#1D9E75;background:#fff}
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <div class="sidebar">
+    <div class="sb-header">
+      <div class="sb-top">
+        <span class="sb-title">Mesa de Control CPSL</span>
+        <div class="sync-row">
+          <div class="sync-dot" id="sdot"></div><span class="sync-text" id="stxt">—</span>
+          <button class="btn-cfg" onclick="abrirSimulador()">🧪 Simulador Interactivo</button>
+        </div>
+      </div>
+      <input class="search" type="text" id="search" placeholder="Buscar nombre o teléfono…" oninput="renderLista()">
+    </div>
+    <div class="tabs">
+      <button class="tab on" data-tab="todos" onclick="setTab(this)">Todos</button>
+      <button class="tab grad-tab" data-tab="graduado" onclick="setTab(this)">🎓 Graduados</button>
+      <button class="tab" data-tab="pendiente" onclick="setTab(this)">Pendientes</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="stat-n" id="st0">0</div><div class="stat-l">Total</div></div>
+      <div class="stat"><div class="stat-n" id="st4" style="color:#6A1B9A">0</div><div class="stat-l">Grads</div></div>
+      <div class="stat"><div class="stat-n" id="st2" style="color:#BA7517">0</div><div class="stat-l">Pend</div></div>
+    </div>
+    <div class="list" id="list"></div>
+    <button class="new-btn" onclick="abrirNuevo()">+ Iniciar nueva conversación</button>
+  </div>
+  <div class="chat" id="chat">
+    <div class="empty" style="flex:1;display:flex;align-items:center;justify-content:center;color:#888">
+      <span>Selecciona una conversación</span>
+    </div>
+  </div>
+</div>
+
+<div class="new-overlay" id="ovl-new">
+  <div class="modal">
+    <h2 style="margin-bottom:14px">Nueva conversación manual</h2>
+    <p style="font-size:12px; color:#666; margin-bottom:15px">Abre un canal directo con un prospecto para enviarle un mensaje.</p>
+    <div class="field"><label>Nombre del Contacto</label><input id="n-nombre" placeholder="Ej: Juan Perez"></div>
+    <div class="field"><label>Teléfono (con código de país)</label><input id="n-tel" type="tel" placeholder="Ej: 51987654321"></div>
+    <div style="display:flex;gap:8px;margin-top:20px">
+      <button style="flex:1;padding:9px;border:.5px solid #b4b2a9;border-radius:8px;background:transparent;font-size:13px;color:#5f5e5a;cursor:pointer" onclick="cerrarNuevo()">Cancelar</button>
+      <button style="flex:1;padding:9px;background:#1D9E75;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer" onclick="crearNuevo()">Iniciar Chat</button>
+    </div>
+  </div>
+</div>
+
+<div class="sim-overlay" id="sim-modal">
+  <div class="sim-phone">
+    <div class="sim-header">
+      <div class="sim-avatar">🤖</div>
+      <div class="sim-info">
+        <div class="sim-name">Bot CPSL (Simulador)</div>
+        <div class="sim-status" id="sim-status-text">en línea</div>
+      </div>
+      <button class="sim-close" onclick="cerrarSimulador()">×</button>
+    </div>
+    <div class="sim-body" id="sim-body">
+      <div style="text-align:center;margin:10px 0;font-size:11px;color:#666;background:rgba(225,245,254,0.8);padding:4px 8px;border-radius:10px;align-self:center">
+        Estás simulando ser un usuario de WhatsApp.<br>Escribe "Menu" para iniciar.
+      </div>
+    </div>
+    <div class="sim-footer">
+      <input type="text" class="sim-input" id="sim-input" placeholder="Escribe un mensaje aquí..." onkeydown="if(event.key==='Enter'){enviarMensajeSimulador();}">
+      <button class="sim-send" onclick="enviarMensajeSimulador()">➤</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let convs = []; let curTel = null; let filtro = 'todos';
+let simActivo = null;
+
+function esc(s){ return String(s).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
+function nl2br(s){ return esc(s).replace(/\n/g, '<br>'); }
+function ini(n){ const p=n.trim().split(' '); return ((p[0]||'')[0]+(p[1]||'')[0]||'').toUpperCase(); }
+function hora(){ return new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit', timeZone: 'America/Lima'}); }
+
+function parseRole(rawName) {
+  let match = rawName.match(/^\((.*?)\)\s*(.*)$/);
+  if(match) {
+    let r = match[1].toUpperCase();
+    let isGrad = (r === 'GRADUADO' || r === 'MJ');
+    return { rol: isGrad ? 'GRADUADO' : r, nombre: match[2], isGrad: isGrad };
+  }
+  return { rol: 'PROSPECTO', nombre: rawName, isGrad: false };
+}
+
+function getRoleBadgeHTML(rolData) {
+  if(rolData.isGrad) return `<span class="badge b-rol-grad">🎓 Graduado</span>`;
+  if(rolData.rol === 'IMO') return `<span class="badge b-rol-imo">🌟 IMO</span>`;
+  return `<span class="badge b-rol-px">${rolData.rol}</span>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+// LÓGICA DE NUEVA CONVERSACIÓN (MANUAL)
+// ══════════════════════════════════════════════════════════════
+function abrirNuevo() { document.getElementById('ovl-new').style.display='flex'; }
+function cerrarNuevo() { document.getElementById('ovl-new').style.display='none'; }
+
+function crearNuevo() {
+  const nombre = document.getElementById('n-nombre').value.trim();
+  const rawTel = document.getElementById('n-tel').value.trim();
+  const tel = rawTel.split('').filter(c => c >= '0' && c <= '9').join('');
+  
+  if(!nombre || !tel){ alert('Nombre y teléfono son obligatorios.'); return; }
+  
+  let existe = convs.find(c => c.tel === tel);
+  if(existe){ 
+      cerrarNuevo(); selConv(tel); return; 
+  }
+  
+  const c = {tel: tel, rawNombre: nombre, estado: 'pendiente', unread: false, msgs: []};
+  convs.push(c);
+  document.getElementById('n-nombre').value = ''; 
+  document.getElementById('n-tel').value = '';
+  cerrarNuevo(); 
+  renderStats(); 
+  renderLista(); 
+  selConv(tel);
+}
+
+// ══════════════════════════════════════════════════════════════
+// LÓGICA DEL SIMULADOR INTERACTIVO
+// ══════════════════════════════════════════════════════════════
+function abrirSimulador() {
+    let num = prompt("Ingresa un número ficticio para empezar la simulación:\n(Ej: 51999888777)");
+    if (!num) return;
+    num = num.split('').filter(c => c >= '0' && c <= '9').join('');
+    if(num.length < 8) { alert("Número inválido"); return; }
+    
+    simActivo = "SIM_" + num;
+    document.getElementById('sim-modal').style.display = 'flex';
+    document.getElementById('sim-body').innerHTML = `
+      <div style="text-align:center;margin:10px 0;font-size:11px;color:#666;background:rgba(225,245,254,0.8);padding:4px 8px;border-radius:10px;align-self:center">
+        Simulando conexión como: +${num}<br>Escribe "MENU" para interactuar.
+      </div>
+    `;
+    document.getElementById('sim-input').focus();
+    
+    const c = convs.find(x => x.tel === simActivo);
+    if(c && c.msgs) {
+        c.msgs.forEach(m => agregarBurbujaSimulador(m.dir, m.texto, m.h));
+    }
+}
+
+function cerrarSimulador() {
+    document.getElementById('sim-modal').style.display = 'none';
+    simActivo = null;
+    renderLista();
+}
+
+function agregarBurbujaSimulador(dir, texto, tiempo) {
+    const clase = dir === 'in' ? 'user' : 'bot';
+    const b = document.createElement('div');
+    b.className = `sim-msg ${clase}`;
+    let txtFormat = esc(texto).replace(/\*(.*?)\*/g, "<strong>$1</strong>").replace(/\n/g, '<br>');
+    b.innerHTML = `${txtFormat}<span class="sim-time">${esc(tiempo)}</span>`;
+    const body = document.getElementById('sim-body');
+    body.appendChild(b);
+    body.scrollTop = body.scrollHeight;
+}
+
+async function enviarMensajeSimulador() {
+    if(!simActivo) return;
+    const inp = document.getElementById('sim-input');
+    const txt = inp.value.trim();
+    if(!txt) return;
+    
+    inp.value = '';
+    const h = hora();
+    agregarBurbujaSimulador('in', txt, h);
+    document.getElementById('sim-status-text').textContent = 'escribiendo...';
+
+    await fetch('/api/mensaje_simulador', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({telefono: simActivo, texto: txt})
+    });
+    
+    setTimeout(fetchHistorial, 1000);
+}
+
+// ══════════════════════════════════════════════════════════════
+// LÓGICA PRINCIPAL DEL PANEL
+// ══════════════════════════════════════════════════════════════
+async function fetchHistorial() {
+    try {
+        const res = await fetch('/api/historial');
+        const data = await res.json();
+        let cambios = false;
+        let nuevosMsgsSimulador = false;
+
+        for(let m of data) {
+            let c = convs.find(x => x.tel === m.telefono);
+            if (!c) {
+                c = {tel: m.telefono, rawNombre: m.nombre || '+' + m.telefono, estado: 'pendiente', unread: false, msgs: []};
+                convs.push(c); cambios = true;
+            } else if (c.rawNombre !== m.nombre && m.nombre && m.nombre.includes('(')) {
+                c.rawNombre = m.nombre; cambios = true;
+            }
+            
+            if (!c.msgs.some(x => x.texto === m.texto && x.h === m.hora)) {
+                let dir = m.tipo === 'in' ? 'in' : 'out';
+                c.msgs.push({dir, texto: m.texto, h: m.hora, st: dir === 'out' ? 'Enviado' : ''});
+                if (dir === 'in' && curTel !== m.telefono) { c.unread = true; }
+                cambios = true;
+                
+                if(simActivo === m.telefono) {
+                    agregarBurbujaSimulador(dir, m.texto, m.hora);
+                    nuevosMsgsSimulador = true;
+                }
+            }
+        }
+        
+        if(nuevosMsgsSimulador) { document.getElementById('sim-status-text').textContent = 'en línea'; }
+        if (cambios) { renderStats(); renderLista(); if (curTel && !simActivo) renderChat(true); }
+        document.getElementById('sdot').className = 'sync-dot ok';
+        document.getElementById('stxt').textContent = "Online - " + hora();
+    } catch (e) {
+        document.getElementById('sdot').className = 'sync-dot err';
+        document.getElementById('stxt').textContent = 'Error Sync';
+    }
+}
+
+function renderStats(){
+  document.getElementById('st0').textContent = convs.length;
+  document.getElementById('st4').textContent = convs.filter(c => parseRole(c.rawNombre).isGrad).length;
+  document.getElementById('st2').textContent = convs.filter(c => c.estado === 'pendiente').length;
+}
+
+function renderLista(){
+  const q = document.getElementById('search').value.toLowerCase();
+  const lista = convs.filter(c => {
+    const p = parseRole(c.rawNombre);
+    const mq = !q || p.nombre.toLowerCase().includes(q) || c.tel.includes(q);
+    const mt = filtro === 'todos' || (filtro === 'graduado' && p.isGrad) || (c.estado === filtro && filtro !== 'graduado');
+    return mq && mt;
+  }).sort((a,b) => b.unread - a.unread || (b.msgs[b.msgs.length-1]?.h > a.msgs[a.msgs.length-1]?.h ? 1 : -1));
+
+  const el = document.getElementById('list');
+  if(!lista.length){ el.innerHTML='<div style="padding:20px;text-align:center;font-size:12px;color:#888">Sin resultados</div>'; return; }
+
+  el.innerHTML = lista.map(c => {
+    const p = parseRole(c.rawNombre);
+    const last = c.msgs[c.msgs.length-1];
+    return `
+      <div class="item ${curTel === c.tel ? 'on' : ''}" onclick="selConv('${c.tel}')">
+        <div class="item-top">
+          <span class="item-name">${esc(p.nombre)}</span>
+          <span class="item-time">${esc(last?.h||'')}</span>
+        </div>
+        <div class="item-prev">${esc((last?.texto||'').slice(0,40))}</div>
+        <div class="item-bot">
+          <div style="display:flex;gap:4px">${p.isGrad ? getRoleBadgeHTML(p) : ''}</div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-size:10px;color:#b4b2a9">+${esc(c.tel)}</span>
+            ${c.unread ? '<div class="dot-unread"></div>' : ''}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function setTab(el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  el.classList.add('on');
+  filtro = el.dataset.tab;
+  renderLista();
+}
+
+function selConv(tel){ curTel = tel; const c = convs.find(x=>x.tel===tel); if(c) c.unread=false; renderLista(); renderChat(); }
+
+function renderChat(onlyMsgs = false){
+  const c = convs.find(x=>x.tel===curTel);
+  if(!c) return;
+  const p = parseRole(c.rawNombre);
+  
+  if(!onlyMsgs) {
+      const avCls = p.isGrad ? 'av-grad' : (p.rol === 'IMO' ? 'av-imo' : 'av-ext');
+      document.getElementById('chat').innerHTML = `
+        <div class="ch-header">
+          <div class="ch-left">
+            <div class="avatar ${avCls}">${p.isGrad ? '👑' : esc(ini(p.nombre))}</div>
+            <div>
+              <div class="ch-name">${esc(p.nombre)}</div>
+              <div class="ch-sub">+${esc(c.tel)} &nbsp;·&nbsp; ${getRoleBadgeHTML(p)}</div>
+            </div>
+          </div>
+        </div>
+        <div class="messages" id="msgs"></div>
+        <div class="footer">
+          <div class="input-row">
+            <textarea class="tinput" id="tinput" placeholder="Escribe tu mensaje manual... (Enter para enviar)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviar();}"></textarea>
+            <button class="send" onclick="enviar()">Enviar</button>
+          </div>
+        </div>
+      `;
+  }
+  
+  const msgEl = document.getElementById('msgs');
+  msgEl.innerHTML = c.msgs.map(m => `
+    <div class="msg ${m.dir==='in'?'in':'out'}">
+      <div class="msg-who">${m.dir==='in' ? esc(p.nombre) : 'Tú'} · ${esc(m.h)}</div>
+      <div class="bubble">${nl2br(m.texto)}</div>
+    </div>
+  `).join('');
+  msgEl.scrollTop = msgEl.scrollHeight;
+}
+
+async function enviar(){
+  const ti = document.getElementById('tinput');
+  if(!ti) return;
+  const txt = ti.value.trim();
+  if(!txt || !curTel) return;
+  
+  const c = convs.find(x=>x.tel===curTel);
+  c.msgs.push({dir:'out', texto: txt, h: hora(), st:'Enviando'});
+  ti.value = '';
+  renderChat(true);
+
+  await fetch('/api/enviar', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({telefono: curTel, mensaje: txt})
+  });
+  fetchHistorial();
+}
+
+setInterval(fetchHistorial, 2500);
+fetchHistorial();
+</script>
+</body>
+</html>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f4f0;color:#1a1a18;height:100vh;overflow:hidden}
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:900}
