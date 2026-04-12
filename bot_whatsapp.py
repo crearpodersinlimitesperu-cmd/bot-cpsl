@@ -1,6 +1,6 @@
 """
 Bot WhatsApp — Creación Cuántica E.I.R.L. / Crear Poder Sin Límites Perú
-✅ V87: The Ultimate Architecture (Persistencia + Graduados + Menús Completos + Simulador)
+✅ V88: Dual Mode (Simulador + Nuevos Chats) & Escudo Anti-Multimedia
 """
 
 import os, re, json, time, csv, io, random, logging, threading, queue
@@ -108,8 +108,10 @@ class SessionManager:
     def get_sesion(cls, telefono):
         try:
             with FileLock(cls._path(telefono) + ".lock", timeout=Config.LOCK_TIMEOUT):
-                with open(cls._path(telefono), "r", encoding="utf-8") as f: return json.load(f).get(str(telefono), {})
-        except: return {}
+                if os.path.exists(cls._path(telefono)):
+                    with open(cls._path(telefono), "r", encoding="utf-8") as f: return json.load(f).get(str(telefono), {})
+        except: pass
+        return {}
 
     @classmethod
     def set_sesion(cls, telefono, data_dict):
@@ -242,7 +244,7 @@ def obtener_perfil_crm(telefono):
     return perfil
 
 # ══════════════════════════════════════════════════════════════
-# MENÚS Y FLUJO COMPLETO (RESTAURADO DE V84)
+# MENÚS Y FLUJO COMPLETO 
 # ══════════════════════════════════════════════════════════════
 def get_fecha_activa(tipo): return "Próximas fechas por confirmar por Coordinación."
 
@@ -353,10 +355,21 @@ def verify():
 
 @app.route("/webhook", methods=["POST"])
 def recv():
+    data = request.get_json(silent=True)
     try:
-        msg = request.get_json(silent=True)["entry"][0]["changes"][0]["value"]["messages"][0]
-        tel, texto = msg["from"], msg.get("text",{}).get("body","[Media]")
-        threading.Thread(target=flujo_principal, args=(tel, texto)).start()
+        msg = data["entry"][0]["changes"][0]["value"]["messages"][0]
+        tel = msg["from"]
+        tipo = msg.get("type", "text")
+        
+        if tipo == "text":
+            texto = msg["text"]["body"]
+            threading.Thread(target=flujo_principal, args=(tel, texto)).start()
+        elif tipo in ("audio", "image", "document", "video", "sticker", "voice"):
+            # 🛡️ FILTRO ANTI-MULTIMEDIA
+            perfil = obtener_perfil_crm(tel)
+            nombre_show = f"({perfil.get('rol','PROSPECTO')}) {perfil.get('nombre','Nuevo')}"
+            append_historial(tel, nombre_show, f"[{tipo.upper()}]", "in")
+            enviar_mensaje(tel, "⚠️ Por políticas de registro y atención, por favor escríbeme tu consulta *únicamente en texto*.\n\nNo procesamos audios ni imágenes en esta etapa. 🙏", nombre_show, True, "ERROR_MULTIMEDIA")
     except: pass
     return jsonify({"status":"ok"}), 200
 
@@ -366,10 +379,9 @@ def api_historial(): return jsonify(get_historial()), 200
 @app.route("/api/descargar_respaldo")
 def backup():
     if os.path.exists(Config.BACKUP_CSV):
-        with open(Config.BACKUP_CSV, "r", encoding="utf-8-sig") as f: return Response(f.read(), mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=BlackBox_V87.csv"})
+        with open(Config.BACKUP_CSV, "r", encoding="utf-8-sig") as f: return Response(f.read(), mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=BlackBox_V88.csv"})
     return "No hay datos", 404
 
-# RUTA DEL CHAT MANUAL RESTAURADA
 @app.route("/api/enviar", methods=["POST"])
 def api_enviar():
     d = request.json or {}
@@ -380,7 +392,6 @@ def api_enviar():
     enviar_mensaje(tel, msg, nombre, True, "MANUAL_PANEL")
     return jsonify({"status":"ok"}), 200
 
-# RUTA DEL SIMULADOR RESTAURADA
 @app.route("/api/mensaje_simulador", methods=["POST"])
 def api_simulador():
     d = request.json or {}
