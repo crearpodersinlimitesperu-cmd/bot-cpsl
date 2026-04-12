@@ -1,6 +1,6 @@
 """
 Bot WhatsApp — Creación Cuántica E.I.R.L. / Crear Poder Sin Límites Perú
-✅ V89: The Shield Restored (Menús Completos + Persistencia + Simulador)
+✅ V90: Master Flow (El Núcleo Definitivo - Menús Completos + Persistencia)
 """
 
 import os, re, json, time, csv, io, random, logging, threading, queue
@@ -244,13 +244,10 @@ def obtener_perfil_crm(telefono):
     return perfil
 
 # ══════════════════════════════════════════════════════════════
-# MENÚS Y FLUJO COMPLETO (RESTAURADOS)
+# MENÚS Y FLUJO MAESTRO
 # ══════════════════════════════════════════════════════════════
 def get_fecha_activa(tipo): 
-    ahora = ahora_lima()
-    if tipo == "C1": return "Viernes 01 de Mayo 9:00 AM (E27)"
-    if tipo == "C2": return "Jueves 14 de Mayo 1:00 PM (E27)"
-    return "Viernes 17 de Abril 5:00 PM (Inicia E26)"
+    return "Próximas fechas por confirmar por Coordinación."
 
 MENU_STR = {
     "main_prospecto": {
@@ -303,36 +300,42 @@ def flujo_principal(tel, texto):
         sesion = get_sesion(tel) or {}
         txt_up = str(texto).strip().upper()
         
-        if txt_up in {"STOP","BAJA"}:
+        if txt_up in {"STOP","BAJA","DETENER"}:
             borrar_sesion(tel)
             enviar_mensaje(tel, "Has sido dado de baja de nuestra lista. Escribe MENU para volver a interactuar.", "SISTEMA", True, "STOP")
             return
             
-        if "perfil" not in sesion or txt_up in {"0","MENU","MENÚ","INICIO"}:
+        is_menu_cmd = txt_up in {"0","MENU","MENÚ","INICIO"}
+        
+        # INICIO DE SESIÓN O RESET (AQUÍ ESTABA EL ERROR DEL CICLO INFINITO EN V89)
+        if "perfil" not in sesion or is_menu_cmd:
             sesion["perfil"] = obtener_perfil_crm(tel)
-            if sesion["perfil"]["rol"] == "PROSPECTO" and len(texto) > 2 and not txt_up.isnumeric():
+            if sesion["perfil"]["rol"] == "PROSPECTO" and len(texto) > 2 and not txt_up.isnumeric() and not is_menu_cmd:
                 sesion["perfil"]["nombre"] = nombre_pila(texto)
-            sesion["menu_state"] = "main_graduado" if sesion["perfil"].get("rol") == "GRADUADO" else ("main_px_rezagado_c1" if sesion["perfil"].get("rol") == "PX_REZAGADO_C1" else ("main_px_upsell_c2" if sesion["perfil"].get("rol") == "PX_UPSELL_C2" else "main_prospecto"))
+            
+            rol = sesion["perfil"].get("rol", "PROSPECTO")
+            main_key = "main_graduado" if rol == "GRADUADO" else ("main_px_rezagado_c1" if rol == "PX_REZAGADO_C1" else ("main_px_upsell_c2" if rol == "PX_UPSELL_C2" else "main_prospecto"))
+            
+            sesion["menu_state"] = main_key
             sesion["menu_history"] = []
             set_sesion(tel, sesion)
+            
+            nombre_show = f"({rol}) {sesion['perfil'].get('nombre','Nuevo')}"
+            txt_menu = MENU_STR[main_key]["text"].replace("{nombre}", sesion["perfil"].get("nombre","Líder"))
+            enviar_mensaje(tel, txt_menu, nombre_show, True, main_key)
+            return # <-- ESTE RETURN FALTABA, ES EL QUE TE PROTEGE
 
         perfil = sesion.get("perfil", {})
         estado = sesion.get("menu_state", "main_prospecto")
         nombre_show = f"({perfil.get('rol')}) {perfil.get('nombre','Nuevo')}"
         
         if estado == "esperando_humano":
-            if txt_up in {"0","MENU","MENÚ"}:
-                sesion["menu_state"] = "main_prospecto"; set_sesion(tel, sesion)
-                enviar_mensaje(tel, MENU_STR["main_prospecto"]["text"], nombre_show, True, "MAIN")
-            return
+            return # El menu ya fue manejado arriba
 
         if estado == "capturando_motivo":
-            if txt_up in {"0","MENU","MENÚ"}:
-                sesion["menu_state"] = "main_prospecto"; set_sesion(tel, sesion)
-            else:
-                sesion["motivo_temp"], sesion["menu_state"] = texto, "confirmando_derivacion"
-                set_sesion(tel, sesion)
-                enviar_mensaje(tel, f"⚡ ¿Te derivamos con un coordinador humano para tratar este tema?\n\n💬 _{texto}_\n\n1️⃣ Sí, derivar ahora\n2️⃣ No, cancelar y volver", nombre_show, True, "OPT-IN")
+            sesion["motivo_temp"], sesion["menu_state"] = texto, "confirmando_derivacion"
+            set_sesion(tel, sesion)
+            enviar_mensaje(tel, f"⚡ ¿Te derivamos con un coordinador humano para tratar este tema?\n\n💬 _{texto}_\n\n1️⃣ Sí, derivar ahora\n2️⃣ No, cancelar y volver", nombre_show, True, "OPT-IN")
             return
 
         if estado == "confirmando_derivacion":
@@ -341,8 +344,11 @@ def flujo_principal(tel, texto):
                 sesion["menu_state"] = "esperando_humano"; set_sesion(tel, sesion)
                 enviar_mensaje(tel, "✅ Derivado con éxito. Un coordinador te responderá por este mismo chat pronto.\n\n_Escribe 0 para volver al menú principal._", nombre_show, True, "DERIVADO")
             else:
-                sesion["menu_state"] = "main_prospecto"; set_sesion(tel, sesion)
-                enviar_mensaje(tel, "Operación cancelada. Volviendo al menú...", nombre_show, True, "MAIN")
+                hist = sesion.get("menu_history", [])
+                prev = hist[-1] if hist else "main_prospecto"
+                sesion["menu_state"] = prev; set_sesion(tel, sesion)
+                txt_menu = MENU_STR.get(prev, MENU_STR["main_prospecto"])["text"].replace("{nombre}", perfil.get("nombre","Líder"))
+                enviar_mensaje(tel, "Operación cancelada. Volviendo al menú...\n\n" + txt_menu, nombre_show, True, "MAIN")
             return
 
         if estado in MENU_STR:
@@ -350,11 +356,10 @@ def flujo_principal(tel, texto):
             if txt_up in opciones:
                 sig = opciones[txt_up]
                 
-                # Manejo del Historial de Navegacion (Para botón 9 - Volver)
                 hist = sesion.get("menu_history", [])
                 if sig == "volver":
                     sig = hist.pop() if hist else "main_prospecto"
-                elif not sig.startswith("pre_action_humano") and sig != "action_salir" and estado != "main_prospecto":
+                elif not sig.startswith("pre_action_humano") and sig != "action_salir" and estado not in ("main_prospecto", "main_graduado", "main_px_rezagado_c1", "main_px_upsell_c2"):
                     if not hist or hist[-1] != estado: hist.append(estado)
                 
                 if sig.startswith("pre_action_humano"):
@@ -383,24 +388,27 @@ def flujo_principal(tel, texto):
                     enviar_mensaje(tel, txt_menu, nombre_show, True, sig)
                 return
             else:
-                # Opcion invalida
                 if not txt_up.isnumeric():
-                    sesion["menu_state"] = "capturando_motivo"; set_sesion(tel, sesion)
+                    sesion["menu_state"] = "capturando_motivo"
+                    hist = sesion.get("menu_history", [])
+                    if not hist or hist[-1] != estado: hist.append(estado)
+                    sesion["menu_history"] = hist
+                    set_sesion(tel, sesion)
                     enviar_mensaje(tel, "No reconocí esa opción. Pero si deseas hablar con un humano, por favor dime: *¿Qué necesitas consultar?*", nombre_show, True, "MOTIVO_LIBRE")
                     return
 
-        # Renderizar menú actual
+        # Fallback de seguridad
         if estado == "info_fechas":
             txt_menu = f"📅 *Fechas Disponibles*\n\n🚀 *C1:* {get_fecha_activa('C1')}\n🔥 *C2:* {get_fecha_activa('C2')}\n👑 *MJ:* {get_fecha_activa('MJ')}\n\n1️⃣ Hablar con Coordinación\n9️⃣ Regresar\n0️⃣ Menú principal"
         else:
             txt_menu = MENU_STR.get(estado, MENU_STR["main_prospecto"])["text"].replace("{nombre}", perfil.get("nombre","Líder"))
         
-        enviar_mensaje(tel, txt_menu, nombre_show, True, estado)
+        enviar_mensaje(tel, "⚠️ Opción no válida. Por favor, selecciona un número del menú:\n\n" + txt_menu, nombre_show, True, "ERROR_OPCION")
 
     except Exception as e: logger.error(f"Error flujo: {e}")
 
 # ══════════════════════════════════════════════════════════════
-# ENDPOINTS RESTAURADOS (SIMULADOR Y ENVIAR INCLUIDOS)
+# ENDPOINTS 
 # ══════════════════════════════════════════════════════════════
 @app.route("/webhook", methods=["GET"])
 def verify():
@@ -433,7 +441,7 @@ def api_historial(): return jsonify(get_historial()), 200
 @app.route("/api/descargar_respaldo")
 def backup():
     if os.path.exists(Config.BACKUP_CSV):
-        with open(Config.BACKUP_CSV, "r", encoding="utf-8-sig") as f: return Response(f.read(), mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=BlackBox_V89.csv"})
+        with open(Config.BACKUP_CSV, "r", encoding="utf-8-sig") as f: return Response(f.read(), mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=BlackBox_V90.csv"})
     return "No hay datos", 404
 
 @app.route("/api/enviar", methods=["POST"])
