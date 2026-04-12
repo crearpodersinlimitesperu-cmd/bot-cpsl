@@ -1,6 +1,6 @@
 """
 Bot WhatsApp — Creación Cuántica E.I.R.L. / Crear Poder Sin Límites Perú
-✅ V85: Persistent Quantum Architecture (Blindaje con Disco Render /data)
+✅ V86: Liderazgo y Graduados (Cross-reference automático de Base de Graduados)
 """
 
 import os, re, json, time, csv, io, random, logging, threading, queue
@@ -19,19 +19,12 @@ app = Flask(__name__)
 # 1. ZONA HORARIA Y DIRECTORIO PERSISTENTE
 # ══════════════════════════════════════════════════════════════
 TZ_LIMA = timezone(timedelta(hours=-5))
-
-# FIX CORPORATIVO: Detectar si estamos en Render con disco persistente
 DATA_DIR = "/data" if os.path.exists("/data") else "."
-logger.info(f"Directorio de almacenamiento activo: {DATA_DIR}")
 
-def ahora_lima():
-    return datetime.now(TZ_LIMA)
-
-def ahora_lima_str():
-    return ahora_lima().strftime("%Y-%m-%d %H:%M:%S")
+def ahora_lima(): return datetime.now(TZ_LIMA)
+def ahora_lima_str(): return ahora_lima().strftime("%Y-%m-%d %H:%M:%S")
 
 def get_csv_bd_path():
-    # El archivo de base de datos se busca en el raíz o en /data
     for path in [".", DATA_DIR]:
         archivos = [f for f in os.listdir(path) if f.startswith("participantes_") and f.endswith(".csv")]
         if archivos:
@@ -45,7 +38,6 @@ class Config:
     VERIFY_TOKEN        = os.environ.get("WA_VERIFY_TOKEN", "cpsl2026")
     EXCEL_PATH          = os.environ.get("EXCEL_PATH", "campana_imos_c1_e27.xlsx")
     CSV_BD_PATH         = os.environ.get("CSV_BD_PATH", get_csv_bd_path())
-    # Archivos movidos al disco persistente
     SESSIONS_PATH       = os.path.join(DATA_DIR, "sesiones.json")
     SESSIONS_SIM_PATH   = os.path.join(DATA_DIR, "sesiones_sim.json")   
     HISTORIAL_PATH      = os.path.join(DATA_DIR, "historial_chat.json")
@@ -55,19 +47,46 @@ class Config:
     LOCK_TIMEOUT        = 5   
 
 # ══════════════════════════════════════════════════════════════
-# 2. CACHÉ CSV EN MEMORIA
+# 2. CACHÉ CSV EN MEMORIA Y RECONOCIMIENTO DE GRADUADOS
 # ══════════════════════════════════════════════════════════════
-_csv_rows        = None
-_csv_mtime       = 0.0
-_csv_lock        = threading.Lock()
+_csv_rows, _csv_mtime, _csv_lock = None, 0.0, threading.Lock()
+_graduados_phones = set()
+_graduados_cargados = False
 
 def _detectar_delimitador(path):
     try:
-        with open(path, "r", encoding="utf-8-sig") as f:
-            primera = f.readline()
-        return ";" if primera.count(";") > primera.count(",") else ","
-    except Exception:
-        return ","
+        with open(path, "r", encoding="utf-8-sig") as f: return ";" if f.readline().count(";") > 0 else ","
+    except: return ","
+
+def cargar_memoria_graduados(rows):
+    global _graduados_phones, _graduados_cargados
+    _graduados_phones.clear()
+    try:
+        # Buscar el archivo de Graduados
+        archivos_grad = [f for f in os.listdir(DATA_DIR) if "GRADUADO" in f.upper() and f.endswith(".csv")]
+        if not archivos_grad: archivos_grad = [f for f in os.listdir(".") if "GRADUADO" in f.upper() and f.endswith(".csv")]
+        if not archivos_grad: return
+
+        # Leer nombres de graduados
+        with open(os.path.join(DATA_DIR if os.path.exists(os.path.join(DATA_DIR, archivos_grad[0])) else ".", archivos_grad[0]), 'r', encoding='utf-8-sig') as f:
+            nombres_grad = [line.split(',')[0].strip().upper() for line in f.readlines()[1:] if line.split(',')[0].strip()]
+
+        # Cruzar con teléfonos de la base maestra
+        keys = {k.strip().lower(): k for k in rows[0].keys() if k}
+        tel_k = next((k for k in keys.values() if "tel" in k.lower() and "imo" not in k.lower()), None)
+        nom_k = next((k for k in keys.values() if "nombre" in k.lower()), None)
+        ape_k = next((k for k in keys.values() if "apellido" in k.lower()), None)
+
+        for row in rows:
+            n, a = str(row.get(nom_k, "")).strip().upper(), str(row.get(ape_k, "")).strip().upper() if ape_k else ""
+            full_name = f"{n} {a}".strip()
+            tel = norm_tel(row.get(tel_k, ""))
+            if tel and full_name:
+                if any(g in full_name or full_name in g for g in nombres_grad if len(g)>3):
+                    _graduados_phones.add(tel)
+        _graduados_cargados = True
+        logger.info(f"🎓 Identificados {len(_graduados_phones)} teléfonos de Graduados.")
+    except Exception as e: logger.error(f"Error cruzando graduados: {e}")
 
 def get_csv_rows():
     global _csv_rows, _csv_mtime
@@ -78,22 +97,18 @@ def get_csv_rows():
         with _csv_lock:
             if _csv_rows is not None and mtime == _csv_mtime: return _csv_rows
             delim = _detectar_delimitador(path)
-            with open(path, "r", encoding="utf-8-sig") as f:
-                rows = list(csv.DictReader(f, delimiter=delim))
+            with open(path, "r", encoding="utf-8-sig") as f: rows = list(csv.DictReader(f, delimiter=delim))
             _csv_rows, _csv_mtime = rows, mtime
-            logger.info(f"CSV recargado: {len(rows)} filas de la base maestra.")
+            cargar_memoria_graduados(rows) # Actualizar graduados al recargar CSV
             return rows
-    except Exception as e:
-        logger.error(f"Error en caché CSV: {e}")
-        return []
+    except Exception as e: return []
 
 # ══════════════════════════════════════════════════════════════
-# 3. SESSION MANAGER (PERSISTENCIA BLINDADA)
+# 3. SESSION MANAGER (PERSISTENCIA)
 # ══════════════════════════════════════════════════════════════
 class SessionManager:
     @staticmethod
-    def _path(telefono):
-        return Config.SESSIONS_SIM_PATH if str(telefono).startswith("SIM_") else Config.SESSIONS_PATH
+    def _path(telefono): return Config.SESSIONS_SIM_PATH if str(telefono).startswith("SIM_") else Config.SESSIONS_PATH
 
     @classmethod
     def _load(cls, path):
@@ -105,21 +120,14 @@ class SessionManager:
 
     @classmethod
     def _save(cls, path, data):
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        with open(path, "w", encoding="utf-8") as f: json.dump(data, f, ensure_ascii=False, indent=2)
 
     @classmethod
     def get_sesion(cls, telefono):
         path = cls._path(telefono)
         try:
-            with FileLock(path + ".lock", timeout=Config.LOCK_TIMEOUT):
-                return cls._load(path).get(str(telefono), {})
-        except FileLockTimeout:
-            logger.warning(f"Timeout en disco para {telefono}. Protegiendo datos...")
-            return None
-        except Exception as e:
-            logger.error(f"Error lectura sesión: {e}")
-            return None
+            with FileLock(path + ".lock", timeout=Config.LOCK_TIMEOUT): return cls._load(path).get(str(telefono), {})
+        except: return None
 
     @classmethod
     def set_sesion(cls, telefono, data_dict):
@@ -129,8 +137,7 @@ class SessionManager:
                 data = cls._load(path)
                 data[str(telefono)] = data_dict
                 cls._save(path, data)
-        except Exception as e:
-            logger.error(f"Error escritura sesión: {e}")
+        except: pass
 
     @classmethod
     def borrar_sesion(cls, telefono):
@@ -152,13 +159,7 @@ class SessionManager:
                     try:
                         with open(path, "r", encoding="utf-8") as f: h = json.load(f)
                     except Exception: h = []
-                h.append({
-                    "telefono": str(telefono),
-                    "nombre":   nombre or "Desconocido",
-                    "texto":    texto,
-                    "tipo":     tipo,
-                    "hora":     ahora_lima().strftime("%d/%m %H:%M"),
-                })
+                h.append({"telefono": str(telefono), "nombre": nombre or "Desconocido", "texto": texto, "tipo": tipo, "hora": ahora_lima().strftime("%d/%m %H:%M")})
                 if len(h) > 5000: h = h[-5000:]
                 with open(path, "w", encoding="utf-8") as f: json.dump(h, f, ensure_ascii=False, indent=2)
         except Exception: pass
@@ -188,7 +189,7 @@ def get_historial():
     return []
 
 # ══════════════════════════════════════════════════════════════
-# 4. GOOGLE SHEETS (COLAS Y TOKENS)
+# 4. GOOGLE SHEETS
 # ══════════════════════════════════════════════════════════════
 _sheets_token, _sheets_token_exp = None, 0
 _sheets_tok_lock = threading.Lock()
@@ -263,7 +264,7 @@ def enviar_mensaje(telefono, texto, nombre_imo="", registrar_sheets=True, estado
     return False
 
 # ══════════════════════════════════════════════════════════════
-# 6. CRM Y UTILIDADES
+# 6. CRM Y UTILIDADES (CON ETIQUETADO DE GRADUADOS)
 # ══════════════════════════════════════════════════════════════
 def norm_tel(tel):
     t = re.sub(r'\D', '', str(tel))
@@ -337,29 +338,21 @@ def obtener_perfil_crm(telefono):
 
     if perfil["rol"] != "IMO" and perfil.get("px_nombre"):
         perfil["nombre"], perfil["pendiente"], perfil["rol"] = perfil["px_nombre"], perfil.get("px_pendiente"), perfil.get("rol_base", "PX_REZAGADO_C1")
+        
+        # 🎓 ETIQUETADO AUTOMÁTICO DE GRADUADOS
+        if tel_norm in _graduados_phones:
+            perfil["rol"] = "GRADUADO"
+            perfil["pendiente"] = "Líder Egresado"
+
     with _perfil_cache_lock: _perfil_cache[tel_norm] = perfil
     return perfil
 
 # ══════════════════════════════════════════════════════════════
-# 7. RELOJ DINÁMICO LIMA 2026
-# ══════════════════════════════════════════════════════════════
-def get_fecha_activa(tipo):
-    ahora = ahora_lima()
-    evs = {
-        "C1": [{"co": datetime(2026,5,1,11,30,tzinfo=TZ_LIMA), "t": "Viernes 01 de Mayo 9:00 AM (E27)"}],
-        "C2": [{"co": datetime(2026,4,9,15,30,tzinfo=TZ_LIMA), "t": "Jueves 09 de Abril 1:00 PM (E26)"}, {"co": datetime(2026,5,14,15,30,tzinfo=TZ_LIMA), "t": "Jueves 14 de Mayo 1:00 PM (E27)"}],
-        "MJ": [{"co": datetime(2026,4,17,19,0,tzinfo=TZ_LIMA), "t": "Viernes 17 de Abril 5:00 PM (Inicia E26)"}]
-    }
-    for ev in evs.get(tipo, []):
-        if ahora <= ev["co"]: return ev["t"]
-    return "Fechas por confirmar."
-
-# ══════════════════════════════════════════════════════════════
-# 8. SMART ROUTING
+# 7. SMART ROUTING & MENÚS
 # ══════════════════════════════════════════════════════════════
 def notificar_coordinadora_interna(p_tel, p_nom, motivo, ctx="GENERAL"):
     ahora, targets = ahora_lima(), {"Diana": "51912379744", "Joyce": "51933599903", "Zuley": "51933599864"}
-    if any(x in ctx for x in ("MAESTRÍA","MJ","RETOMAR","SOPORTE MJ")):
+    if any(x in ctx for x in ("MAESTRÍA","MJ","RETOMAR","SOPORTE MJ", "GRADUADO")):
         targets = {"Linid": "51912379686"}
         if ahora >= datetime(2026, 4, 17, 0, 0, tzinfo=TZ_LIMA): targets["Leyla"] = "51919502385"
     elif ahora < datetime(2026, 4, 17, 0, 0, tzinfo=TZ_LIMA): targets["Leyla"] = "51919502385"
@@ -368,13 +361,8 @@ def notificar_coordinadora_interna(p_tel, p_nom, motivo, ctx="GENERAL"):
     enviar_mensaje(c_t, msg, f"COORDINACIÓN: {c_n}", True, "ALERTA TICKET")
     return c_n
 
-# ══════════════════════════════════════════════════════════════
-# 9. MENÚS Y FLUJO
-# ══════════════════════════════════════════════════════════════
 MENU_STR = {
     "main_prospecto": {"text": "🌟 *Bienvenido a CPSL Perú*\n\n1️⃣ Información Entrenamientos\n2️⃣ Inversión y Pagos\n3️⃣ Actualizar mi número\n4️⃣ Coordinación\n0️⃣ Salir", "options": {"1":"info_entrenamientos","2":"pagos","3":"pre_action_humano_actualizar_numero","4":"pre_action_humano_coordinacion","0":"action_salir"}},
-    "main_imo": {"text": "🌟 *Hola Líder IMO {nombre}*\n\n1️⃣ Rezagados (Falta C1/C2)\n2️⃣ Estado de enrolados\n3️⃣ Coordinación IMO\n0️⃣ Salir", "options": {"1":"ver_pendientes_imo","2":"ver_todos_imo","3":"pre_action_humano_soporte_imo","0":"action_salir"}},
-    "main_px_rezagado_c1": {"text": "🌟 *Hola {nombre}.*\nTienes pendiente tu *C1 (Descubrimiento)*.\n\n1️⃣ Confirmar para próxima fecha\n2️⃣ Ver fechas y horarios\n3️⃣ Reprogramar\n0️⃣ Salir", "options": {"1":"pre_action_humano_confirma_c1","2":"info_fechas","3":"pre_action_humano_reprogramacion_c1","0":"action_salir"}}
 }
 
 def flujo_principal(tel, texto):
@@ -384,7 +372,7 @@ def flujo_principal(tel, texto):
         txt_up = str(texto).strip().upper()
         if txt_up in {"STOP","BAJA","DETENER"}:
             marcar_stop(tel); borrar_sesion(tel)
-            enviar_mensaje(tel, "Dado de baja. Escribe MENU para volver.", "SISTEMA", True, "STOP")
+            enviar_mensaje(tel, "Dado de baja.", "SISTEMA", True, "STOP")
             return
         
         if "perfil" not in sesion or txt_up in {"0","MENU","MENÚ"}:
@@ -396,7 +384,6 @@ def flujo_principal(tel, texto):
         perfil, estado = sesion.get("perfil"), sesion.get("menu_state", "main_prospecto")
         nombre_show = f"({perfil.get('rol')}) {perfil.get('nombre','Nuevo')}"
         
-        # Lógica de estados simplificada para V85
         if estado == "esperando_humano" and txt_up not in {"0","MENU"}: return
         
         if estado == "capturando_motivo":
@@ -416,14 +403,13 @@ def flujo_principal(tel, texto):
                 enviar_mensaje(tel, "Cancelado. Volviendo al menú principal.", nombre_show, True, "CANCELADO")
             return
 
-        # Reset por inactividad e inicio
         sesion["menu_state"] = "main_prospecto"; set_sesion(tel, sesion)
         enviar_mensaje(tel, MENU_STR["main_prospecto"]["text"], nombre_show, True, "MAIN")
 
     except Exception as e: logger.error(f"Error flujo: {e}")
 
 # ══════════════════════════════════════════════════════════════
-# 10. ENDPOINTS FLASK (V85)
+# 10. ENDPOINTS FLASK (V86)
 # ══════════════════════════════════════════════════════════════
 @app.route("/webhook", methods=["GET"])
 def verify():
@@ -440,10 +426,13 @@ def recv():
     except: pass
     return jsonify({"status":"ok"}), 200
 
+@app.route("/api/historial")
+def api_historial(): return jsonify(get_historial()), 200
+
 @app.route("/api/descargar_respaldo")
 def backup():
     if os.path.exists(Config.BACKUP_CSV):
-        with open(Config.BACKUP_CSV, "r", encoding="utf-8-sig") as f: return Response(f.read(), mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=BlackBox_V85.csv"})
+        with open(Config.BACKUP_CSV, "r", encoding="utf-8-sig") as f: return Response(f.read(), mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=BlackBox_V86.csv"})
     return "No hay datos", 404
 
 @app.route("/chat")
