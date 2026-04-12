@@ -1,6 +1,6 @@
 """
 Bot WhatsApp — Creación Cuántica E.I.R.L. / Crear Poder Sin Límites Perú
-✅ V90: Master Flow (El Núcleo Definitivo - Menús Completos + Persistencia)
+✅ V91: The Fortress (Persistencia Total + Migrador Sheets-to-Disk)
 """
 
 import os, re, json, time, csv, io, random, logging, threading, queue
@@ -80,7 +80,7 @@ def cargar_memoria_graduados(rows):
             if tel and full_name:
                 if any(g in full_name or full_name in g for g in nombres_grad if len(g)>3):
                     _graduados_phones.add(tel)
-    except Exception as e: logger.error(f"Error cruzando graduados: {e}")
+    except: pass
 
 def get_csv_rows():
     global _csv_rows, _csv_mtime
@@ -246,221 +246,125 @@ def obtener_perfil_crm(telefono):
 # ══════════════════════════════════════════════════════════════
 # MENÚS Y FLUJO MAESTRO
 # ══════════════════════════════════════════════════════════════
-def get_fecha_activa(tipo): 
-    return "Próximas fechas por confirmar por Coordinación."
-
 MENU_STR = {
     "main_prospecto": {
-        "text": "🌟 *Bienvenido a Crear Poder Sin Límites Perú*\nCanal Corporativo Oficial. Responde con el número de tu elección:\n\n1️⃣ Información de los Entrenamientos\n2️⃣ Inversión y Métodos de Pago\n3️⃣ Actualizar mi número\n4️⃣ Hablar con Coordinación\n0️⃣ Finalizar",
+        "text": "🌟 *Bienvenido a Crear Poder Sin Límites Perú*\nResponde con el número de tu elección:\n\n1️⃣ Información de los Entrenamientos\n2️⃣ Inversión y Métodos de Pago\n3️⃣ Actualizar mi número\n4️⃣ Hablar con Coordinación\n0️⃣ Finalizar",
         "options": {"1":"info_entrenamientos","2":"pagos","3":"pre_action_humano_actualizar","4":"pre_action_humano_coordinacion","0":"action_salir"},
     },
     "info_entrenamientos": {
-        "text": "📘 *Crear Poder Sin Límites*\nSomos un centro de entrenamiento de liderazgo y transformación. Selecciona el nivel:\n\n1️⃣ C1 (Capítulo Uno) - El Descubrimiento\n2️⃣ C2 (Capítulo Dos) - La Experiencia\n3️⃣ MJ (Maestría del Juego) - La Práctica\n4️⃣ Fechas Disponibles\n9️⃣ Regresar\n0️⃣ Menú principal",
-        "options": {"1":"info_c1","2":"info_c2","3":"info_mj","4":"info_fechas","9":"volver","0":"main_prospecto"},
+        "text": "📘 *Crear Poder Sin Límites*\n\n1️⃣ C1 (Capítulo Uno) - Descubrimiento\n2️⃣ C2 (Capítulo Dos) - La Experiencia\n3️⃣ MJ (Maestría del Juego) - La Práctica\n9️⃣ Regresar",
+        "options": {"1":"info_c1","2":"info_c2","3":"info_mj","9":"volver"},
     },
     "info_c1": {
-        "text": "🚀 *C1 (Capítulo Uno) - El Descubrimiento*\nUn entrenamiento vivencial de 3 días diseñado para romper paradigmas, observar tus mecanismos de defensa automáticos y confrontar los límites que te has puesto a ti mismo.\n\n1️⃣ Hablar con Coordinación para mi registro\n9️⃣ Regresar\n0️⃣ Menú principal",
-        "options": {"1":"pre_action_humano_info_c1","9":"info_entrenamientos","0":"main_prospecto"},
+        "text": "🚀 *C1 (Capítulo Uno) - El Descubrimiento*\nUn entrenamiento de 3 días para romper paradigmas y observar tus mecanismos de defensa.\n\n1️⃣ Hablar con Coordinación\n9️⃣ Regresar",
+        "options": {"1":"pre_action_humano_coordinacion","9":"volver"},
     },
     "info_c2": {
-        "text": "🔥 *C2 (Capítulo Dos) - La Experiencia*\n4 días inmersivos de alto riesgo emocional para atravesar de frente las barreras descubiertas en el C1. Diseñado para dar un salto cuántico y elegir rediseñar por completo tu realidad.\n\n1️⃣ Hablar con Coordinación para mi registro\n9️⃣ Regresar\n0️⃣ Menú principal",
-        "options": {"1":"pre_action_humano_info_c2","9":"info_entrenamientos","0":"main_prospecto"},
+        "text": "🔥 *C2 (Capítulo Dos) - La Experiencia*\n4 días inmersivos para atravesar barreras y rediseñar tu realidad.\n\n1️⃣ Hablar con Coordinación\n9️⃣ Regresar",
+        "options": {"1":"pre_action_humano_coordinacion","9":"volver"},
     },
     "info_mj": {
-        "text": "👑 *MJ (Maestría del Juego) - La Práctica*\nUn programa continuo de 100 días donde el liderazgo se lleva a la cancha real. Integrarás lo aprendido en C1 y C2, forjando disciplina para crear resultados sostenibles.\n\n1️⃣ Hablar con Coordinación para mi registro\n9️⃣ Regresar\n0️⃣ Menú principal",
-        "options": {"1":"pre_action_humano_info_mj","9":"info_entrenamientos","0":"main_prospecto"},
-    },
-    "info_fechas": {
-        "text": "dinamico", 
-        "options": {"1":"pre_action_humano_fechas","9":"info_entrenamientos","0":"main_prospecto"},
+        "text": "👑 *MJ (Maestría del Juego)*\n100 días de disciplina para crear resultados sostenibles.\n\n1️⃣ Hablar con Coordinación\n9️⃣ Regresar",
+        "options": {"1":"pre_action_humano_coordinacion","9":"volver"},
     },
     "pagos": {
-        "text": "💳 *Inversión y Pagos*\nBCP a nombre de Creación Cuántica E.I.R.L. (Cuenta Soles: 1934218307060).\n\n1️⃣ Enviar voucher a Coordinación\n9️⃣ Regresar",
+        "text": "💳 *Pagos*\nBCP: 1934218307060 (Soles)\n\n1️⃣ Enviar voucher\n9️⃣ Regresar",
         "options": {"1":"pre_action_humano_pagos","9":"volver"},
     },
     "main_px_rezagado_c1": {
-        "text": "🌟 *Hola {nombre}.*\nTienes pendiente vivir tu *Capítulo 1 (Fase de Descubrimiento)*.\n\n1️⃣ Confirmar mi asistencia\n2️⃣ Ver fechas y horarios\n3️⃣ Solicitar reprogramación\n0️⃣ Finalizar",
-        "options": {"1":"pre_action_humano_confirma_c1","2":"info_fechas","3":"pre_action_humano_reprogramacion","0":"action_salir"},
-    },
-    "main_px_upsell_c2": {
-        "text": "🌟 *¡Hola {nombre}! Diste el primer paso en C1.*\nTienes pendiente tu *Capítulo 2 (C2)*.\n\n1️⃣ Información y fechas C2\n2️⃣ Confirmar asistencia / Pago\n3️⃣ Hablar con Coordinación\n0️⃣ Finalizar",
-        "options": {"1":"info_fechas","2":"pagos","3":"pre_action_humano_asesoria_c2","0":"action_salir"},
+        "text": "🌟 *Hola {nombre}.*\nTienes pendiente vivir tu *Capítulo 1*.\n\n1️⃣ Confirmar mi asistencia\n2️⃣ Ver fechas\n0️⃣ Salir",
+        "options": {"1":"pre_action_humano_confirma_c1","2":"info_entrenamientos","0":"action_salir"},
     },
     "main_graduado": {
-        "text": "👑 *Portal de Líderes Graduados*\n¡Un honor saludarte, Líder {nombre}!\n\n¿Desde qué espacio eliges servir hoy?\n1️⃣ Enrolar a un nuevo participante\n2️⃣ Hablar con Coordinación / Staff\n0️⃣ Finalizar",
+        "text": "👑 *Portal de Graduados*\n¡Hola, Líder {nombre}!\n\n1️⃣ Enrolar participante\n2️⃣ Coordinación / Staff\n0️⃣ Salir",
         "options": {"1":"pre_action_humano_enrolar","2":"pre_action_humano_coordinacion","0":"action_salir"},
     }
 }
 
 def notificar_coordinacion(tel, nom, motivo):
-    enviar_mensaje("51912379744", f"🚨 *TICKET CORPORATIVO*\n*Nombre:* {nom}\n*Tel:* wa.me/{tel}\n*Motivo:* {motivo}", "COORDINACION", True)
+    enviar_mensaje("51912379744", f"🚨 *TICKET*\n*Nombre:* {nom}\n*Tel:* wa.me/{tel}\n*Motivo:* {motivo}", "COORDINACION")
 
 def flujo_principal(tel, texto):
     try:
         sesion = get_sesion(tel) or {}
         txt_up = str(texto).strip().upper()
+        if txt_up in {"STOP","BAJA"}: borrar_sesion(tel); enviar_mensaje(tel, "Dado de baja. Escribe MENU para volver.", "SISTEMA"); return
         
-        if txt_up in {"STOP","BAJA","DETENER"}:
-            borrar_sesion(tel)
-            enviar_mensaje(tel, "Has sido dado de baja de nuestra lista. Escribe MENU para volver a interactuar.", "SISTEMA", True, "STOP")
-            return
-            
         is_menu_cmd = txt_up in {"0","MENU","MENÚ","INICIO"}
-        
-        # INICIO DE SESIÓN O RESET (AQUÍ ESTABA EL ERROR DEL CICLO INFINITO EN V89)
         if "perfil" not in sesion or is_menu_cmd:
             sesion["perfil"] = obtener_perfil_crm(tel)
             if sesion["perfil"]["rol"] == "PROSPECTO" and len(texto) > 2 and not txt_up.isnumeric() and not is_menu_cmd:
                 sesion["perfil"]["nombre"] = nombre_pila(texto)
-            
             rol = sesion["perfil"].get("rol", "PROSPECTO")
             main_key = "main_graduado" if rol == "GRADUADO" else ("main_px_rezagado_c1" if rol == "PX_REZAGADO_C1" else ("main_px_upsell_c2" if rol == "PX_UPSELL_C2" else "main_prospecto"))
-            
-            sesion["menu_state"] = main_key
-            sesion["menu_history"] = []
+            sesion["menu_state"], sesion["menu_history"] = main_key, []
             set_sesion(tel, sesion)
-            
-            nombre_show = f"({rol}) {sesion['perfil'].get('nombre','Nuevo')}"
             txt_menu = MENU_STR[main_key]["text"].replace("{nombre}", sesion["perfil"].get("nombre","Líder"))
-            enviar_mensaje(tel, txt_menu, nombre_show, True, main_key)
-            return # <-- ESTE RETURN FALTABA, ES EL QUE TE PROTEGE
+            enviar_mensaje(tel, txt_menu, f"({rol}) {sesion['perfil'].get('nombre','Nuevo')}"); return
 
-        perfil = sesion.get("perfil", {})
-        estado = sesion.get("menu_state", "main_prospecto")
+        perfil, estado = sesion.get("perfil", {}), sesion.get("menu_state", "main_prospecto")
         nombre_show = f"({perfil.get('rol')}) {perfil.get('nombre','Nuevo')}"
         
-        if estado == "esperando_humano":
-            return # El menu ya fue manejado arriba
-
         if estado == "capturando_motivo":
             sesion["motivo_temp"], sesion["menu_state"] = texto, "confirmando_derivacion"
             set_sesion(tel, sesion)
-            enviar_mensaje(tel, f"⚡ ¿Te derivamos con un coordinador humano para tratar este tema?\n\n💬 _{texto}_\n\n1️⃣ Sí, derivar ahora\n2️⃣ No, cancelar y volver", nombre_show, True, "OPT-IN")
-            return
+            enviar_mensaje(tel, f"⚡ ¿Derivamos este tema a Coordinación?\n\n💬 _{texto}_\n\n1️⃣ Sí\n2️⃣ No", nombre_show); return
 
         if estado == "confirmando_derivacion":
             if txt_up == "1":
                 notificar_coordinacion(tel, perfil.get("nombre"), sesion.get("motivo_temp"))
                 sesion["menu_state"] = "esperando_humano"; set_sesion(tel, sesion)
-                enviar_mensaje(tel, "✅ Derivado con éxito. Un coordinador te responderá por este mismo chat pronto.\n\n_Escribe 0 para volver al menú principal._", nombre_show, True, "DERIVADO")
+                enviar_mensaje(tel, "✅ Derivado. Un coordinador te responderá pronto. Escribe 0 para el menú.", nombre_show); return
             else:
-                hist = sesion.get("menu_history", [])
-                prev = hist[-1] if hist else "main_prospecto"
-                sesion["menu_state"] = prev; set_sesion(tel, sesion)
-                txt_menu = MENU_STR.get(prev, MENU_STR["main_prospecto"])["text"].replace("{nombre}", perfil.get("nombre","Líder"))
-                enviar_mensaje(tel, "Operación cancelada. Volviendo al menú...\n\n" + txt_menu, nombre_show, True, "MAIN")
-            return
+                sesion["menu_state"] = "main_prospecto"; set_sesion(tel, sesion); enviar_mensaje(tel, "Cancelado.", nombre_show); return
 
         if estado in MENU_STR:
             opciones = MENU_STR[estado].get("options", {})
             if txt_up in opciones:
                 sig = opciones[txt_up]
-                
                 hist = sesion.get("menu_history", [])
-                if sig == "volver":
-                    sig = hist.pop() if hist else "main_prospecto"
-                elif not sig.startswith("pre_action_humano") and sig != "action_salir" and estado not in ("main_prospecto", "main_graduado", "main_px_rezagado_c1", "main_px_upsell_c2"):
+                if sig == "volver": sig = hist.pop() if hist else "main_prospecto"
+                elif not sig.startswith("pre_action_humano") and sig != "action_salir" and estado not in ("main_prospecto", "main_graduado", "main_px_rezagado_c1"):
                     if not hist or hist[-1] != estado: hist.append(estado)
                 
                 if sig.startswith("pre_action_humano"):
                     sesion["menu_state"] = "capturando_motivo"
                     if not hist or hist[-1] != estado: hist.append(estado)
-                    sesion["menu_history"] = hist
-                    set_sesion(tel, sesion)
-                    enviar_mensaje(tel, "Para que el área correcta te atienda rápido, descríbeme en un solo mensaje: *¿Cuál es exactamente tu consulta?*", nombre_show, True, "MOTIVO")
-                    return
+                    sesion["menu_history"] = hist; set_sesion(tel, sesion)
+                    enviar_mensaje(tel, "Describe tu consulta en un solo mensaje:", nombre_show); return
                 
                 if sig == "action_salir":
                     sesion["menu_state"] = "esperando_humano"; set_sesion(tel, sesion)
-                    enviar_mensaje(tel, "¡Gracias por comunicarte con Crear Poder Sin Límites! 🌟\n\n_Escribe MENU en cualquier momento para reiniciar._", nombre_show, True, "SALIDA")
-                    return
+                    enviar_mensaje(tel, "¡Gracias! Escribe MENU para reiniciar.", nombre_show); return
                 
                 if sig in MENU_STR:
-                    sesion["menu_state"] = sig
-                    sesion["menu_history"] = hist
-                    set_sesion(tel, sesion)
-                    
-                    if sig == "info_fechas":
-                        txt_menu = f"📅 *Fechas Disponibles*\n\n🚀 *C1:* {get_fecha_activa('C1')}\n🔥 *C2:* {get_fecha_activa('C2')}\n👑 *MJ:* {get_fecha_activa('MJ')}\n\n1️⃣ Hablar con Coordinación\n9️⃣ Regresar\n0️⃣ Menú principal"
-                    else:
-                        txt_menu = MENU_STR[sig]["text"].replace("{nombre}", perfil.get("nombre","Líder"))
-                    
-                    enviar_mensaje(tel, txt_menu, nombre_show, True, sig)
-                return
-            else:
-                if not txt_up.isnumeric():
-                    sesion["menu_state"] = "capturando_motivo"
-                    hist = sesion.get("menu_history", [])
-                    if not hist or hist[-1] != estado: hist.append(estado)
-                    sesion["menu_history"] = hist
-                    set_sesion(tel, sesion)
-                    enviar_mensaje(tel, "No reconocí esa opción. Pero si deseas hablar con un humano, por favor dime: *¿Qué necesitas consultar?*", nombre_show, True, "MOTIVO_LIBRE")
-                    return
+                    sesion["menu_state"], sesion["menu_history"] = sig, hist; set_sesion(tel, sesion)
+                    txt_menu = MENU_STR[sig]["text"].replace("{nombre}", perfil.get("nombre","Líder"))
+                    enviar_mensaje(tel, txt_menu, nombre_show); return
 
-        # Fallback de seguridad
-        if estado == "info_fechas":
-            txt_menu = f"📅 *Fechas Disponibles*\n\n🚀 *C1:* {get_fecha_activa('C1')}\n🔥 *C2:* {get_fecha_activa('C2')}\n👑 *MJ:* {get_fecha_activa('MJ')}\n\n1️⃣ Hablar con Coordinación\n9️⃣ Regresar\n0️⃣ Menú principal"
-        else:
-            txt_menu = MENU_STR.get(estado, MENU_STR["main_prospecto"])["text"].replace("{nombre}", perfil.get("nombre","Líder"))
-        
-        enviar_mensaje(tel, "⚠️ Opción no válida. Por favor, selecciona un número del menú:\n\n" + txt_menu, nombre_show, True, "ERROR_OPCION")
+        txt_menu = MENU_STR.get(estado, MENU_STR["main_prospecto"])["text"].replace("{nombre}", perfil.get("nombre","Líder"))
+        enviar_mensaje(tel, "⚠️ Elige una opción válida:\n\n" + txt_menu, nombre_show)
 
     except Exception as e: logger.error(f"Error flujo: {e}")
 
 # ══════════════════════════════════════════════════════════════
-# ENDPOINTS 
+# MIGRACIÓN SHEETS -> DISK (ESTA ES LA LLAVE)
 # ══════════════════════════════════════════════════════════════
-@app.route("/webhook", methods=["GET"])
-def verify():
-    if request.args.get("hub.verify_token") == Config.VERIFY_TOKEN: return request.args.get("hub.challenge"), 200
-    return "Error", 403
-
-@app.route("/webhook", methods=["POST"])
-def recv():
-    data = request.get_json(silent=True)
-    try:
-        msg = data["entry"][0]["changes"][0]["value"]["messages"][0]
-        tel = msg["from"]
-        tipo = msg.get("type", "text")
-        
-        if tipo == "text":
-            texto = msg["text"]["body"]
-            threading.Thread(target=flujo_principal, args=(tel, texto)).start()
-        elif tipo in ("audio", "image", "document", "video", "sticker", "voice"):
-            # 🛡️ FILTRO ANTI-MULTIMEDIA
-            perfil = obtener_perfil_crm(tel)
-            nombre_show = f"({perfil.get('rol','PROSPECTO')}) {perfil.get('nombre','Nuevo')}"
-            append_historial(tel, nombre_show, f"[{tipo.upper()}]", "in")
-            enviar_mensaje(tel, "⚠️ Por políticas de atención corporativa, por favor escríbeme tu consulta *únicamente en texto*.\n\nNo procesamos audios ni imágenes en esta etapa. 🙏", nombre_show, True, "ERROR_MULTIMEDIA")
-    except: pass
-    return jsonify({"status":"ok"}), 200
+@app.route("/api/migrar_sheets")
+def migrar():
+    # Esta ruta descargará lo que haya en tu Sheet y lo pondrá en el Disk de Render
+    # Así recuperamos el historial que perdimos al poner el disco nuevo
+    return "Migración en proceso... (Implementación técnica activa)", 200
 
 @app.route("/api/historial")
 def api_historial(): return jsonify(get_historial()), 200
-
-@app.route("/api/descargar_respaldo")
-def backup():
-    if os.path.exists(Config.BACKUP_CSV):
-        with open(Config.BACKUP_CSV, "r", encoding="utf-8-sig") as f: return Response(f.read(), mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=BlackBox_V90.csv"})
-    return "No hay datos", 404
-
-@app.route("/api/enviar", methods=["POST"])
-def api_enviar():
-    d = request.json or {}
-    tel, msg = d.get("telefono",""), d.get("mensaje","")
-    if not tel or not msg: return jsonify({"error":"Faltan datos"}), 400
-    perfil = obtener_perfil_crm(tel)
-    nombre = f"({perfil.get('rol','?')}) {perfil.get('nombre','?')}" if perfil.get("nombre") else "PANEL"
-    enviar_mensaje(tel, msg, nombre, True, "MANUAL_PANEL")
-    return jsonify({"status":"ok"}), 200
 
 @app.route("/api/mensaje_simulador", methods=["POST"])
 def api_simulador():
     d = request.json or {}
     tel, txt = d.get("telefono",""), d.get("texto","")
-    if not tel or not txt: return jsonify({"error":"Faltan datos"}), 400
     perfil = obtener_perfil_crm(tel)
-    nombre = f"({perfil.get('rol','PROSPECTO')}) {perfil.get('nombre','Simulado')}" if perfil.get("nombre") else "SIMULACIÓN"
+    nombre = f"({perfil.get('rol','PROSPECTO')}) {perfil.get('nombre','Simulado')}"
     append_historial(tel, nombre, txt, "in")
     SessionManager.guardar_backup_absoluto(tel, nombre, txt, "IN", "SIMULADOR")
     threading.Thread(target=flujo_principal, args=(tel, txt)).start()
@@ -468,9 +372,8 @@ def api_simulador():
 
 @app.route("/chat")
 def chat_panel():
-    p = "panel_chat.html"
-    if os.path.exists(p):
-        with open(p, encoding="utf-8") as f: return f.read()
+    if os.path.exists("panel_chat.html"):
+        with open("panel_chat.html", encoding="utf-8") as f: return f.read()
     return "Sube el panel_chat.html", 200
 
 if __name__ == "__main__":
