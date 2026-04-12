@@ -1,6 +1,6 @@
 """
 Bot WhatsApp — Creación Cuántica E.I.R.L. / Crear Poder Sin Límites Perú
-✅ V95: THE FINAL LOGIC (Fix Volver, Fix Hola-Bucle, Fix Coordinación)
+✅ V96: CORPORATE EXCELLENCE (Nombres completos para IMOs + Lógica de Flujo Robusta)
 """
 
 import os, re, json, time, csv, io, random, logging, threading, queue
@@ -15,7 +15,7 @@ logger = logging.getLogger("BotCrear")
 app = Flask(__name__)
 
 # ══════════════════════════════════════════════════════════════
-# 1. CONFIGURACIÓN Y PERSISTENCIA
+# 1. CONFIGURACIÓN Y PERSISTENCIA (Disk Render /data)
 # ══════════════════════════════════════════════════════════════
 TZ_LIMA = timezone(timedelta(hours=-5))
 DATA_DIR = "/data" if os.path.exists("/data") else "."
@@ -72,39 +72,48 @@ def append_historial(telefono, nombre, texto, tipo):
     except: pass
 
 # ══════════════════════════════════════════════════════════════
-# 3. INTELIGENCIA DE NEGOCIO (IMOs y FECHAS)
+# 3. CRM E IDENTIFICACIÓN (PROFESIONALISMO EN NOMBRES)
 # ══════════════════════════════════════════════════════════════
 def obtener_perfil_crm(telefono):
     tel_norm = str(telefono)[-9:]
     perfil = {"rol": "PROSPECTO", "nombre": None, "enrolados_todos": [], "enrolados_pendientes": []}
-    if os.path.exists(Config.CSV_BD_PATH):
-        with open(Config.CSV_BD_PATH, 'r', encoding='utf-8-sig') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                tel_px = str(row.get('Teléfono',''))[-9:]
-                tel_imo = str(row.get('Tel. IMO',''))[-9:]
-                asistio_c1 = row.get('C1','').strip().upper() == 'SI'
-                if tel_px == tel_norm:
-                    perfil["nombre"] = row.get('Nombre','').split()[0].title()
-                    perfil["rol"] = "PX_REZAGADO_C1" if not asistio_c1 else "PROSPECTO"
-                if tel_imo == tel_norm:
-                    perfil["rol"] = "IMO"
-                    status = "✅" if asistio_c1 else "⏳"
-                    perfil["enrolados_todos"].append(f"• {row.get('Nombre','').title()} ({status})")
-                    if not asistio_c1: perfil["enrolados_pendientes"].append(f"• {row.get('Nombre','').title()} (Falta C1)")
+    path = Config.CSV_BD_PATH
+    
+    if os.path.exists(path):
+        try:
+            with open(path, 'r', encoding='utf-8-sig') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    tel_px = str(row.get('Teléfono',''))[-9:]
+                    tel_imo = str(row.get('Tel. IMO',''))[-9:]
+                    # PROFESIONALISMO: Concatenar nombre y apellido
+                    nombre_completo = f"{row.get('Nombre','').strip()} {row.get('Apellido','').strip()}".title()
+                    asistio_c1 = row.get('C1','').strip().upper() == 'SI'
+                    
+                    if tel_px == tel_norm:
+                        perfil["nombre"] = row.get('Nombre','').split()[0].title()
+                        perfil["rol"] = "PX_REZAGADO_C1" if not asistio_c1 else "PROSPECTO"
+                    
+                    if tel_imo == tel_norm:
+                        perfil["rol"] = "IMO"
+                        status = "✅ Sentado" if asistio_c1 else "⏳ Pendiente"
+                        perfil["enrolados_todos"].append(f"• {nombre_completo} ({status})")
+                        if not asistio_c1:
+                            perfil["enrolados_pendientes"].append(f"• {nombre_completo}")
+        except: pass
     return perfil
 
-FECHAS = "📅 *FECHAS 2026*\n🚀 C1: Vie 01 Mayo\n🔥 C2: Jue 14 Mayo\n👑 MJ: Vie 17 Abril"
+FECHAS_MSG = "📅 *PRÓXIMAS FECHAS 2026*\n\n🚀 *C1:* Vie 01 Mayo (E27)\n🔥 *C2:* Jue 14 Mayo (E27)\n👑 *MJ:* Vie 17 Abril (E26)\n\n_Escribe 0 para volver._"
 
 # ══════════════════════════════════════════════════════════════
-# 4. MOTOR DE FLUJO Y MENÚS
+# 4. MOTOR DE ENVÍO Y FLUJO
 # ══════════════════════════════════════════════════════════════
 def enviar_mensaje(tel, texto, nombre_log="BOT"):
     if str(tel).startswith("SIM_"): append_historial(tel, nombre_log, texto, "out"); return True
     try:
         req_lib.post(f"https://graph.facebook.com/v19.0/{Config.PHONE_ID}/messages", 
-                     json={"messaging_product": "whatsapp", "to": str(tel), "type": "text", "text": {"body": texto}}, 
-                     headers={"Authorization": f"Bearer {Config.TOKEN}"}, timeout=10)
+                         json={"messaging_product": "whatsapp", "to": str(tel), "type": "text", "text": {"body": texto}}, 
+                         headers={"Authorization": f"Bearer {Config.TOKEN}"}, timeout=10)
         append_historial(tel, nombre_log, texto, "out")
         return True
     except: return False
@@ -118,66 +127,63 @@ def flujo_principal(tel, texto):
         saludos = {"HOLA", "BUENAS", "INICIO", "MENU", "MENÚ", "0"}
         if not sesion or txt_up in saludos:
             perfil = obtener_perfil_crm(tel)
-            rol = perfil["rol"]
-            sesion = {"perfil": perfil, "state": "MAIN", "prev_state": "MAIN"}
+            sesion = {"perfil": perfil, "state": "MAIN"}
             set_sesion(tel, sesion)
             
-            if rol == "IMO":
-                msg = f"🌟 *Portal IMO — {perfil['nombre']}*\n\n1️⃣ Ver TODOS mis enrolados\n2️⃣ Ver PENDIENTES de C1\n3️⃣ Próximas fechas\n4️⃣ Coordinación IMO"
+            if perfil["rol"] == "IMO":
+                msg = f"🌟 *Portal del Líder IMO — {perfil['nombre']}*\n\n1️⃣ Ver TODOS mis enrolados\n2️⃣ Ver PENDIENTES de C1\n3️⃣ Consultar próximas fechas\n4️⃣ Hablar con Coordinación IMO\n\n0️⃣ Salir"
             else:
-                msg = f"🌟 *Hola {perfil['nombre'] or 'Líder'}*\nBienvenido a CPSL Perú.\n\n1️⃣ Info Entrenamientos\n2️⃣ Ver fechas 2026\n3️⃣ Inversión y Pagos\n4️⃣ Coordinación"
-            enviar_mensaje(tel, msg, f"({rol}) {perfil['nombre'] or 'User'}")
+                msg = f"🌟 *Hola {perfil['nombre'] or 'Líder'}*\nBienvenido a CPSL Perú.\n\n1️⃣ Información de Entrenamientos\n2️⃣ Ver fechas 2026\n3️⃣ Inversión y Pagos\n4️⃣ Hablar con Coordinación\n\n0️⃣ Finalizar"
+            enviar_mensaje(tel, msg, f"({perfil['rol']}) {perfil['nombre'] or 'User'}")
             return
 
-        state = sesion.get("state", "MAIN")
         perfil = sesion.get("perfil", {})
+        state = sesion.get("state", "MAIN")
 
         # 🔄 LÓGICA DE OPCIÓN "VOLVER" (9)
         if txt_up == "9":
-            prev = sesion.get("prev_state", "MAIN")
-            sesion["state"] = prev
-            set_sesion(tel, sesion)
-            flujo_principal(tel, "MENU") # Reinicia al menú
+            flujo_principal(tel, "MENU")
             return
 
-        # 📊 RUTA DE LÍDER IMO
+        # 📊 RUTA IMO (Excelencia Profesional)
         if perfil["rol"] == "IMO":
             if txt_up == "1":
                 lista = perfil.get("enrolados_todos", [])
-                enviar_mensaje(tel, "📋 *TODOS TUS ENROLADOS:*\n\n" + ("\n".join(lista) if lista else "Sin registros.") + "\n\n9️⃣ Volver")
+                msg = "📋 *REPORTE COMPLETO DE ENROLADOS*\n\n" + ("\n".join(lista) if lista else "Sin registros.")
+                enviar_mensaje(tel, msg + "\n\n9️⃣ Volver al menú")
             elif txt_up == "2":
                 lista = perfil.get("enrolados_pendientes", [])
-                enviar_mensaje(tel, "⏳ *PENDIENTES DE C1:*\n\n" + ("\n".join(lista) if lista else "¡Todos sentados! 🎉") + "\n\n9️⃣ Volver")
+                msg = "⏳ *ENROLADOS PENDIENTES DE C1*\n\n" + ("\n".join(lista) if lista else "¡Todos tus invitados ya se sentaron! 🎉")
+                enviar_mensaje(tel, msg + "\n\n9️⃣ Volver al menú")
             elif txt_up == "3":
-                enviar_mensaje(tel, FECHAS + "\n\n9️⃣ Volver")
+                enviar_mensaje(tel, FECHAS_MSG)
             elif txt_up == "4":
-                enviar_mensaje(tel, "✅ Ticket generado. Un coordinador te atenderá.")
-                enviar_mensaje(Config.GERENTE_TEL, f"🚨 TICKET IMO: wa.me/{tel} ({perfil['nombre']})")
+                enviar_mensaje(tel, "✅ Ticket generado. Un coordinador te atenderá pronto.")
+                enviar_mensaje(GERENTE_TEL, f"🚨 TICKET IMO: wa.me/{tel} ({perfil['nombre']})")
             return
 
-        # 👤 RUTA DE PROSPECTO / REZAGADO
+        # 👤 RUTA PROSPECTO
         if state == "MAIN":
             if txt_up == "1":
-                sesion["state"] = "INFO"; sesion["prev_state"] = "MAIN"; set_sesion(tel, sesion)
-                enviar_mensaje(tel, "📘 *ENTRENAMIENTOS*\n\n1️⃣ Capítulo 1 (Descubrimiento)\n2️⃣ Capítulo 2 (Experiencia)\n3️⃣ Maestría (Práctica)\n9️⃣ Volver")
+                sesion["state"] = "INFO"; set_sesion(tel, sesion)
+                enviar_mensaje(tel, "📘 *ENTRENAMIENTOS*\n\n1️⃣ Capítulo 1 (Descubrimiento)\n2️⃣ Capítulo 2 (Experiencia)\n3️⃣ Maestría (Práctica)\n\n9️⃣ Volver")
             elif txt_up == "2":
-                enviar_mensaje(tel, FECHAS + "\n\n9️⃣ Volver")
+                enviar_mensaje(tel, FECHAS_MSG)
             elif txt_up == "3":
                 enviar_mensaje(tel, "💳 *PAGOS*\nBCP Soles: 1934218307060\nCreación Cuántica E.I.R.L.\n\n9️⃣ Volver")
             elif txt_up == "4":
                 enviar_mensaje(tel, "🙏 Te estamos derivando con un coordinador humano.")
-                enviar_mensaje(Config.GERENTE_TEL, f"🚨 TICKET PX: wa.me/{tel}")
+                enviar_mensaje(GERENTE_TEL, f"🚨 TICKET PX: wa.me/{tel}")
             elif not txt_up.isnumeric():
-                # Si escribe texto libre en el menú principal, NO DERIVAR, solo recordar opciones
                 enviar_mensaje(tel, "Disculpa, no entendí. Por favor elige un número del menú o escribe 0 para reiniciar.")
         
         elif state == "INFO":
-            if txt_up == "1": enviar_mensaje(tel, "🚀 *C1:* 3 días para romper límites.\n9️⃣ Volver")
-            elif txt_up == "2": enviar_mensaje(tel, "🔥 *C2:* 4 días de inmersión total.\n9️⃣ Volver")
-            elif txt_up == "3": enviar_mensaje(tel, "👑 *MJ:* 100 días de resultados.\n9️⃣ Volver")
+            if txt_up == "1": enviar_mensaje(tel, "🚀 *C1 (Descubrimiento):* Entrenamiento vivencial de 3 días para observar tus límites y romper paradigmas.\n\n9️⃣ Volver")
+            elif txt_up == "2": enviar_mensaje(tel, "🔥 *C2 (La Experiencia):* 4 días inmersivos para rediseñar tu realidad desde la responsabilidad.\n\n9️⃣ Volver")
+            elif txt_up == "3": enviar_mensaje(tel, "👑 *MJ (Maestría):* 100 días para forjar resultados sostenibles en tu vida.\n\n9️⃣ Volver")
 
     except Exception as e:
-        logger.error(f"Error: {e}")
+        logger.error(f"Error flujo: {e}")
 
 # ══════════════════════════════════════════════════════════════
 # 5. ENDPOINTS
@@ -192,6 +198,8 @@ def webhook():
         msg = data["entry"][0]["changes"][0]["value"]["messages"][0]
         if msg.get("type") == "text":
             threading.Thread(target=flujo_principal, args=(msg["from"], msg["text"]["body"])).start()
+        else:
+            enviar_mensaje(msg["from"], "⚠️ Por políticas corporativas, solo procesamos mensajes de texto. Por favor escribe tu duda. 🙏")
     except: pass
     return jsonify({"status":"ok"}), 200
 
