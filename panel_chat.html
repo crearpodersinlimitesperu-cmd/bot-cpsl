@@ -16,7 +16,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .field input,.field textarea{width:100%;padding:8px 10px;font-size:13px;border:.5px solid #b4b2a9;border-radius:8px;background:#fafaf8;color:#1a1a18;outline:none;font-family:'SF Mono',monospace}
 .field textarea{resize:vertical;min-height:80px;font-size:11px}
 .field input:focus,.field textarea:focus{border-color:#1D9E75;background:#fff}
-.field .hint{font-size:11px;color:#888780;margin-top:3px}
 .btn-primary{width:100%;padding:10px;background:#1D9E75;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;margin-top:6px}
 .btn-primary:hover{background:#0F6E56}
 .modal-note{text-align:center;margin-top:10px;font-size:11px;color:#888780}
@@ -86,7 +85,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .msg.out .bubble{background:#1D9E75;color:#fff;border-radius:12px 3px 12px 12px}
 .msg.out.pending .bubble{background:#5DCAA5}
 .msg-st{font-size:10px;color:#888780;margin-top:2px;text-align:right}
-.date-sep{text-align:center;font-size:10px;color:#b4b2a9;padding:2px 0;flex-shrink:0}
 .empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#888780;gap:8px;font-size:13px}
 .footer{border-top:.5px solid #d3d1c7;padding:9px 14px 11px;background:#fff;flex-shrink:0}
 .px-row{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:7px;align-items:center}
@@ -164,7 +162,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       </div>
       <input class="search" type="text" id="search" placeholder="Buscar nombre o teléfono…" oninput="renderLista()">
     </div>
-
     <div class="tabs">
       <button class="tab on" data-tab="todos" onclick="setTab(this)">Todos</button>
       <button class="tab" data-tab="pendiente" onclick="setTab(this)">Pendiente</button>
@@ -172,18 +169,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <button class="tab" data-tab="no asiste" onclick="setTab(this)">No asiste</button>
       <button class="tab" data-tab="externo" onclick="setTab(this)">Externos</button>
     </div>
-
     <div class="stats">
       <div class="stat"><div class="stat-n" id="st0">0</div><div class="stat-l">Total</div></div>
       <div class="stat"><div class="stat-n" id="st1" style="color:#1D9E75">0</div><div class="stat-l">Confirman</div></div>
       <div class="stat"><div class="stat-n" id="st2" style="color:#BA7517">0</div><div class="stat-l">Pendiente</div></div>
       <div class="stat"><div class="stat-n" id="st3" style="color:#A32D2D">0</div><div class="stat-l">No asiste</div></div>
     </div>
-
     <div class="list" id="list"></div>
     <button class="new-btn" onclick="abrirNuevo()">+ Nueva conversación</button>
   </div>
-
   <div class="chat" id="chat">
     <div class="empty">
       <div style="width:44px;height:44px;border-radius:50%;background:#E1F5EE;display:flex;align-items:center;justify-content:center;font-size:20px">💬</div>
@@ -195,22 +189,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <script>
 const CFG_KEY  = 'cpsl_cfg_v2';
-const DEMO_KEY = 'cpsl_demo_v2';
-
-const QR = [
-  {l:'Info C1', t:'Hola, aquí tienes la información del Capítulo 1:\\n\\nHotel José Antonio Deluxe\\nCalle Bellavista 133, Miraflores\\n\\nViernes: registro 9:00am, inicio 10:00am\\nSábado: ingreso 9:00am, inicio 10:00am\\nDomingo: inicio 9:00am, cierre 9:00pm\\n\\nComunicaciones Crear Poder Sin Límites Perú'},
-  {l:'Confirmar', t:'Hola, gracias por informarnos. Confirmación registrada.\\n\\nLos esperamos en el Hotel José Antonio Deluxe. Mesa de registro a las 9:00am.\\n\\nComunicaciones Crear Poder Sin Límites Perú'},
-  {l:'No asiste', t:'Hola, recibido. La inscripción sigue activa para el siguiente equipo inmediato.\\n\\nComunicaciones Crear Poder Sin Límites Perú'},
-  {l:'Cambio nombre', t:'Hola, los cambios de nombre se gestionan con Coordinación antes del miércoles previo hasta las 6:00pm.\\n\\nComunicaciones Crear Poder Sin Límites Perú'}
-];
-
 let CFG = {}; let DEMO = false; let convs = []; let curTel = null; let filtro = 'todos';
 let syncing = false; let syncTimer = null; let rowMap = {}; let _tok = null; let _tokExp = 0;
 
-let audioNotif = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3');
+const QR = [
+  {l:'Info C1', t:'Hola, aquí tienes la información del Capítulo 1:\n\nHotel José Antonio Deluxe\nCalle Bellavista 133, Miraflores\n\nViernes: registro 9:00am, inicio 10:00am\nSábado: ingreso 9:00am, inicio 10:00am\nDomingo: inicio 9:00am, cierre 9:00pm\n\nComunicaciones Crear Poder Sin Límites Perú'},
+  {l:'Confirmar', t:'Hola, gracias por informarnos. Confirmación registrada.\n\nLos esperamos en el Hotel José Antonio Deluxe. Mesa de registro a las 9:00am.\n\nComunicaciones Crear Poder Sin Límites Perú'},
+  {l:'No asiste', t:'Hola, recibido. La inscripción sigue activa para el siguiente equipo inmediato.\n\nComunicaciones Crear Poder Sin Límites Perú'},
+  {l:'Cambio nombre', t:'Hola, los cambios de nombre se gestionan con Coordinación antes del miércoles previo hasta las 6:00pm.\n\nComunicaciones Crear Poder Sin Límites Perú'}
+];
 
 function esc(s){ return String(s).split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;').split('"').join('&quot;').split("'").join('&#39;'); }
-function nl2br(s){ return esc(s).split('\\n').join('<br>'); }
+function nl2br(s){ return esc(s).split('\n').join('<br>'); }
 function ini(n){ const p=n.trim().split(' '); return ((p[0]||'')[0]+(p[1]||'')[0]||'').toUpperCase(); }
 function hora(){ return new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit', timeZone: 'America/Lima'}); }
 function fecha(){ return new Date().toLocaleString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit', timeZone: 'America/Lima'}); }
@@ -223,16 +213,17 @@ function badgeClass(estado, ext){
 
 function setSyncStatus(tipo, txt){
   const d = document.getElementById('sdot'); const s = document.getElementById('stxt');
-  if(!d) return; d.className = 'sync-dot ' + tipo; s.textContent = txt;
+  if(d) d.className = 'sync-dot ' + tipo;
+  if(s) s.textContent = txt;
 }
 function setFootStatus(msg){ const el = document.getElementById('fstatus'); if(el) el.textContent = msg; }
 
 function cargarCfg(){
   try { CFG = JSON.parse(localStorage.getItem(CFG_KEY)||'{}'); } catch(e){ CFG={}; }
-  if(CFG.sid){ document.getElementById('c-sid').value = CFG.sid; }
-  if(CFG.sname){ document.getElementById('c-sname').value = CFG.sname; }
-  if(CFG.watok){ document.getElementById('c-watok').value = CFG.watok; }
-  if(CFG.wapid){ document.getElementById('c-wapid').value = CFG.wapid; }
+  if(CFG.sid) document.getElementById('c-sid').value = CFG.sid;
+  if(CFG.sname) document.getElementById('c-sname').value = CFG.sname;
+  if(CFG.watok) document.getElementById('c-watok').value = CFG.watok;
+  if(CFG.wapid) document.getElementById('c-wapid').value = CFG.wapid;
 }
 
 function guardarCfg(){
@@ -249,12 +240,11 @@ function guardarCfg(){
     const c = JSON.parse(creds);
     if(!c.private_key||!c.client_email) throw new Error('Faltan campos');
   } catch(e){
-    alert('El JSON de credenciales no es válido: '+e.message); return;
+    alert('El JSON no es válido: '+e.message); return;
   }
 
   CFG = {sid, sname, creds, watok, wapid};
-  const forStorage = {sid, sname, watok, wapid};
-  localStorage.setItem(CFG_KEY, JSON.stringify(forStorage));
+  localStorage.setItem(CFG_KEY, JSON.stringify({sid, sname, watok, wapid}));
   sessionStorage.setItem('cpsl_creds', creds);
 
   DEMO = false;
@@ -266,76 +256,54 @@ function guardarCfg(){
 function abrirCfg(){
   document.getElementById('ovl-cfg').style.display='flex';
   document.getElementById('app').style.display='none';
-  if(syncTimer){ clearInterval(syncTimer); syncTimer=null; }
+  if(syncTimer) { clearInterval(syncTimer); syncTimer=null; }
 }
 
 function usarDemoMode(){
   DEMO = true; CFG = {sid:'demo', sname:'Hoja 1', creds:'', watok:'', wapid:''};
   document.getElementById('ovl-cfg').style.display='none';
   document.getElementById('app').style.display='grid';
-  cargarDemoData(); iniciarUI();
-}
-
-function cargarDemoData(){
   convs = [];
+  iniciarUI();
 }
 
 async function getToken(){
   if(_tok && Date.now() < _tokExp - 60000) return _tok;
   if(DEMO) return null;
-
   const credsStr = CFG.creds || sessionStorage.getItem('cpsl_creds') || '';
   if(!credsStr) return null;
 
-  let creds;
-  try{ creds = JSON.parse(credsStr); } catch(e){ setSyncStatus('err','JSON inválido'); return null; }
-
   try{
+    const creds = JSON.parse(credsStr);
     const now = Math.floor(Date.now()/1000);
-    const b64u = function(s) {
-        let res = btoa(s);
-        res = res.split('+').join('-');
-        res = res.split('/').join('_');
-        res = res.split('=').join('');
-        return res;
-    };
-    const enc = function(s) {
-        return b64u(unescape(encodeURIComponent(JSON.stringify(s))));
-    };
+    const b64u = s => btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const enc = s => b64u(unescape(encodeURIComponent(JSON.stringify(s))));
 
     const hdr = enc({alg:'RS256',typ:'JWT'});
     const pld = enc({iss:creds.client_email, scope:'https://www.googleapis.com/auth/spreadsheets', aud:'https://oauth2.googleapis.com/token', iat:now, exp:now+3600});
 
-    let pemBody = creds.private_key;
-    pemBody = pemBody.split('-----BEGIN PRIVATE KEY-----').join('');
-    pemBody = pemBody.split('-----END PRIVATE KEY-----').join('');
-    pemBody = pemBody.split(String.fromCharCode(10)).join('');
-    pemBody = pemBody.split(String.fromCharCode(13)).join('');
-    pemBody = pemBody.split(' ').join('');
-
+    let pemBody = creds.private_key.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\r|\n|\s/g, '');
     const keyBuf = Uint8Array.from(atob(pemBody), c=>c.charCodeAt(0)).buffer;
     const cryptoKey = await crypto.subtle.importKey('pkcs8', keyBuf, {name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'}, false, ['sign']);
     const sigBuf = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', cryptoKey, new TextEncoder().encode(hdr + '.' + pld));
     
-    let sig = String.fromCharCode(...new Uint8Array(sigBuf));
-    sig = b64u(sig);
-    
-    const jwt = hdr + '.' + pld + '.' + sig;
+    const sig = b64u(String.fromCharCode(...new Uint8Array(sigBuf)));
+    const jwt = `${hdr}.${pld}.${sig}`;
 
-    const r = await fetch('https://oauth2.googleapis.com/token',{ 
+    const r = await fetch('https://oauth2.googleapis.com/token', { 
         method:'POST', 
         headers:{'Content-Type':'application/x-www-form-urlencoded'}, 
-        body: 'grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=' + jwt 
+        body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
     });
     if(!r.ok) throw new Error('Token HTTP '+r.status);
     const d = await r.json();
     if(!d.access_token) throw new Error(d.error_description||'Sin token');
+    
     _tok = d.access_token;
     _tokExp = Date.now() + (d.expires_in||3600)*1000;
     return _tok;
   } catch(e){
-    setSyncStatus('err','Auth: '+e.message);
-    console.error('JWT error:',e);
+    setSyncStatus('err','Auth Error');
     return null;
   }
 }
@@ -350,14 +318,14 @@ async function sheetFetch(url, opts, retries=2){
   }
 }
 
-const rng    = () => encodeURIComponent((CFG.sname||'Hoja 1')+'!A:H');
+const rng = () => encodeURIComponent((CFG.sname||'Hoja 1')+'!A:H');
 const shBase = () => `https://sheets.googleapis.com/v4/spreadsheets/${CFG.sid}/values/${rng()}`;
 
 async function leerSheet(){
   const tok = await getToken();
   if(!tok) return null;
   const r = await sheetFetch(shBase(), {headers:{Authorization:`Bearer ${tok}`}});
-  if(!r||!r.ok){ setSyncStatus('err','Error leyendo Sheet ('+r?.status+')'); return null; }
+  if(!r||!r.ok){ setSyncStatus('err','Error Sheet'); return null; }
   const data = await r.json();
   return data.values || [];
 }
@@ -387,7 +355,7 @@ async function enviarWA(tel, texto){
   try{
     const r = await fetch(`https://graph.facebook.com/v19.0/${wapid}/messages`,{ method:'POST', headers:{Authorization:`Bearer ${watok}`,'Content-Type':'application/json'}, body:JSON.stringify({messaging_product:'whatsapp',to:String(tel),type:'text',text:{body:texto,preview_url:false}}) });
     const d = await r.json();
-    if(!r.ok) return {ok:false, err:(d.error?.message||'Error '+r.status)};
+    if(!r.ok) return {ok:false, err:(d.error?.message||'Error')};
     return {ok:true};
   } catch(e){ return {ok:false, err:e.message}; }
 }
@@ -414,7 +382,6 @@ async function sincronizarMensajesInstantaneos() {
                 if (dir === 'in' && curTel !== tel) {
                     c.unread = true;
                     document.title = "🔴 Nuevo Mensaje - CPSL";
-                    try{ audioNotif.play(); }catch(e){}
                 }
                 cambios = true;
             }
@@ -436,13 +403,11 @@ async function sincronizarSheets(){
     if(!rows){ syncing=false; return; }
 
     let cambios = false;
-    const ahora = hora();
-
     rows.forEach((row, i) => {
       if(i===0) return;
-      const tel    = (row[1]||'').toString().trim();
-      const nombre = (row[2]||'').trim();
-      const estado = (row[5]||'pendiente').toLowerCase();
+      const tel    = String(row[1]||'').trim();
+      const nombre = String(row[2]||'').trim();
+      const estado = String(row[5]||'pendiente').toLowerCase();
       if(!tel) return;
 
       rowMap[tel] = i+1;
@@ -458,7 +423,7 @@ async function sincronizarSheets(){
     if(cambios){ renderStats(); renderLista(); if(curTel) actualizarMensajes(); }
     setSyncStatus('ok', hora());
   } catch(e){
-    setSyncStatus('err','Sync: '+e.message);
+    setSyncStatus('err','Sync Error');
   } finally{ syncing=false; }
 }
 
@@ -481,16 +446,27 @@ function renderLista(){
   if(!el) return;
   if(!lista.length){ el.innerHTML='<div style="padding:18px;text-align:center;font-size:12px;color:#888780">Sin resultados</div>'; return; }
 
-  el.innerHTML = lista.map(c=>{
+  el.innerHTML = lista.map(c => {
     const last = c.msgs[c.msgs.length-1];
     const prev = last ? last.texto.slice(0,44)+(last.texto.length>44?'…':'') : '—';
     const bc   = badgeClass(c.estado, c.ext);
     const elbl = c.ext ? 'externo' : c.estado;
-    return '<div class="item' + (curTel===c.tel?' on':'') + '" onclick="selConv(\\'' + c.tel + '\\')">' +
-      '<div class="item-top"><span class="item-name">' + esc(c.nombre.split(' ').slice(0,3).join(' ')) + '</span><span class="item-time">' + esc(last?.h||'') + '</span></div>' +
-      '<div class="item-prev">' + esc(prev) + '</div>' +
-      '<div class="item-bot"><span class="badge ' + bc + '">' + esc(elbl) + '</span><div style="display:flex;align-items:center;gap:4px"><span style="font-size:10px;color:#b4b2a9">+' + esc(c.tel) + '</span>' + (c.unread?'<div class="dot-unread"></div>':'') + '</div></div>' +
-    '</div>';
+    return `
+      <div class="item ${curTel === c.tel ? 'on' : ''}" onclick="selConv('${c.tel}')">
+        <div class="item-top">
+          <span class="item-name">${esc(c.nombre.split(' ').slice(0,3).join(' '))}</span>
+          <span class="item-time">${esc(last?.h||'')}</span>
+        </div>
+        <div class="item-prev">${esc(prev)}</div>
+        <div class="item-bot">
+          <span class="badge ${bc}">${esc(elbl)}</span>
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-size:10px;color:#b4b2a9">+${esc(c.tel)}</span>
+            ${c.unread ? '<div class="dot-unread"></div>' : ''}
+          </div>
+        </div>
+      </div>
+    `;
   }).join('');
 }
 
@@ -515,40 +491,51 @@ function renderChat(){
   if(!c) return;
   const av = c.ext?'av-ext':'av-imo';
   const bc = badgeClass(c.estado, c.ext);
-  const el = c.ext?'externo / no es IMO de campaña':c.estado;
+  const elbl = c.ext?'externo / no es IMO de campaña':c.estado;
 
-  document.getElementById('chat').innerHTML = 
-    '<div class="ch-header">' +
-      '<div class="ch-left">' +
-        '<div class="avatar ' + av + '">' + esc(ini(c.nombre)) + '</div>' +
-        '<div><div class="ch-name">' + esc(c.nombre) + '</div><div class="ch-sub">+' + esc(c.tel) + ' &nbsp;·&nbsp; <span class="badge ' + bc + '">' + esc(el) + '</span></div></div>' +
-      '</div>' +
-      '<div class="ch-actions">' +
-        '<button class="btn-s" onclick="setEstado(\\'confirma\\')">✓ Confirma</button>' +
-        '<button class="btn-s" onclick="setEstado(\\'pendiente\\')">⏳ Pendiente</button>' +
-        '<button class="btn-s" onclick="setEstado(\\'no asiste\\')">✗ No asiste</button>' +
-        '<button class="btn-s" onclick="setEstado(\\'cambio\\')">↔ Cambio</button>' +
-        '<button class="btn-s" onclick="setEstado(\\'stop\\')">— Stop</button>' +
-      '</div>' +
-    '</div>' +
-    '<div class="messages" id="msgs"></div>' +
-    '<div class="footer">' +
-      (c.px.length?'<div class="px-row"><span class="px-lbl">Px:</span>'+c.px.map(p=>'<button class="px-chip" onclick="togglePx(this,\\''+p+'\\')">'+esc(p)+'</button>').join('')+'</div>':'') +
-      '<div class="qr-row">' + QR.map((r,i)=>'<button class="qr" onclick="usarQR('+i+')">'+esc(r.l)+'</button>').join('') + '</div>' +
-      '<div class="input-row">' +
-        '<textarea class="tinput" id="tinput" placeholder="Escribe tu respuesta… (Enter = enviar | Shift+Enter = nueva línea)" onkeydown="handleKey(event)" oninput="onInput(this)"></textarea>' +
-        '<button class="send" style="background:#534AB7; padding:8px;" onclick="enviarMedia()" title="Enviar Imagen (En desarrollo)">📎</button>' +
-        '<button class="send" id="sbtn" onclick="enviar()">Enviar</button>' +
-      '</div>' +
-      '<div class="foot-meta"><span id="fchars">0 caracteres</span><span id="fstatus"></span></div>' +
-    '</div>';
+  let pxBtns = '';
+  if(c.px.length > 0) {
+      pxBtns = `<div class="px-row"><span class="px-lbl">Px:</span>` + c.px.map(p => `<button class="px-chip" onclick="togglePx(this, '${p}')">${esc(p)}</button>`).join('') + `</div>`;
+  }
+
+  let qrBtns = `<div class="qr-row">` + QR.map((r,i) => `<button class="qr" onclick="usarQR(${i})">${esc(r.l)}</button>`).join('') + `</div>`;
+
+  document.getElementById('chat').innerHTML = `
+    <div class="ch-header">
+      <div class="ch-left">
+        <div class="avatar ${av}">${esc(ini(c.nombre))}</div>
+        <div>
+          <div class="ch-name">${esc(c.nombre)}</div>
+          <div class="ch-sub">+${esc(c.tel)} &nbsp;·&nbsp; <span class="badge ${bc}">${esc(elbl)}</span></div>
+        </div>
+      </div>
+      <div class="ch-actions">
+        <button class="btn-s" onclick="setEstado('confirma')">✓ Confirma</button>
+        <button class="btn-s" onclick="setEstado('pendiente')">⏳ Pendiente</button>
+        <button class="btn-s" onclick="setEstado('no asiste')">✗ No asiste</button>
+        <button class="btn-s" onclick="setEstado('cambio')">↔ Cambio</button>
+        <button class="btn-s" onclick="setEstado('stop')">— Stop</button>
+      </div>
+    </div>
+    <div class="messages" id="msgs"></div>
+    <div class="footer">
+      ${pxBtns}
+      ${qrBtns}
+      <div class="input-row">
+        <textarea class="tinput" id="tinput" placeholder="Escribe tu respuesta… (Enter = enviar | Shift+Enter = nueva línea)" onkeydown="handleKey(event)" oninput="onInput(this)"></textarea>
+        <button class="send" style="background:#534AB7; padding:8px;" onclick="enviarMedia()" title="Enviar Imagen (En desarrollo)">📎</button>
+        <button class="send" id="sbtn" onclick="enviar()">Enviar</button>
+      </div>
+      <div class="foot-meta"><span id="fchars">0 caracteres</span><span id="fstatus"></span></div>
+    </div>
+  `;
 
   poblarMensajes(c); scrollFin();
   const ti = document.getElementById('tinput'); if(ti) ti.focus();
 }
 
 function enviarMedia() {
-    alert("🚀 Opción 'Enviar Imagen' habilitada. (Integración de Media de la API de Meta en proceso para la siguiente versión).");
+    alert("🚀 Opción 'Enviar Imagen' habilitada. (Integración de Media API en proceso para la siguiente versión).");
 }
 
 function actualizarMensajes(){
@@ -565,10 +552,17 @@ function poblarMensajes(c){
   const el = document.getElementById('msgs');
   if(!el) return;
   if(!c.msgs.length){ el.innerHTML='<div style="text-align:center;font-size:12px;color:#b4b2a9;padding:20px">Sin mensajes registrados</div>'; return; }
-  el.innerHTML = c.msgs.map(m=>{
+  
+  el.innerHTML = c.msgs.map(m => {
     const quien = m.dir==='in' ? esc(c.nombre.split(' ').slice(0,2).join(' ')) : 'Tu';
-    const st = m.dir==='out' ? '<div class="msg-st">' + esc(m.st||'Enviado') + '</div>' : '';
-    return '<div class="msg ' + (m.dir==='in'?'in':'out') + (m.pending?' pending':'') + '"><div class="msg-who">' + quien + ' · ' + esc(m.h) + '</div><div class="bubble">' + nl2br(m.texto) + '</div>' + st + '</div>';
+    const st = m.dir==='out' ? `<div class="msg-st">${esc(m.st||'Enviado')}</div>` : '';
+    return `
+      <div class="msg ${m.dir==='in'?'in':'out'} ${m.pending?'pending':''}">
+        <div class="msg-who">${quien} · ${esc(m.h)}</div>
+        <div class="bubble">${nl2br(m.texto)}</div>
+        ${st}
+      </div>
+    `;
   }).join('');
 }
 
@@ -603,14 +597,14 @@ async function enviar(){
   if(CFG.watok&&CFG.wapid){
     const res = await enviarWA(curTel, texto);
     waOk = res.ok;
-    setFootStatus(waOk ? 'Enviado por WhatsApp' : '⚠ WA: '+res.err+' — guardando en Sheet');
+    setFootStatus(waOk ? 'Enviado por WhatsApp' : '⚠ WA: Error — guardando en Sheet');
   } else { setFootStatus('Sin token WA — guardando en Sheet para reenvío del bot'); }
 
   if(!DEMO){
     const ok = await appendFila([fecha(), curTel, c.nombre, '', '', 'RESPUESTA MANUAL', texto, waOk ? 'ENVIADO' : 'ERROR WA']);
     if(ok){ 
         setFootStatus('✓ Registrado en Sheets'); 
-        setTimeout(()=>{ sincronizarSheets(); }, 1000); 
+        setTimeout(sincronizarSheets, 1000); 
     } else {
         setFootStatus('⚠ Error guardando en Sheet');
     }
@@ -636,14 +630,13 @@ function togglePx(btn, px){
     const ti = document.getElementById('tinput'); 
     if(!ti) return; 
     if(btn.classList.contains('on')){ 
-        ti.value += (ti.value&&!ti.value.endsWith(String.fromCharCode(10))?' ':'')+px; 
-        onInput(ti); 
-        ti.focus(); 
+        ti.value += (ti.value&&!ti.value.endsWith('\n')?' ':'')+px; 
+        onInput(ti); ti.focus(); 
     } 
 }
 
 function iniciarSimulador() {
-    let num = prompt("Ingresa el número a simular:\\nEj: 51999888777");
+    let num = prompt("Ingresa el número a simular:\nEj: 51999888777");
     if (!num) return;
     num = num.split('').filter(c => c >= '0' && c <= '9').join('');
     let simTel = "SIM_" + num;
