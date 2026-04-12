@@ -1,6 +1,6 @@
 """
 Bot WhatsApp — Creación Cuántica E.I.R.L. / Crear Poder Sin Límites Perú
-✅ V93: THE FINAL STABILIZER (Fix get_historial NameError)
+✅ V94: THE IMO AUTHORITY (Portal IMO con Segmentación de Pendientes)
 """
 
 import os, re, json, time, csv, io, random, logging, threading, queue
@@ -15,14 +15,13 @@ logger = logging.getLogger("BotCrear")
 app = Flask(__name__)
 
 # ══════════════════════════════════════════════════════════════
-# 1. ZONA HORARIA Y DIRECTORIO PERSISTENTE
+# 1. CONFIGURACIÓN Y PERSISTENCIA (Disk Render /data)
 # ══════════════════════════════════════════════════════════════
 TZ_LIMA = timezone(timedelta(hours=-5))
 DATA_DIR = "/data" if os.path.exists("/data") else "."
 GERENTE_TEL = "51912379744" 
 
 def ahora_lima(): return datetime.now(TZ_LIMA)
-def ahora_lima_str(): return ahora_lima().strftime("%Y-%m-%d %H:%M:%S")
 
 def get_csv_bd_path():
     for path in [".", DATA_DIR]:
@@ -43,34 +42,23 @@ class Config:
     LOCK_TIMEOUT        = 5   
 
 # ══════════════════════════════════════════════════════════════
-# 2. GESTOR DE PERSISTENCIA (FIX CRÍTICO)
+# 2. GESTORES DE DATOS
 # ══════════════════════════════════════════════════════════════
 def get_historial():
-    """Función restaurada para el panel de chat."""
     try:
         if os.path.exists(Config.HISTORIAL_PATH):
-            with open(Config.HISTORIAL_PATH, "r", encoding="utf-8") as f:
-                return json.load(f)
-    except Exception as e:
-        logger.error(f"Error cargando historial: {e}")
+            with open(Config.HISTORIAL_PATH, "r", encoding="utf-8") as f: return json.load(f)
+    except: pass
     return []
 
 def append_historial(telefono, nombre, texto, tipo):
     try:
         with FileLock(Config.HISTORIAL_PATH + ".lock", timeout=Config.LOCK_TIMEOUT):
             h = get_historial()
-            h.append({
-                "telefono": str(telefono),
-                "nombre": nombre or "Desconocido",
-                "texto": texto,
-                "tipo": tipo,
-                "hora": ahora_lima().strftime("%d/%m %H:%M")
-            })
+            h.append({"telefono": str(telefono), "nombre": nombre or "Desconocido", "texto": texto, "tipo": tipo, "hora": ahora_lima().strftime("%d/%m %H:%M")})
             if len(h) > 3000: h = h[-3000:]
-            with open(Config.HISTORIAL_PATH, "w", encoding="utf-8") as f:
-                json.dump(h, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        logger.error(f"Error guardando historial: {e}")
+            with open(Config.HISTORIAL_PATH, "w", encoding="utf-8") as f: json.dump(h, f, ensure_ascii=False, indent=2)
+    except: pass
 
 def set_sesion(tel, data):
     try:
@@ -79,69 +67,74 @@ def set_sesion(tel, data):
             if os.path.exists(Config.SESSIONS_PATH):
                 with open(Config.SESSIONS_PATH, "r", encoding="utf-8") as f: all_s = json.load(f)
             all_s[str(tel)] = data
-            with open(Config.SESSIONS_PATH, "w", encoding="utf-8") as f:
-                json.dump(all_s, f, ensure_ascii=False, indent=2)
+            with open(Config.SESSIONS_PATH, "w", encoding="utf-8") as f: json.dump(all_s, f, ensure_ascii=False, indent=2)
     except: pass
 
 def get_sesion(tel):
     try:
         if os.path.exists(Config.SESSIONS_PATH):
-            with open(Config.SESSIONS_PATH, "r", encoding="utf-8") as f:
-                return json.load(f).get(str(tel), {})
+            with open(Config.SESSIONS_PATH, "r", encoding="utf-8") as f: return json.load(f).get(str(tel), {})
     except: pass
     return {}
 
 # ══════════════════════════════════════════════════════════════
-# 3. CALENDARIO Y CRM
+# 3. CRM IMO E INTELIGENCIA DE DATOS
 # ══════════════════════════════════════════════════════════════
-def get_fecha_activa(tipo):
-    eventos = {
-        "C1": "Viernes 01 de Mayo a las 9:00 AM (Equipo 27)",
-        "C2": "Jueves 14 de Mayo a las 1:00 PM (Equipo 27)",
-        "MJ": "Viernes 17 de Abril a las 5:00 PM (Inicia Equipo 26)"
-    }
-    return eventos.get(tipo, "Fechas por confirmar.")
-
 def obtener_perfil_crm(telefono):
     tel_norm = str(telefono)[-9:]
-    perfil = {"rol": "PROSPECTO", "nombre": None, "enrolados": []}
+    perfil = {"rol": "PROSPECTO", "nombre": None, "enrolados_todos": [], "enrolados_pendientes": []}
     path = Config.CSV_BD_PATH
+    
     if os.path.exists(path):
-        with open(path, 'r', encoding='utf-8-sig') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                if str(row.get('Teléfono',''))[-9:] == tel_norm:
-                    perfil["nombre"] = row.get('Nombre','').split()[0].title()
-                    c1, c2 = row.get('C1','').upper(), row.get('C2','').upper()
-                    perfil["rol"] = "PX_REZAGADO_C1" if c1 != 'SI' else ("PX_UPSELL_C2" if c2 != 'SI' else "PX_UPSELL_MJ")
-                if str(row.get('Tel. IMO',''))[-9:] == tel_norm:
-                    perfil["rol"] = "IMO"
-                    perfil["enrolados"].append(f"• {row.get('Nombre','')} ({'Sentado ✅' if row.get('C1','')=='SI' else 'Pendiente ⏳'})")
+        try:
+            with open(path, 'r', encoding='utf-8-sig') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    tel_px = str(row.get('Teléfono',''))[-9:]
+                    tel_imo = str(row.get('Tel. IMO',''))[-9:]
+                    nombre_px = row.get('Nombre','').strip() + " " + row.get('Apellido','').strip()
+                    asistio_c1 = row.get('C1','').strip().upper() == 'SI'
+                    
+                    # ¿Es el participante?
+                    if tel_px == tel_norm:
+                        perfil["nombre"] = row.get('Nombre','').split()[0].title()
+                        perfil["rol"] = "PX_REZAGADO_C1" if not asistio_c1 else "PX_SENTADO"
+                    
+                    # ¿Es el IMO de alguien?
+                    if tel_imo == tel_norm:
+                        perfil["rol"] = "IMO"
+                        status = "✅ Sentado" if asistio_c1 else "⏳ Pendiente"
+                        linea = f"• {nombre_px.title()} ({status})"
+                        perfil["enrolados_todos"].append(linea)
+                        if not asistio_c1:
+                            perfil["enrolados_pendientes"].append(f"• {nombre_px.title()} (Falta C1)")
+        except Exception as e:
+            logger.error(f"Error leyendo CSV: {e}")
+            
     return perfil
 
-# ══════════════════════════════════════════════════════════════
-# 4. MOTOR DE MENÚS Y ENVÍO
-# ══════════════════════════════════════════════════════════════
-INFOS = {
-    "c1": "🚀 *Capítulo 1: El Descubrimiento*\nEntrenamiento de 3 días para romper límites.\n📍 Hotel José Antonio Deluxe, Miraflores.",
-    "c2": "🔥 *Capítulo 2: La Experiencia*\n4 días inmersivos para rediseñar tu realidad.",
-    "mj": "👑 *Maestría del Juego: La Práctica*\n100 días de disciplina para resultados sostenibles."
-}
+def get_fecha_activa(tipo):
+    evs = {"C1": "Viernes 01 de Mayo (E27)", "C2": "Jueves 14 de Mayo (E27)", "MJ": "Viernes 17 de Abril (E26)"}
+    return evs.get(tipo, "TBC")
 
+# ══════════════════════════════════════════════════════════════
+# 4. MOTOR DE COMUNICACIÓN
+# ══════════════════════════════════════════════════════════════
 def enviar_mensaje(tel, texto, nombre_log="BOT"):
     if str(tel).startswith("SIM_"):
         append_historial(tel, nombre_log, texto, "out")
         return True
     try:
-        url = f"https://graph.facebook.com/v19.0/{Config.PHONE_ID}/messages"
-        headers = {"Authorization": f"Bearer {Config.TOKEN}", "Content-Type": "application/json"}
-        payload = {"messaging_product": "whatsapp", "to": str(tel), "type": "text", "text": {"body": texto}}
-        r = req_lib.post(url, json=payload, headers=headers, timeout=10)
+        r = req_lib.post(f"https://graph.facebook.com/v19.0/{Config.PHONE_ID}/messages", 
+                         json={"messaging_product": "whatsapp", "to": str(tel), "type": "text", "text": {"body": texto}}, 
+                         headers={"Authorization": f"Bearer {Config.TOKEN}"}, timeout=10)
         if r.status_code == 200:
             append_historial(tel, nombre_log, texto, "out")
             return True
+        else: logger.error(f"Error API WA: {r.text}")
     except Exception as e:
-        logger.error(f"Error WA: {e}")
+        logger.error(f"Error enviando: {e}")
+        if tel != GERENTE_TEL: enviar_mensaje(GERENTE_TEL, f"🚨 ALERTA: Error enviando a {tel}")
     return False
 
 def flujo_principal(tel, texto):
@@ -149,36 +142,66 @@ def flujo_principal(tel, texto):
         sesion = get_sesion(tel)
         txt_up = str(texto).strip().upper()
         
-        if not sesion or txt_up in {"0","MENU","INICIO"}:
+        # INICIO / MENU
+        if not sesion or txt_up in {"0","MENU","MENÚ","INICIO"}:
             perfil = obtener_perfil_crm(tel)
-            sesion = {"perfil": perfil, "menu_state": "main_imo" if perfil["rol"]=="IMO" else "main_prospecto"}
-            set_sesion(tel, sesion)
-            saludo = f"🌟 *Hola {perfil.get('nombre','Líder')}*\n\n1️⃣ Información Entrenamientos\n2️⃣ Fechas 2026\n3️⃣ Pagos\n4️⃣ Coordinación\n0️⃣ Salir"
+            sesion = {"perfil": perfil}
+            
             if perfil["rol"] == "IMO":
-                saludo = f"🌟 *Hola Líder IMO {perfil.get('nombre')}*\n\n1️⃣ Ver mis enrolados\n2️⃣ Próximas fechas\n3️⃣ Coordinación\n0️⃣ Salir"
+                saludo = (f"🌟 *Portal del Líder IMO — {perfil.get('nombre','Líder')}*\n\n"
+                          "¿Qué información elijes consultar hoy?\n\n"
+                          "1️⃣ Ver *TODOS* mis enrolados (Lista completa)\n"
+                          "2️⃣ Ver enrolados *PENDIENTES* de C1\n"
+                          "3️⃣ Consultar próximas fechas\n"
+                          "4️⃣ Hablar con Coordinación IMO\n"
+                          "0️⃣ Salir")
+            else:
+                saludo = (f"🌟 *Hola {perfil.get('nombre','Líder')}*\n"
+                          "¡Bienvenido a CPSL Perú!\n\n"
+                          "1️⃣ Información Entrenamientos\n"
+                          "2️⃣ Fechas 2026\n"
+                          "3️⃣ Inversión y Pagos\n"
+                          "4️⃣ Hablar con Coordinación\n"
+                          "0️⃣ Finalizar")
+            
+            set_sesion(tel, sesion)
             enviar_mensaje(tel, saludo, f"({perfil['rol']}) {perfil['nombre'] or 'User'}")
             return
 
-        # Lógica simplificada de navegación
+        perfil = sesion.get("perfil", {})
+        
+        # LÓGICA IMO
+        if perfil["rol"] == "IMO":
+            if txt_up == "1":
+                lista = perfil.get("enrolados_todos", [])
+                msg = "📋 *LISTA COMPLETA DE ENROLADOS*\n\n" + ("\n".join(lista) if lista else "No tienes invitados registrados.")
+                enviar_mensaje(tel, msg + "\n\n_Escribe 0 para el menú principal_")
+            elif txt_up == "2":
+                lista = perfil.get("enrolados_pendientes", [])
+                msg = "⏳ *ENROLADOS PENDIENTES DE C1*\n(Aún no se han sentado)\n\n" + ("\n".join(lista) if lista else "🎉 ¡Todos tus invitados ya se sentaron en C1!")
+                enviar_mensaje(tel, msg + "\n\n_Escribe 0 para el menú principal_")
+            elif txt_up == "3":
+                msg = f"📅 *PRÓXIMAS FECHAS 2026*\n\n🚀 C1: {get_fecha_activa('C1')}\n🔥 C2: {get_fecha_activa('C2')}\n👑 MJ: {get_fecha_activa('MJ')}\n\n_Escribe 0 para volver_"
+                enviar_mensaje(tel, msg)
+            elif txt_up == "4":
+                enviar_mensaje(tel, "✅ He generado un ticket para ti. Un coordinador de IMOs te escribirá pronto.")
+                enviar_mensaje(GERENTE_TEL, f"🚨 TICKET IMO: wa.me/{tel} ({perfil.get('nombre')}) requiere soporte.")
+            return
+
+        # LÓGICA PROSPECTO
         if txt_up == "1":
-            if sesion["menu_state"] == "main_imo":
-                lista = sesion["perfil"].get("enrolados", [])
-                msg = "*Tus enrolados:*\n" + ("\n".join(lista) if lista else "Sin invitados.")
-                enviar_mensaje(tel, msg + "\n\n_Escribe 0 para volver_")
-            else:
-                enviar_mensaje(tel, INFOS["c1"] + "\n\n_Escribe 0 para el menú principal._")
+            enviar_mensaje(tel, "🚀 *Capítulo 1:* Entrenamiento vivencial de 3 días para romper paradigmas.\n🔥 *Capítulo 2:* 4 días de inmersión total.\n👑 *MJ:* 100 días de práctica.\n\n_Escribe 0 para volver_")
         elif txt_up == "2":
-            msg = f"📅 *Fechas*\n🚀 C1: {get_fecha_activa('C1')}\n🔥 C2: {get_fecha_activa('C2')}\n👑 MJ: {get_fecha_activa('MJ')}\n\n_0 para volver_"
-            enviar_mensaje(tel, msg)
+            enviar_mensaje(tel, f"📅 *FECHAS:* C1: {get_fecha_activa('C1')}, C2: {get_fecha_activa('C2')}.\n\n_Escribe 0 para volver_")
         elif txt_up == "3":
-            enviar_mensaje(tel, "💳 *Pagos*\nBCP Soles: 1934218307060\nCreación Cuántica E.I.R.L.\n\n_0 para volver_")
-        else:
-            if not txt_up.isnumeric():
-                enviar_mensaje(tel, "Derivado con coordinación. Te responderemos pronto. 🙏")
-                enviar_mensaje(GERENTE_TEL, f"🚨 TICKET: wa.me/{tel}\nMotivo: {texto}")
+            enviar_mensaje(tel, "💳 *Pagos:* BCP Soles 1934218307060 a nombre de Creación Cuántica E.I.R.L.\n\n_Escribe 0 para volver_")
+        elif txt_up == "4":
+            enviar_mensaje(tel, "🙏 Te estamos derivando con un coordinador. Danos unos minutos.")
+            enviar_mensaje(GERENTE_TEL, f"🚨 TICKET PX: wa.me/{tel} solicita atención humana.")
 
     except Exception as e:
         logger.error(f"Error flujo: {e}")
+        if tel != GERENTE_TEL: enviar_mensaje(GERENTE_TEL, f"🚨 ERROR CRÍTICO BOT en {tel}: {str(e)}")
 
 # ══════════════════════════════════════════════════════════════
 # 5. ENDPOINTS
@@ -195,12 +218,13 @@ def recv():
         msg = data["entry"][0]["changes"][0]["value"]["messages"][0]
         if msg.get("type") == "text":
             threading.Thread(target=flujo_principal, args=(msg["from"], msg["text"]["body"])).start()
+        else:
+            enviar_mensaje(msg["from"], "⚠️ Solo puedo procesar texto. Por favor escribe tu consulta. 🙏")
     except: pass
     return jsonify({"status":"ok"}), 200
 
 @app.route("/api/historial")
-def api_historial(): 
-    return jsonify(get_historial()), 200
+def api_historial(): return jsonify(get_historial()), 200
 
 @app.route("/api/mensaje_simulador", methods=["POST"])
 def api_simulador():
