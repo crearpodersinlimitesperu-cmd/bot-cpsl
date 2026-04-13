@@ -3,118 +3,101 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Quantum - Crear Poder</title>
+    <title>Torre de Control V108 - Crear Poder</title>
     <style>
-        :root { --primary: #0f172a; --accent: #38bdf8; --bg: #020617; --card: #1e293b; --text: #f8fafc; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
-        .dashboard { max-width: 1100px; margin: auto; height: 92vh; display: flex; flex-direction: column; background: var(--card); border-radius: 12px; overflow: hidden; border: 1px solid #334155; }
-        .header { background: #0f172a; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent); }
-        .header h1 { margin: 0; font-size: 1.3rem; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; }
-        .tabs { display: flex; background: #1e293b; border-bottom: 1px solid #334155; }
-        .tab { padding: 15px 25px; cursor: pointer; color: #94a3b8; font-weight: bold; border-bottom: 3px solid transparent; transition: 0.3s; }
-        .tab.active { color: var(--accent); border-bottom-color: var(--accent); background: rgba(56, 189, 248, 0.05); }
-        .content { flex: 1; overflow-y: auto; padding: 25px; display: none; }
-        .content.active { display: flex; flex-direction: column; gap: 15px; }
+        :root { --bg: #0f172a; --card: #1e293b; --accent: #38bdf8; --text: #f8fafc; --whatsapp-in: #202c33; --whatsapp-out: #005c4b; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 1200px; height: 90vh; display: grid; grid-template-columns: 350px 1fr; gap: 20px; }
         
-        /* Chat Styles */
-        .msg { max-width: 75%; padding: 12px; border-radius: 8px; font-size: 14px; line-height: 1.4; position: relative; border: 1px solid rgba(255,255,255,0.05); }
-        .in { align-self: flex-start; background: #334155; border-left: 4px solid var(--accent); }
-        .out { align-self: flex-end; background: #0ea5e9; color: white; text-align: right; }
-        .meta { font-size: 10px; opacity: 0.6; margin-top: 5px; display: block; }
-        .nombre { font-weight: bold; color: var(--accent); font-size: 12px; margin-bottom: 4px; display: block; }
-        .out .nombre { color: #e0f2fe; }
+        /* Lateral: Equipo y Simulador */
+        .sidebar { background: var(--card); border-radius: 12px; padding: 20px; border: 1px solid #334155; display: flex; flex-direction: column; gap: 20px; }
+        .stat-card { background: var(--bg); padding: 15px; border-radius: 8px; border-left: 4px solid var(--accent); }
+        .stat-card h4 { margin: 0; color: var(--accent); font-size: 14px; }
+        .stat-card p { margin: 5px 0 0; font-weight: bold; font-size: 20px; }
 
-        /* Forms & Cards */
-        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-        .card { background: #0f172a; padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #334155; }
-        .card h3 { color: var(--accent); margin-top: 0; }
-        .input-group { margin-bottom: 15px; text-align: left; }
-        .input-group label { display: block; margin-bottom: 5px; font-size: 12px; color: #94a3b8; }
-        .input-group input, .input-group select { width: 100%; padding: 10px; background: #1e293b; border: 1px solid #334155; color: white; border-radius: 6px; box-sizing: border-box; }
-        button { background: var(--accent); color: #0f172a; border: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        button:hover { background: #0ea5e9; color: white; }
+        /* Principal: Ventana tipo WhatsApp */
+        .main-panel { background: var(--card); border-radius: 12px; display: flex; flex-direction: column; border: 1px solid #334155; overflow: hidden; }
+        .chat-header { background: #1e293b; padding: 15px 25px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
+        .chat-area { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); background-blend-mode: overlay; background-color: #0b141a; }
+        
+        /* Burbujas de Chat */
+        .bubble { max-width: 70%; padding: 10px 15px; border-radius: 8px; font-size: 14px; position: relative; line-height: 1.5; }
+        .bubble.in { align-self: flex-start; background: var(--whatsapp-in); border-bottom-left-radius: 0; }
+        .bubble.out { align-self: flex-end; background: var(--whatsapp-out); border-bottom-right-radius: 0; }
+        .bubble .meta { font-size: 10px; color: #94a3b8; margin-top: 5px; display: block; text-align: right; }
+        .bubble .sender { font-weight: bold; color: var(--accent); font-size: 12px; display: block; margin-bottom: 3px; }
+
+        /* Controles */
+        .controls { padding: 15px; background: #1e293b; border-top: 1px solid #334155; display: flex; gap: 10px; }
+        input { flex: 1; background: #2a3942; border: none; padding: 12px; border-radius: 8px; color: white; outline: none; }
+        button { background: var(--accent); color: #0f172a; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
-    <div class="dashboard">
-        <div class="header">
-            <h1>Torre de Control - Crear Poder</h1>
-            <span style="font-size: 11px; color: #94a3b8;">V105 MASTER + SHEETS</span>
-        </div>
-        
-        <div class="tabs">
-            <div class="tab active" onclick="switchTab(0)">📡 Monitor en Vivo</div>
-            <div class="tab" onclick="switchTab(1)">👥 Equipo y Asignaciones</div>
-            <div class="tab" onclick="switchTab(2)">📅 Gestor de Charlas</div>
-        </div>
-
-        <div class="content active" id="tab0">
-            <div id="chatBox" style="display: flex; flex-direction: column; gap: 10px;"></div>
-        </div>
-
-        <div class="content" id="tab1">
-            <h2 style="margin-top:0;">Estado de Coordinadoras</h2>
-            <div class="grid-3">
-                <div class="card"><h3>Diana</h3><p style="font-size: 24px; font-weight: bold; margin: 10px 0;" id="countD">0</p><span class="meta">Casos Activos</span></div>
-                <div class="card"><h3>Joyce</h3><p style="font-size: 24px; font-weight: bold; margin: 10px 0;" id="countJ">0</p><span class="meta">Casos Activos</span></div>
-                <div class="card"><h3>Zuley</h3><p style="font-size: 24px; font-weight: bold; margin: 10px 0;" id="countZ">0</p><span class="meta">Casos Activos</span></div>
+    <div class="container">
+        <aside class="sidebar">
+            <h2 style="color: var(--accent); margin: 0;">Sede Lima V108</h2>
+            <div id="staff-stats">
+                <div class="stat-card"><h4>Diana (C1/C2)</h4><p id="count-dmoscoso">0</p></div>
+                <div class="stat-card"><h4>Joyce (C1/C2)</h4><p id="count-jmarin">0</p></div>
+                <div class="stat-card"><h4>Zuley (C1/C2)</h4><p id="count-zurteaga">0</p></div>
+                <div class="stat-card"><h4>Leyla (MJ)</h4><p id="count-lpasquel">0</p></div>
             </div>
-        </div>
-
-        <div class="content" id="tab2">
-            <div class="grid-3">
-                <div class="card" style="grid-column: span 1;">
-                    <h3>Nueva Charla</h3>
-                    <div class="input-group"><label>Nombre del Evento</label><input type="text" id="eventName" placeholder="Ej: Capítulo 1 - E28"></div>
-                    <div class="input-group"><label>Fecha</label><input type="date" id="eventDate"></div>
-                    <div class="input-group"><label>Público Objetivo</label>
-                        <select id="eventTarget"><option>Prospectos (Nuevos)</option><option>IMOs (Graduados)</option></select>
-                    </div>
-                    <button onclick="crearCharla()">Lanzar Charla</button>
-                </div>
-                <div class="card" style="grid-column: span 2; text-align: left;">
-                    <h3>Charlas Activas</h3>
-                    <div id="listaCharlas" style="background: #1e293b; padding: 15px; border-radius: 6px; min-height: 150px;">
-                        <div style="padding: 10px; border-bottom: 1px solid #334155;">🟢 <b>Capítulo 1 - E27</b> | 01 Mayo 2026 | <i>Público General</i></div>
-                    </div>
-                </div>
+            <hr style="border: 0; border-top: 1px solid #334155; width: 100%;">
+            <div class="stat-card" style="border-color: #10b981;">
+                <h4>Última Identidad Detectada</h4>
+                <p id="last-dni" style="font-size: 14px; color: #10b981;">Esperando DNI...</p>
             </div>
-        </div>
+            <button onclick="location.reload()" style="background: #334155; color: white; margin-top: auto;">🔄 Refrescar Sistema</button>
+        </aside>
+
+        <main class="main-panel">
+            <div class="chat-header">
+                <div>
+                    <strong id="current-chat-name">Monitor Global de Mensajes</strong><br>
+                    <small style="color: #94a3b8;">En línea - Torre de Control Quantum</small>
+                </div>
+                <div style="font-size: 12px; color: var(--accent);">V108.2 MASTER</div>
+            </div>
+            <div class="chat-area" id="chat-box">
+                </div>
+            <div class="controls">
+                <input type="text" placeholder="Simular mensaje de nuevo prospecto...">
+                <button>Nuevo Chat</button>
+            </div>
+        </main>
     </div>
 
     <script>
-        function switchTab(idx) {
-            document.querySelectorAll('.tab').forEach((t, i) => t.className = i === idx ? 'tab active' : 'tab');
-            document.querySelectorAll('.content').forEach((c, i) => c.style.display = i === idx ? 'flex' : 'none');
-        }
-
-        async function updatePanel() {
+        async function updateDashboard() {
             try {
-                const r = await fetch('/api/historial'); const data = await r.json();
-                const container = document.getElementById('chatBox');
-                if (container.dataset.count !== data.length.toString()) {
-                    container.innerHTML = data.map(m => `
-                        <div class="msg ${m.tipo}">
-                            <span class="nombre">${m.nombre} <span style="font-size:9px;">(${m.telefono})</span></span>
-                            ${m.texto.replace(/\n/g, '<br>')}
-                            <span class="meta">${m.hora}</span>
+                const response = await fetch('/api/historial');
+                const messages = await response.json();
+                const chatBox = document.getElementById('chat-box');
+                
+                // Si hay nuevos mensajes, actualizamos
+                if (chatBox.dataset.lastCount !== messages.length.toString()) {
+                    chatBox.innerHTML = messages.map(msg => `
+                        <div class="bubble ${msg.tipo === 'in' ? 'in' : 'out'}">
+                            <span class="sender">${msg.nombre}</span>
+                            ${msg.texto.replace(/\n/g, '<br>')}
+                            <span class="meta">${msg.hora}</span>
                         </div>
                     `).join('');
-                    container.dataset.count = data.length;
-                    document.getElementById('tab0').scrollTop = document.getElementById('tab0').scrollHeight;
-                }
-            } catch (e) { console.error("Error visual:", e); }
-        }
-        setInterval(updatePanel, 2000); updatePanel();
+                    chatBox.dataset.lastCount = messages.length;
+                    chatBox.scrollTop = chatBox.scrollHeight;
 
-        function crearCharla() {
-            const n = document.getElementById('eventName').value;
-            const d = document.getElementById('eventDate').value;
-            const t = document.getElementById('eventTarget').value;
-            if(!n || !d) return alert("Completa los datos");
-            document.getElementById('listaCharlas').innerHTML += `<div style="padding: 10px; border-bottom: 1px solid #334155;">🟢 <b>${n}</b> | ${d} | <i>${t}</i></div>`;
-            document.getElementById('eventName').value = '';
+                    // Actualizar DNI en la barra lateral
+                    const lastClientMsg = [...messages].reverse().find(m => m.tipo === 'in');
+                    if (lastClientMsg && lastClientMsg.nombre.includes('-')) {
+                        document.getElementById('last-dni').innerText = lastClientMsg.nombre;
+                    }
+                }
+            } catch (e) { console.error("Error cargando monitor:", e); }
         }
+
+        setInterval(updateDashboard, 2000);
+        updateDashboard();
     </script>
 </body>
 </html>
