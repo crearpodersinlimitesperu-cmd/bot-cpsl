@@ -895,19 +895,113 @@ body {
 
 <!-- SIMULADOR -->
 <div class="sim-overlay" id="simOverlay" style="display:none">
-  <div class="sim-box">
-    <div class="sim-header">
-      <span>🧪 Simulador de Bot</span>
-      <span style="flex:1"></span>
-      <button onclick="cerrarSim()" style="background:transparent;border:none;color:#fff;cursor:pointer;font-size:16px">✕</button>
+  <div class="sim-box" style="width:420px">
+
+    <!-- Header -->
+    <div class="sim-header" style="flex-direction:column;align-items:stretch;gap:8px;padding:12px 14px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span>🧪 Simulador de Bot</span>
+        <span style="flex:1"></span>
+        <div id="simStatusDot" style="width:7px;height:7px;border-radius:50%;background:#9FE1CB;flex-shrink:0"></div>
+        <span id="simStatusTxt" style="font-size:10px;opacity:.8">Listo</span>
+        <button onclick="cerrarSim()" style="background:transparent;border:none;color:#fff;cursor:pointer;font-size:16px;margin-left:6px">✕</button>
+      </div>
+
+      <!-- Selector de modo -->
+      <div style="display:flex;gap:4px">
+        <button class="sim-mode-btn on" data-mode="rol" onclick="setSimMode(this)">Por Rol</button>
+        <button class="sim-mode-btn" data-mode="tel" onclick="setSimMode(this)">Número Real</button>
+        <button class="sim-mode-btn" data-mode="custom" onclick="setSimMode(this)">Personalizado</button>
+      </div>
+
+      <!-- Panel: Por Rol -->
+      <div id="simPanelRol" class="sim-panel">
+        <div style="font-size:10px;opacity:.8;margin-bottom:4px">Ver el bot como lo vería cada perfil:</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <button class="sim-rol-btn on" data-tel="SIM_IMO_001" data-label="IMO 👑" onclick="setSimRol(this)">IMO 👑</button>
+          <button class="sim-rol-btn" data-tel="SIM_GRAD_001" data-label="Graduado MJ 🎓" onclick="setSimRol(this)">Graduado MJ 🎓</button>
+          <button class="sim-rol-btn" data-tel="SIM_PX_001" data-label="PX Rezagado 🚀" onclick="setSimRol(this)">PX 🚀</button>
+          <button class="sim-rol-btn" data-tel="SIM_NEW_001" data-label="Nuevo 🌟" onclick="setSimRol(this)">Nuevo 🌟</button>
+        </div>
+        <div id="simRolInfo" style="font-size:10px;opacity:.7;margin-top:4px">
+          Simulando: <strong>IMO 👑</strong> — Tel ficticio SIM_IMO_001
+        </div>
+      </div>
+
+      <!-- Panel: Número Real -->
+      <div id="simPanelTel" class="sim-panel" style="display:none">
+        <div style="font-size:10px;opacity:.8;margin-bottom:4px">Ve exactamente lo que ve esta persona:</div>
+        <div style="display:flex;gap:6px">
+          <input id="simTelReal" class="sim-input" style="flex:1;font-family:monospace;font-size:12px"
+            placeholder="51987654321 o elige de la lista →"
+            oninput="buscarConvPorTel(this.value)">
+          <select id="simTelSelect" class="sim-input" style="width:130px;font-size:11px" onchange="document.getElementById('simTelReal').value=this.value;cargarSimTel(this.value)">
+            <option value="">— Conversaciones —</option>
+          </select>
+        </div>
+        <div id="simTelInfo" style="font-size:10px;opacity:.7;margin-top:4px">Ingresa un número para cargar su historial</div>
+      </div>
+
+      <!-- Panel: Personalizado -->
+      <div id="simPanelCustom" class="sim-panel" style="display:none">
+        <div style="font-size:10px;opacity:.8;margin-bottom:4px">Crea un perfil personalizado para la prueba:</div>
+        <div style="display:flex;gap:6px;margin-bottom:4px">
+          <input id="simCustomTel" class="sim-input" style="flex:1;font-size:12px" placeholder="Tel (ej: SIM_12345)">
+          <select id="simCustomRol" class="sim-input" style="width:110px;font-size:11px">
+            <option value="SIM_IMO">IMO</option>
+            <option value="SIM_PX">PX</option>
+            <option value="SIM_NEW">Nuevo</option>
+          </select>
+        </div>
+        <button class="sim-send" style="width:100%;border-radius:6px" onclick="aplicarSimCustom()">Aplicar Perfil</button>
+      </div>
     </div>
-    <div id="simMsg" class="sim-messages"></div>
+
+    <!-- Mensajes -->
+    <div id="simMsg" class="sim-messages" style="min-height:280px;max-height:360px"></div>
+
+    <!-- Botones rápidos de prueba -->
+    <div id="simQuickBtns" style="padding:6px 10px;background:#f0efeb;border-top:1px solid #d3d1c7;display:flex;gap:4px;flex-wrap:wrap">
+      <button class="sim-send" style="font-size:10px;padding:3px 8px;background:#f0efeb;color:#5f5e5a;border:1px solid #d3d1c7;border-radius:12px" onclick="enviarSimRapido('HOLA')">HOLA</button>
+      <button class="sim-send" style="font-size:10px;padding:3px 8px;background:#f0efeb;color:#5f5e5a;border:1px solid #d3d1c7;border-radius:12px" onclick="enviarSimRapido('1')">1️⃣</button>
+      <button class="sim-send" style="font-size:10px;padding:3px 8px;background:#f0efeb;color:#5f5e5a;border:1px solid #d3d1c7;border-radius:12px" onclick="enviarSimRapido('2')">2️⃣</button>
+      <button class="sim-send" style="font-size:10px;padding:3px 8px;background:#f0efeb;color:#5f5e5a;border:1px solid #d3d1c7;border-radius:12px" onclick="enviarSimRapido('3')">3️⃣</button>
+      <button class="sim-send" style="font-size:10px;padding:3px 8px;background:#f0efeb;color:#5f5e5a;border:1px solid #d3d1c7;border-radius:12px" onclick="enviarSimRapido('STOP')">STOP</button>
+      <button class="sim-send" style="font-size:10px;padding:3px 8px;background:#534AB7;color:#fff;border:none;border-radius:12px;margin-left:auto" onclick="limpiarSim()">🗑 Limpiar</button>
+    </div>
+
+    <!-- Input -->
     <div class="sim-input-row">
-      <input class="sim-input" id="simInput" placeholder="Escribe un mensaje…" onkeydown="if(event.key==='Enter')enviarSim()">
+      <input class="sim-input" id="simInput" placeholder="Escribe un mensaje al bot…"
+        onkeydown="if(event.key==='Enter')enviarSim()">
       <button class="sim-send" onclick="enviarSim()">Enviar</button>
     </div>
+
   </div>
 </div>
+
+<style>
+.sim-mode-btn {
+  flex:1; padding:4px 6px; border-radius:6px; border:1px solid rgba(255,255,255,.3);
+  background:transparent; color:rgba(255,255,255,.7); cursor:pointer;
+  font-family:inherit; font-size:10px; font-weight:500;
+  transition:all .15s;
+}
+.sim-mode-btn.on {
+  background:rgba(255,255,255,.2); color:#fff; border-color:rgba(255,255,255,.6);
+  font-weight:700;
+}
+.sim-rol-btn {
+  padding:3px 8px; border-radius:12px; border:1px solid rgba(255,255,255,.3);
+  background:transparent; color:rgba(255,255,255,.8); cursor:pointer;
+  font-family:inherit; font-size:10px; transition:all .15s;
+}
+.sim-rol-btn.on {
+  background:rgba(255,255,255,.25); color:#fff; border-color:#fff; font-weight:700;
+}
+.sim-panel { animation: fadeIn .15s ease; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
+</style>
 
 <!-- TOASTS -->
 <div class="toast-container" id="toasts"></div>
@@ -1317,35 +1411,113 @@ async function iniciarNuevoChat() {
 }
 
 // ══ SIMULADOR ══════════════════════════════════════════════
-function abrirSim() {
-  simTel = 'SIM_'+Date.now();
-  document.getElementById('simOverlay').style.display='flex';
-  document.getElementById('simMsg').innerHTML='';
-  setTimeout(()=>{ document.getElementById('simInput').focus(); }, 100);
+let simMode = 'rol';   // 'rol' | 'tel' | 'custom'
+simTel = 'SIM_IMO_001';
+
+function setSimMode(el) {
+  document.querySelectorAll('.sim-mode-btn').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  simMode = el.dataset.mode;
+  document.getElementById('simPanelRol').style.display    = simMode==='rol'    ? '' : 'none';
+  document.getElementById('simPanelTel').style.display    = simMode==='tel'    ? '' : 'none';
+  document.getElementById('simPanelCustom').style.display = simMode==='custom' ? '' : 'none';
+  limpiarSim();
 }
-function abrirSimConTel(tel) {
-  simTel = 'SIM_'+tel.slice(-9);
-  document.getElementById('simOverlay').style.display='flex';
-  // Cargar historial del tel simulado
+
+function setSimRol(el) {
+  document.querySelectorAll('.sim-rol-btn').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  simTel = el.dataset.tel;
+  document.getElementById('simRolInfo').innerHTML =
+    `Simulando: <strong>${el.dataset.label}</strong> — Tel ficticio <code>${simTel}</code>`;
+  limpiarSim();
+}
+
+function cargarSimTel(tel) {
+  if(!tel) return;
+  simTel = tel;
   const c = convs.find(x=>x.tel===tel);
+  const info = document.getElementById('simTelInfo');
   if(c) {
-    document.getElementById('simMsg').innerHTML = c.msgs.map(m=>`
-      <div class="msg ${m.tipo==='in'?'in':'out'}">
-        <div class="bubble" style="font-size:12px">${nl2br(m.texto)}</div>
-        <div class="msg-meta" style="font-size:9px">${esc(m.hora)}</div>
-      </div>`).join('');
-    setTimeout(()=>{
-      const el=document.getElementById('simMsg');
-      if(el) el.scrollTop=el.scrollHeight;
-    },50);
+    info.innerHTML = `Cargando historial de <strong>${c.nombre}</strong> — ${c.msgs.length} mensajes`;
+    renderSimHistorial(c);
   } else {
+    info.textContent = `Tel ${tel} — sin historial previo. El bot lo identificará al enviar.`;
     document.getElementById('simMsg').innerHTML='';
   }
+}
+
+function buscarConvPorTel(val) {
+  const clean = val.replace(/\D/g,'');
+  if(clean.length >= 9) {
+    const c = convs.find(x=>x.tel.includes(clean));
+    if(c) cargarSimTel(c.tel);
+    else   simTel = clean.startsWith('51') ? clean : '51'+clean;
+  }
+}
+
+function renderSimHistorial(c) {
+  const el = document.getElementById('simMsg');
+  el.innerHTML = c.msgs.map(m=>`
+    <div class="msg ${m.tipo==='in'?'in':'out'}">
+      <div class="bubble" style="font-size:12px">${nl2br(m.texto)}</div>
+      <div class="msg-meta" style="font-size:9px">${esc(m.hora)}</div>
+    </div>`).join('');
+  setTimeout(()=>{ el.scrollTop=el.scrollHeight; }, 50);
+}
+
+function aplicarSimCustom() {
+  const tel = (document.getElementById('simCustomTel').value||'').trim();
+  const rol = document.getElementById('simCustomRol').value;
+  simTel = tel || (rol + '_' + Date.now());
+  document.getElementById('simCustomTel').value = simTel;
+  toast(`Simulando como ${simTel}`, 'ok');
+  limpiarSim();
+}
+
+function limpiarSim() {
+  document.getElementById('simMsg').innerHTML =
+    `<div style="text-align:center;padding:20px;font-size:11px;color:#a0a0a0">
+      Simulando: <strong>${simTel}</strong><br>
+      Escribe HOLA o usa los botones rápidos para iniciar.
+    </div>`;
+}
+
+function abrirSim() {
+  // Poblar select con conversaciones activas
+  const sel = document.getElementById('simTelSelect');
+  sel.innerHTML = '<option value="">— Conversaciones —</option>' +
+    convs.slice(0,30).map(c=>`<option value="${c.tel}">${c.nombre.slice(0,25)} (+${c.tel.slice(-9)})</option>`).join('');
+  document.getElementById('simOverlay').style.display='flex';
+  setSimMode(document.querySelector('[data-mode="rol"]'));
   setTimeout(()=>{ document.getElementById('simInput').focus(); }, 100);
 }
+
+function abrirSimConTel(tel) {
+  const sel = document.getElementById('simTelSelect');
+  sel.innerHTML = '<option value="">— Conversaciones —</option>' +
+    convs.slice(0,30).map(c=>`<option value="${c.tel}"${c.tel===tel?' selected':''}>${c.nombre.slice(0,25)} (+${c.tel.slice(-9)})</option>`).join('');
+  document.getElementById('simOverlay').style.display='flex';
+  // Activar modo número real
+  const btnTel = document.querySelector('[data-mode="tel"]');
+  setSimMode(btnTel);
+  document.getElementById('simTelReal').value = tel;
+  cargarSimTel(tel);
+  setTimeout(()=>{ document.getElementById('simInput').focus(); }, 100);
+}
+
 function cerrarSim() {
   document.getElementById('simOverlay').style.display='none';
-  simTel = null;
+}
+
+function setSimStatus(ok, txt) {
+  document.getElementById('simStatusDot').style.background = ok ? '#1D9E75' : '#BA7517';
+  document.getElementById('simStatusTxt').textContent = txt;
+}
+
+function enviarSimRapido(txt) {
+  document.getElementById('simInput').value = txt;
+  enviarSim();
 }
 
 async function enviarSim() {
@@ -1354,43 +1526,58 @@ async function enviarSim() {
   if(!txt || !simTel) return;
   inp.value='';
 
-  // Agregar burbuja saliente en simulador
+  // Agregar burbuja saliente
   const simEl = document.getElementById('simMsg');
+  // Limpiar mensaje de bienvenida si existe
+  if(simEl.querySelector('div[style*="padding:20px"]')) simEl.innerHTML='';
+
   simEl.innerHTML += `<div class="msg out">
     <div class="bubble" style="font-size:12px">${nl2br(txt)}</div>
     <div class="msg-meta" style="font-size:9px">${ahora()}</div>
   </div>`;
   simEl.scrollTop = simEl.scrollHeight;
+  setSimStatus(false, 'Enviando…');
 
-  // Enviar al bot
   try {
     const r = await fetch(CFG.url+'/api/mensaje_simulador',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({telefono:simTel, texto:txt})
     });
-    if(!r.ok) throw new Error(r.status);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    setSimStatus(true, 'Esperando bot…');
 
-    // Esperar respuesta del bot y mostrarla
-    setTimeout(async()=>{
+    // Polling: esperar respuesta del bot (hasta 3 intentos)
+    let intentos = 0;
+    const poll = setInterval(async()=>{
+      intentos++;
       try {
-        const rh = await fetch(CFG.url+'/api/historial');
+        const rh = await fetch(`${CFG.url}/api/historial/${simTel}`);
+        if(!rh.ok) return;
         const hist = await rh.json();
-        const misMsg = hist.filter(m=>String(m.telefono)===String(simTel));
-        // Mostrar últimos mensajes del bot (out)
-        const botMsgs = misMsg.filter(m=>m.tipo==='out');
-        const simEl2 = document.getElementById('simMsg');
-        if(simEl2 && botMsgs.length>0) {
-          const ultimo = botMsgs[botMsgs.length-1];
-          simEl2.innerHTML += `<div class="msg in">
-            <div class="bubble" style="font-size:12px">${nl2br(ultimo.texto)}</div>
-            <div class="msg-meta" style="font-size:9px">${esc(ultimo.hora)}</div>
-          </div>`;
-          simEl2.scrollTop=simEl2.scrollHeight;
+        const botMsgs = hist.filter(m=>m.tipo==='out');
+
+        // Contar cuántos ya mostramos
+        const yaShown = simEl.querySelectorAll('.msg.in').length;
+        const nuevos  = botMsgs.slice(yaShown);
+
+        if(nuevos.length > 0) {
+          clearInterval(poll);
+          for(const m of nuevos) {
+            simEl.innerHTML += `<div class="msg in">
+              <div class="bubble" style="font-size:12px">${nl2br(m.texto)}</div>
+              <div class="msg-meta" style="font-size:9px">${esc(m.hora)}</div>
+            </div>`;
+          }
+          simEl.scrollTop = simEl.scrollHeight;
+          setSimStatus(true, 'Listo');
         }
-      } catch(e){}
-    }, 1500);
+        if(intentos >= 5) { clearInterval(poll); setSimStatus(true, 'Sin respuesta'); }
+      } catch(e){ clearInterval(poll); }
+    }, 1200);
+
   } catch(e) {
+    setSimStatus(false, 'Error');
     toast('Error simulador: '+e.message,'error');
   }
 }
