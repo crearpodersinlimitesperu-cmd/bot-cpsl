@@ -1,6 +1,6 @@
 """
 Bot WhatsApp — Creación Cuántica E.I.R.L. / Crear Poder Sin Límites Perú
-✅ V102: SMART ROUTING (Diana, Joyce, Zuley + Memoria Permanente)
+✅ V103: AUTO-FIX (GPS para Panel + Lector de Memoria Avanzado)
 """
 import os, re, json, time, csv, logging, threading
 from flask import Flask, request, jsonify
@@ -16,6 +16,7 @@ app = Flask(__name__)
 # --- 1. CONFIGURACIÓN ---
 TZ_LIMA = timezone(timedelta(hours=-5))
 DATA_DIR = "/data" if os.path.exists("/data") else "."
+BASE_DIR = os.path.dirname(os.path.abspath(__file__)) # GPS para encontrar el panel
 
 class Config:
     TOKEN = os.environ.get("WA_TOKEN", "")
@@ -31,7 +32,7 @@ class Config:
         "Zuley": {"tel": "51933599864", "casos": 0}
     }
 
-# --- 2. GESTIÓN DE ASIGNACIONES (Memoria) ---
+# --- 2. GESTIÓN DE ASIGNACIONES (Memoria con Auto-Fix) ---
 def cargar_asignaciones():
     if os.path.exists(Config.ASIGNACIONES_PATH):
         try:
@@ -51,11 +52,14 @@ def obtener_o_asignar_staff(tel_cliente):
     tel_str = str(tel_cliente)
     
     if tel_str in memoria:
-        return memoria[tel_str] # Ya tiene coordinadora asignada
+        asig = memoria[tel_str]
+        # Si el rompehielo lo guardó como diccionario, sacamos solo el nombre
+        return asig.get("nombre", asig) if isinstance(asig, dict) else asig
     
-    # Reparto Equitativo: Contar casos actuales
+    # Reparto Equitativo
     conteo = {nombre: 0 for nombre in Config.STAFF.keys()}
-    for nombre_asig in memoria.values():
+    for asig in memoria.values():
+        nombre_asig = asig.get("nombre", asig) if isinstance(asig, dict) else asig
         if nombre_asig in conteo: conteo[nombre_asig] += 1
     
     # Elegir a la coordinadora con menos carga
@@ -85,19 +89,21 @@ def append_historial(telefono, nombre, texto, tipo):
 def enviar_wa(tel, texto):
     url = f"https://graph.facebook.com/v19.0/{Config.PHONE_ID}/messages"
     payload = {"messaging_product": "whatsapp", "to": str(tel), "type": "text", "text": {"body": texto}}
-    req_lib.post(url, json=payload, headers={"Authorization": f"Bearer {Config.TOKEN}"})
+    try:
+        req_lib.post(url, json=payload, headers={"Authorization": f"Bearer {Config.TOKEN}"})
+    except: pass
 
 def flujo_principal(tel, texto, nombre_wa):
     txt_up = str(texto).strip().upper()
     append_historial(tel, nombre_wa, texto, "in")
     
     # Triggers de Derivación (Confirmar o Pedir Apoyo)
-    if any(word in txt_up for word in ["SÍ", "SI", "APOYO", "DUDA", "STAFF"]) or txt_up in ["1", "2"]:
+    if any(word in txt_up for word in ["SÍ", "SI", "APOYO", "DUDA", "STAFF", "INFORMACIÓN"]) or txt_up in ["1", "2", "3"]:
         nombre_coord = obtener_o_asignar_staff(tel)
         tel_coord = Config.STAFF[nombre_coord]["tel"]
         
         # Respuesta al Cliente
-        resp = f"¡Excelente decisión, {nombre_wa}! 🚀 Soy {nombre_coord}, tu Coordinadora de C1 y C2. He recibido tu solicitud y desde este momento te apoyaré personalmente en tu proceso."
+        resp = f"¡Excelente decisión! 🚀 Soy {nombre_coord}, tu Coordinadora de C1 y C2. He recibido tu solicitud y desde este momento te apoyaré personalmente en tu proceso."
         enviar_wa(tel, resp)
         append_historial(tel, "BOT", f"Derivado a {nombre_coord}", "out")
         
@@ -107,8 +113,11 @@ def flujo_principal(tel, texto, nombre_wa):
     
     elif "PAGO" in txt_up:
         enviar_wa(tel, "💳 *Cuentas Corporativas:* BCP Soles 193-XXXX-XXXX. Envía tu captura por aquí.")
+        append_historial(tel, "BOT", "Envió opciones de pago.", "out")
     else:
-        enviar_wa(tel, f"🌟 *Crear Poder Sin Límites*\nHola {nombre_wa}. Escribe:\n*1* para Confirmar asistencia.\n*2* para hablar con Staff.\n*PAGOS* para números de cuenta.")
+        msg = f"🌟 *Crear Poder Sin Límites*\n\nEscribe:\n*1* para Confirmar asistencia\n*2* si necesitas Apoyo o Información\n*PAGOS* para opciones bancarias."
+        enviar_wa(tel, msg)
+        append_historial(tel, "BOT", "Envió Menú Principal", "out")
 
 @app.route("/webhook", methods=["GET", "POST"])
 def webhook():
@@ -117,9 +126,14 @@ def webhook():
     try:
         data = request.get_json()
         msg = data["entry"][0]["changes"][0]["value"]["messages"][0]
-        nombre = data["entry"][0]["changes"][0]["value"]["contacts"][0]["profile"]["name"]
+        
+        try:
+            nombre = data["entry"][0]["changes"][0]["value"]["contacts"][0]["profile"]["name"]
+        except:
+            nombre = "Aliado"
+            
         cuerpo = msg["text"]["body"] if "text" in msg else msg.get("button", {}).get("text", "")
-        threading.Thread(target=flujo_principal, args=(msg["from"], cuerpo, nombre)).start()
+        if cuerpo: threading.Thread(target=flujo_principal, args=(msg["from"], cuerpo, nombre)).start()
     except: pass
     return jsonify({"status":"ok"}), 200
 
@@ -128,6 +142,17 @@ def api_historial():
     if os.path.exists(Config.HISTORIAL_PATH):
         with open(Config.HISTORIAL_PATH, "r", encoding="utf-8") as f: return jsonify(json.load(f)), 200
     return jsonify([]), 200
+
+@app.route("/chat")
+def chat_panel():
+    try:
+        # GPS Activado: Buscando el archivo en la misma ruta exacta del script
+        html_path = os.path.join(BASE_DIR, "panel_chat.html")
+        with open(html_path, encoding="utf-8") as f: 
+            return f.read()
+    except Exception as e: 
+        logger.error(f"Error abriendo HTML: {e}")
+        return "Panel no encontrado. Por favor, asegúrate de haber subido 'panel_chat.html' a GitHub.", 404
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
