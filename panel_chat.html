@@ -32,15 +32,8 @@
         .conv-phone { font-size: 11px; color: #999; margin-top: 3px; }
         .main { flex: 1; display: flex; flex-direction: column; background: white; }
         .empty-state { flex: 1; display: flex; align-items: center; justify-content: center; color: #999; font-size: 16px; }
-        .chat-header { padding: 15px; border-bottom: 1px solid #ddd; background: #f5f5f5; }
-        .chat-messages { flex: 1; padding: 20px; overflow-y: auto; background: #e5ddd5; }
-        .message { margin-bottom: 15px; max-width: 70%; padding: 8px 12px; border-radius: 8px; }
-        .message.incoming { background: white; align-self: flex-start; }
-        .message.outgoing { background: #dcf8c6; margin-left: auto; }
-        .message-content { font-size: 14px; }
-        .message-time { font-size: 11px; color: #999; margin-top: 3px; }
-        .simulator-btn { background: #2196F3; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 12px; margin-left: 10px; }
-        .simulator-btn:hover { background: #1976D2; }
+        .error-box { background: #ffebee; border: 1px solid #f44336; color: #c62828; padding: 15px; margin: 10px; border-radius: 5px; font-size: 13px; }
+        .debug-info { background: #e3f2fd; padding: 10px; margin: 10px; border-radius: 5px; font-size: 11px; font-family: monospace; }
     </style>
 </head>
 <body>
@@ -60,6 +53,7 @@
             <div class="stat-box"><div class="stat-number" id="gradsStats">0</div><div class="stat-label">GRADS</div></div>
             <div class="stat-box"><div class="stat-number" id="pendStats">0</div><div class="stat-label">PEND</div></div>
         </div>
+        <div id="errorContainer"></div>
         <div class="conversations" id="conversationsList"></div>
     </div>
     <div class="main">
@@ -69,47 +63,131 @@
         let currentFilter = 'todos';
         let conversations = [];
         let selectedConv = null;
+        
+        // Actualizar hora
         function updateTime() {
             const now = new Date();
             document.getElementById('currentTime').textContent = now.toLocaleTimeString('es-PE', {hour: '2-digit', minute:'2-digit'});
         }
         setInterval(updateTime, 1000);
         updateTime();
+
+        // Mostrar error
+        function showError(msg) {
+            const container = document.getElementById('errorContainer');
+            container.innerHTML = `<div class="error-box">⚠️ ${msg}</div>`;
+        }
+
+        // Mostrar debug
+        function showDebug(info) {
+            const container = document.getElementById('errorContainer');
+            container.innerHTML = `<div class="debug-info">📊 ${JSON.stringify(info, null, 2)}</div>`;
+        }
+
+        // Cargar historial
         async function loadHistorial() {
             try {
                 const response = await fetch('/api/historial?limit=200');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
                 const messages = await response.json();
+                console.log('Mensajes recibidos:', messages.length);
+                
+                if (messages.length === 0) {
+                    showDebug('Base de datos vacía - No hay conversaciones aún');
+                }
+                
+                // Agrupar por teléfono
                 const grouped = {};
                 messages.forEach(msg => {
                     if (!grouped[msg.telefono]) {
-                        grouped[msg.telefono] = {telefono: msg.telefono, nombre: msg.nombre, messages: [], lastMessage: msg.hora, coordinadora: msg.coordinadora};
+                        grouped[msg.telefono] = {
+                            telefono: msg.telefono,
+                            nombre: msg.nombre,
+                            messages: [],
+                            lastMessage: msg.hora,
+                            coordinadora: msg.coordinadora
+                        };
                     }
                     grouped[msg.telefono].messages.push(msg);
                 });
-                conversations = Object.values(grouped).sort((a, b) => new Date(b.lastMessage) - new Date(a.lastMessage));
+                
+                conversations = Object.values(grouped).sort((a, b) => 
+                    new Date(b.lastMessage) - new Date(a.lastMessage)
+                );
+                
                 renderConversations();
                 updateStats();
-            } catch (error) { console.error('Error cargando historial:', error); }
+            } catch (error) {
+                console.error('Error cargando historial:', error);
+                showError(`Error cargando datos: ${error.message}<br><br>Verifica:<br>1. Que /api/historial responda<br>2. Que la DB tenga datos<br>3. Consola del navegador (F12)`);
+            }
         }
+
+        // Renderizar conversaciones
         function renderConversations() {
             const list = document.getElementById('conversationsList');
             const search = document.getElementById('searchInput').value.toLowerCase();
+            
             let filtered = conversations;
-            if (currentFilter === 'graduado') filtered = conversations.filter(c => c.nombre.toLowerCase().includes('grad'));
-            else if (currentFilter === 'pendiente') filtered = conversations.filter(c => !c.coordinadora);
-            if (search) filtered = filtered.filter(c => c.nombre.toLowerCase().includes(search) || c.telefono.includes(search));
-            list.innerHTML = filtered.map(conv => `<div class="conversation ${selectedConv === conv.telefono ? 'active' : ''}" onclick="selectConversation('${conv.telefono}')"><div class="conv-header"><span class="conv-name">${conv.nombre}</span><span class="conv-time">${formatTime(conv.lastMessage)}</span></div><div class="conv-message">${conv.messages[0].texto}</div><div class="conv-phone">${conv.telefono}</div></div>`).join('');
+            if (currentFilter === 'graduado') {
+                filtered = conversations.filter(c => c.nombre && c.nombre.toLowerCase().includes('grad'));
+            } else if (currentFilter === 'pendiente') {
+                filtered = conversations.filter(c => !c.coordinadora);
+            }
+            
+            if (search) {
+                filtered = filtered.filter(c => 
+                    (c.nombre && c.nombre.toLowerCase().includes(search)) || 
+                    c.telefono.includes(search)
+                );
+            }
+            
+            if (filtered.length === 0) {
+                list.innerHTML = '<div style="padding: 20px; text-align: center; color: #999;">No hay conversaciones</div>';
+                return;
+            }
+            
+            list.innerHTML = filtered.map(conv => `
+                <div class="conversation ${selectedConv === conv.telefono ? 'active' : ''}" 
+                     onclick="selectConversation('${conv.telefono}')">
+                    <div class="conv-header">
+                        <span class="conv-name">${conv.nombre || 'Sin nombre'}</span>
+                        <span class="conv-time">${formatTime(conv.lastMessage)}</span>
+                    </div>
+                    <div class="conv-message">${conv.messages[0]?.texto || ''}</div>
+                    <div class="conv-phone">${conv.telefono}</div>
+                </div>
+            `).join('');
         }
-        function selectConversation(tel) { selectedConv = tel; renderConversations(); }
+
+        // Seleccionar conversación
+        function selectConversation(tel) {
+            selectedConv = tel;
+            renderConversations();
+        }
+
+        // Actualizar estadísticas
         function updateStats() {
             document.getElementById('totalStats').textContent = conversations.length;
-            document.getElementById('gradsStats').textContent = conversations.filter(c => c.nombre.toLowerCase().includes('grad')).length;
-            document.getElementById('pendStats').textContent = conversations.filter(c => !c.coordinadora).length;
+            document.getElementById('gradsStats').textContent = 
+                conversations.filter(c => c.nombre && c.nombre.toLowerCase().includes('grad')).length;
+            document.getElementById('pendStats').textContent = 
+                conversations.filter(c => !c.coordinadora).length;
         }
+
+        // Formatear hora
         function formatTime(timestamp) {
+            if (!timestamp) return '';
             const date = new Date(timestamp);
-            return date.toLocaleString('es-PE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+            return date.toLocaleString('es-PE', { 
+                day: '2-digit', month: '2-digit', 
+                hour: '2-digit', minute: '2-digit' 
+            });
         }
+
+        // Filtros
         document.querySelectorAll('.filter-btn').forEach(btn => {
             btn.addEventListener('click', function() {
                 document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
@@ -118,8 +196,14 @@
                 renderConversations();
             });
         });
+
+        // Búsqueda
         document.getElementById('searchInput').addEventListener('input', renderConversations);
+
+        // Cargar inicialmente
         loadHistorial();
+        
+        // Actualizar cada 10 segundos
         setInterval(loadHistorial, 10000);
     </script>
 </body>
