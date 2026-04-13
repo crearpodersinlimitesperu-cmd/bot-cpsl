@@ -1,6 +1,6 @@
 """
 Bot WhatsApp — Creación Cuántica E.I.R.L.
-✅ V105: EVOLUCIÓN TOTAL + CONEXIÓN A GOOGLE SHEETS
+✅ V105: MASTER DEFINITIVO (Enrutamiento + Panel + Google Sheets)
 """
 import os, re, json, time, csv, logging, threading
 from flask import Flask, request, jsonify
@@ -27,9 +27,10 @@ class Config:
     ASIGNACIONES_PATH = os.path.join(DATA_DIR, "asignaciones.json")
     SESSIONS_PATH = os.path.join(DATA_DIR, "sesiones.json")
     
-    # 🌟 AQUÍ PEGARÁS TU ENLACE DE MAKE.COM PARA GOOGLE SHEETS
+    # 🌟 ENLACE OFICIAL DE GOOGLE SHEETS (MAKE.COM) INTEGRADO
     URL_SHEETS = os.environ.get("URL_MAKE", "https://hook.us2.make.com/ii4ut5wjlg1khsaes20coa7cgiom13n6")
     
+    # EQUIPO DE COORDINACIÓN
     STAFF = {
         "Diana": {"tel": "51912379744"},
         "Joyce": {"tel": "51933599903"},
@@ -94,7 +95,6 @@ def obtener_perfil_crm(telefono):
 
 # --- 3. GOOGLE SHEETS & HISTORIAL ---
 def enviar_a_sheets(telefono, nombre, rol, mensaje, estado):
-    if "PEGA_AQUI" in Config.URL_SHEETS: return # Si no hay webhook, no hace nada
     datos = {
         "fecha": datetime.now(TZ_LIMA).strftime("%d/%m/%Y %H:%M:%S"),
         "telefono": str(telefono),
@@ -125,7 +125,7 @@ def enviar_wa(tel, texto, log_name="BOT"):
         append_historial(tel, log_name, texto, "out")
     except: pass
 
-# --- 4. CEREBRO DEL BOT (V104 INTACTO) ---
+# --- 4. CEREBRO DEL BOT ---
 def flujo_principal(tel, texto, nombre_wa):
     txt_up = str(texto).strip().upper()
     perfil = obtener_perfil_crm(tel)
@@ -136,7 +136,7 @@ def flujo_principal(tel, texto, nombre_wa):
     sesiones = gestionar_json(Config.SESSIONS_PATH, "leer")
     estado = sesiones.get(str(tel), "INICIO")
     
-    # DISPARO A GOOGLE SHEETS
+    # 🚀 DISPARO AUTOMÁTICO A GOOGLE SHEETS
     threading.Thread(target=enviar_a_sheets, args=(tel, nombre, rol, texto, estado)).start()
     
     if txt_up in ["MENU", "MENÚ", "0", "SALIR", "VOLVER"]: estado = "INICIO"
