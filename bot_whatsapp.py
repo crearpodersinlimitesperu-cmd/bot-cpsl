@@ -1,6 +1,6 @@
 """
 Bot WhatsApp — Creación Cuántica E.I.R.L. / Crear Poder Sin Límites Perú
-✅ V101: STAFF SHIELD (Alertas simultáneas a Zuley, Diana y Joyce + Panel)
+✅ V102: SMART ROUTING (Memoria, Reparto Equitativo Zuley/Diana/Joyce + Panel)
 """
 import os, re, json, time, csv, logging, threading
 from flask import Flask, request, jsonify
@@ -17,26 +17,61 @@ app = Flask(__name__)
 TZ_LIMA = timezone(timedelta(hours=-5))
 DATA_DIR = "/data" if os.path.exists("/data") else "."
 
-def get_csv_bd_path():
-    for path in [".", DATA_DIR]:
-        archivos = [f for f in os.listdir(path) if f.startswith("campana_") and f.endswith(".csv")]
-        if archivos:
-            archivos.sort(key=lambda x: os.path.getmtime(os.path.join(path, x)), reverse=True)
-            return os.path.join(path, archivos[0])
-    return "base_datos.csv"
-
 class Config:
     TOKEN = os.environ.get("WA_TOKEN", "")
     PHONE_ID = os.environ.get("WA_PHONE_ID", "")
     VERIFY_TOKEN = "cpsl2026"
-    CSV_BD_PATH = get_csv_bd_path()
-    SESSIONS_PATH = os.path.join(DATA_DIR, "sesiones.json")
     HISTORIAL_PATH = os.path.join(DATA_DIR, "historial_chat.json")
+    ASIGNACIONES_PATH = os.path.join(DATA_DIR, "asignaciones.json")
     
-    # 🌟 EQUIPO DE COORDINACIÓN: Diana, Joyce, Zuley
-    STAFF_TELS = ["51912379744", "51933599903", "51933599864"]
+    # 🌟 EQUIPO DE COORDINACIÓN
+    COORDINADORAS = {
+        "Diana": "51912379744",
+        "Joyce": "51933599903",
+        "Zuley": "51933599864"
+    }
 
-# --- 2. HISTORIAL PARA EL PANEL (/chat) ---
+# --- 2. MOTOR DE MEMORIA Y ASIGNACIÓN EQUITATIVA ---
+def cargar_asignaciones():
+    try:
+        if os.path.exists(Config.ASIGNACIONES_PATH):
+            with open(Config.ASIGNACIONES_PATH, "r", encoding="utf-8") as f: return json.load(f)
+    except: pass
+    return {}
+
+def guardar_asignaciones(data):
+    try:
+        with FileLock(Config.ASIGNACIONES_PATH + ".lock", timeout=5):
+            with open(Config.ASIGNACIONES_PATH, "w", encoding="utf-8") as f: 
+                json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e: logger.error(f"Error guardando asignación: {e}")
+
+def obtener_o_asignar_coordinadora(telefono_cliente):
+    asignaciones = cargar_asignaciones()
+    tel_str = str(telefono_cliente)
+    
+    # Si ya es su clienta, devolver a la misma coordinadora
+    if tel_str in asignaciones:
+        return asignaciones[tel_str]
+    
+    # Si es nuevo, buscar a la coordinadora con menos casos (Reparto Equitativo)
+    conteo = {nombre: 0 for nombre in Config.COORDINADORAS.keys()}
+    for caso in asignaciones.values():
+        nombre_coord = caso.get("nombre")
+        if nombre_coord in conteo:
+            conteo[nombre_coord] += 1
+            
+    # Elegir la que tenga el mínimo de casos
+    coord_elegida = min(conteo, key=conteo.get)
+    nueva_asignacion = {"nombre": coord_elegida, "tel": Config.COORDINADORAS[coord_elegida]}
+    
+    # Guardar en memoria permanente
+    asignaciones[tel_str] = nueva_asignacion
+    guardar_asignaciones(asignaciones)
+    
+    return nueva_asignacion
+
+# --- 3. HISTORIAL PARA EL PANEL (/chat) ---
 def get_historial():
     try:
         if os.path.exists(Config.HISTORIAL_PATH):
@@ -52,35 +87,7 @@ def append_historial(telefono, nombre, texto, tipo):
             h.append({"telefono": str(telefono), "nombre": nombre or "Desconocido", "texto": texto, "tipo": tipo, "hora": hora})
             if len(h) > 2000: h = h[-2000:]
             with open(Config.HISTORIAL_PATH, "w", encoding="utf-8") as f: json.dump(h, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        logger.error(f"Error guardando historial: {e}")
-
-# --- 3. LECTURA DE BASE DE DATOS (CRM) ---
-def obtener_perfil_crm(telefono):
-    tel_norm = str(telefono)[-9:]
-    perfil = {"rol": "PROSPECTO", "nombre": "Aliado", "enrolados_pendientes": []}
-    if os.path.exists(Config.CSV_BD_PATH):
-        try:
-            with open(Config.CSV_BD_PATH, 'r', encoding='utf-8-sig') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    tel_px = str(row.get('TELÉFONO PX', row.get('Teléfono', '')))[-9:]
-                    tel_imo = str(row.get('TEL. IMO', row.get('Tel. IMO', '')))[-9:]
-                    nombre_pref = row.get('PREF.', row.get('Nombre', 'Aliado')).strip()
-                    nombre_full = f"{row.get('APELLIDO', '')} {row.get('NOMBRE', '')}".strip()
-                    
-                    if tel_px == tel_norm:
-                        perfil["nombre"] = nombre_pref
-                        perfil["rol"] = "PROSPECTO"
-                    
-                    if tel_imo == tel_norm:
-                        perfil["rol"] = "IMO"
-                        perfil["nombre"] = row.get('NOMBRE IMO', 'Líder').split()[0].title()
-                        if nombre_full:
-                            perfil["enrolados_pendientes"].append(f"• {nombre_full}")
-        except Exception as e:
-            logger.error(f"Error leyendo CSV: {e}")
-    return perfil
+    except Exception as e: logger.error(f"Error guardando historial: {e}")
 
 # --- 4. MOTOR DE ENVÍO DE MENSAJES ---
 def enviar_mensaje(tel, texto, log_name="BOT"):
@@ -96,73 +103,56 @@ def enviar_mensaje(tel, texto, log_name="BOT"):
         return False
 
 # --- 5. CEREBRO DEL BOT (RESPUESTAS) ---
-def flujo_principal(tel, texto):
+def flujo_principal(tel, texto, nombre_px="Aliado"):
     txt_up = str(texto).strip().upper()
-    perfil = obtener_perfil_crm(tel)
-    nombre = perfil['nombre']
+    append_historial(tel, nombre_px, texto, "in")
     
-    # 🌟 BLINDAJE DE PANEL: Primero guardamos el mensaje en tu panel.
-    append_historial(tel, nombre, texto, "in")
-    
-    # 1. PX Confirma (Botón 1 o SÍ)
+    # 1. PX Confirma (SÍ)
     if "SÍ" in txt_up or "SI" in txt_up or "CONFIRM" in txt_up or txt_up == "1":
-        msg_px = f"¡Excelente elección, {nombre}! 🚀 Registramos tu confirmación.\n\nEn breve nuestro equipo se comunicará contigo para asistirte con el registro formal en el Hotel José Antonio Deluxe.\n\nMientras tanto, si deseas, puedes ver los métodos de inversión escribiendo *PAGOS*."
+        coord = obtener_o_asignar_coordinadora(tel)
+        msg_px = f"¡Excelente elección! 🚀 Registramos tu confirmación.\n\nSoy {coord['nombre']} y seré tu coordinadora. En breve me comunicaré contigo para asistirte con el registro formal.\n\nMientras tanto, puedes ver los métodos de inversión escribiendo *PAGOS*."
         enviar_mensaje(tel, msg_px)
-        for staff_tel in Config.STAFF_TELS:
-            enviar_mensaje(staff_tel, f"🚨 *CONFIRMACIÓN C1:* {nombre} (wa.me/{tel}) acaba de confirmar asistencia.")
+        enviar_mensaje(coord['tel'], f"🚨 *CONFIRMACIÓN C1:* Un prospecto (wa.me/{tel}) acaba de confirmar asistencia y se te ha asignado a ti.")
         
     # 2. PX o IMO pide Apoyo
     elif "DUDA" in txt_up or "APOYO" in txt_up or "INFORMACIÓN" in txt_up or txt_up == "2" or txt_up == "3":
-        msg_px = f"Con mucho gusto, {nombre}. Te estamos derivando con nuestro equipo de coordinación para brindarte el apoyo que necesitas. 🙏"
+        coord = obtener_o_asignar_coordinadora(tel)
+        msg_px = f"Con mucho gusto. Soy {coord['nombre']} de Coordinación. He recibido tu solicitud y seré la encargada de apoyarte personalmente. 🙏"
         enviar_mensaje(tel, msg_px)
-        for staff_tel in Config.STAFF_TELS:
-            enviar_mensaje(staff_tel, f"🚨 *SOLICITUD DE STAFF:* {nombre} (wa.me/{tel}) requiere asistencia. Dijo: '{texto}'")
+        enviar_mensaje(coord['tel'], f"🚨 *SOLICITUD DE STAFF:* Se te asignó a wa.me/{tel}. Dijo: '{texto}'")
         
-    # 3. IMO Pide su lista de Pendientes
-    elif "PENDIENTES" in txt_up and perfil["rol"] == "IMO":
-        lista = perfil["enrolados_pendientes"]
-        msg = f"👑 *Radar de Líder IMO - {nombre}*\n\nEstos son tus invitados pendientes para el C1 (E27):\n\n" + ("\n".join(lista) if lista else "🎉 ¡No tienes pendientes en esta lista, excelente gestión!")
-        enviar_mensaje(tel, msg)
-        
-    # 4. Solicitud de Pagos
+    # 3. Solicitud de Pagos
     elif "PAGO" in txt_up:
-        msg_pago = f"💳 *Opciones de Inversión, {nombre}:*\n\n- BCP Soles: 193-XXXX-XXXX\n- Yape/Plin: 908652308\n\nPor favor, envía la captura de tu operación por este mismo medio."
+        msg_pago = f"💳 *Opciones de Inversión:*\n\n- BCP Soles: 193-XXXX-XXXX\n- Yape/Plin: 908652308\n\nPor favor, envía la captura de tu operación por este medio."
         enviar_mensaje(tel, msg_pago)
         
-    # 5. Menú General
+    # 4. Menú General
     else:
-        if perfil["rol"] == "IMO":
-            msg = f"🌟 *Portal IMO — {nombre}*\n\nEscribe:\n*PENDIENTES* para ver tu lista de enrolados.\n*APOYO* para hablar con nuestro Staff."
-        else:
-            msg = f"🌟 *Crear Poder Sin Límites — {nombre}*\n\nEscribe:\n*1* para Confirmar asistencia\n*2* si necesitas Apoyo o Información\n*PAGOS* para opciones bancarias."
+        msg = f"🌟 *Crear Poder Sin Límites*\n\nEscribe:\n*1* para Confirmar asistencia\n*2* si necesitas Apoyo o Información\n*PAGOS* para opciones bancarias."
         enviar_mensaje(tel, msg)
 
-# --- 6. RUTAS WEB (WEBHOOK Y PANEL) ---
+# --- 6. RUTAS WEB ---
 @app.route("/webhook", methods=["GET", "POST"])
 def webhook():
     if request.method == "GET":
-        if request.args.get("hub.verify_token") == Config.VERIFY_TOKEN: 
-            return request.args.get("hub.challenge"), 200
+        if request.args.get("hub.verify_token") == Config.VERIFY_TOKEN: return request.args.get("hub.challenge"), 200
     try:
         data = request.get_json(silent=True)
         msg = data["entry"][0]["changes"][0]["value"]["messages"][0]
         cuerpo = msg["text"]["body"] if msg["type"] == "text" else msg.get("button", {}).get("text", "")
-        if cuerpo: 
-            threading.Thread(target=flujo_principal, args=(msg["from"], cuerpo)).start()
-    except: 
-        pass
+        nombre_wa = data["entry"][0]["changes"][0]["value"]["contacts"][0]["profile"]["name"]
+        if cuerpo: threading.Thread(target=flujo_principal, args=(msg["from"], cuerpo, nombre_wa)).start()
+    except: pass
     return jsonify({"status":"ok"}), 200
 
 @app.route("/api/historial")
-def api_historial(): 
-    return jsonify(get_historial()), 200
+def api_historial(): return jsonify(get_historial()), 200
 
 @app.route("/chat")
 def chat_panel():
     try:
         with open("panel_chat.html", encoding="utf-8") as f: return f.read()
-    except: 
-        return "Panel no encontrado.", 404
+    except: return "Panel no encontrado.", 404
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
