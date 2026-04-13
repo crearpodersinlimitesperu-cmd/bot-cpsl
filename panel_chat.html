@@ -5,99 +5,99 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Torre de Control V108 - Crear Poder</title>
     <style>
-        :root { --bg: #0f172a; --card: #1e293b; --accent: #38bdf8; --text: #f8fafc; --whatsapp-in: #202c33; --whatsapp-out: #005c4b; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; justify-content: center; }
-        .container { width: 100%; max-width: 1200px; height: 90vh; display: grid; grid-template-columns: 350px 1fr; gap: 20px; }
+        :root { --bg: #0b141a; --side: #111b21; --header: #202c33; --accent: #00a884; --bubble-in: #202c33; --bubble-out: #005c4b; --text: #e9edef; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; overflow: hidden; }
+        .app-container { display: grid; grid-template-columns: 380px 1fr; height: 100vh; }
         
-        /* Lateral: Equipo y Simulador */
-        .sidebar { background: var(--card); border-radius: 12px; padding: 20px; border: 1px solid #334155; display: flex; flex-direction: column; gap: 20px; }
-        .stat-card { background: var(--bg); padding: 15px; border-radius: 8px; border-left: 4px solid var(--accent); }
-        .stat-card h4 { margin: 0; color: var(--accent); font-size: 14px; }
-        .stat-card p { margin: 5px 0 0; font-weight: bold; font-size: 20px; }
+        /* Barra Lateral: Gestión de Staff y Auditoría */
+        .sidebar { background: var(--side); border-right: 1px solid #313d45; display: flex; flex-direction: column; }
+        .sidebar-header { background: var(--header); padding: 15px; border-bottom: 1px solid #313d45; display: flex; justify-content: space-between; align-items: center; }
+        .staff-monitor { padding: 15px; flex: 1; overflow-y: auto; }
+        .staff-card { background: #182229; padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid var(--accent); }
+        .staff-card h4 { margin: 0; color: var(--accent); font-size: 13px; text-transform: uppercase; }
+        .staff-card p { margin: 5px 0 0; font-size: 18px; font-weight: bold; }
 
-        /* Principal: Ventana tipo WhatsApp */
-        .main-panel { background: var(--card); border-radius: 12px; display: flex; flex-direction: column; border: 1px solid #334155; overflow: hidden; }
-        .chat-header { background: #1e293b; padding: 15px 25px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
-        .chat-area { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); background-blend-mode: overlay; background-color: #0b141a; }
+        /* Panel Central: Mensajería Real */
+        .main-content { display: flex; flex-direction: column; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); background-blend-mode: overlay; background-color: #0b141a; }
+        .chat-header { background: var(--header); padding: 10px 20px; display: flex; align-items: center; gap: 15px; border-bottom: 1px solid #313d45; }
+        .chat-messages { flex: 1; padding: 25px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
         
-        /* Burbujas de Chat */
-        .bubble { max-width: 70%; padding: 10px 15px; border-radius: 8px; font-size: 14px; position: relative; line-height: 1.5; }
-        .bubble.in { align-self: flex-start; background: var(--whatsapp-in); border-bottom-left-radius: 0; }
-        .bubble.out { align-self: flex-end; background: var(--whatsapp-out); border-bottom-right-radius: 0; }
-        .bubble .meta { font-size: 10px; color: #94a3b8; margin-top: 5px; display: block; text-align: right; }
-        .bubble .sender { font-weight: bold; color: var(--accent); font-size: 12px; display: block; margin-bottom: 3px; }
+        /* Burbujas */
+        .msg { max-width: 65%; padding: 8px 12px; border-radius: 8px; font-size: 14.5px; position: relative; box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); }
+        .msg.in { align-self: flex-start; background: var(--bubble-in); }
+        .msg.out { align-self: flex-end; background: var(--bubble-out); }
+        .msg .sender { font-weight: bold; font-size: 12px; color: #34b7f1; display: block; margin-bottom: 2px; }
+        .msg .time { font-size: 11px; color: rgba(255,255,255,0.5); text-align: right; margin-top: 4px; display: block; }
 
-        /* Controles */
-        .controls { padding: 15px; background: #1e293b; border-top: 1px solid #334155; display: flex; gap: 10px; }
-        input { flex: 1; background: #2a3942; border: none; padding: 12px; border-radius: 8px; color: white; outline: none; }
-        button { background: var(--accent); color: #0f172a; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        /* Controles de Simulación */
+        .chat-footer { background: var(--header); padding: 12px; display: flex; gap: 10px; align-items: center; }
+        input { flex: 1; background: #2a3942; border: none; padding: 12px; border-radius: 8px; color: white; }
+        .btn-sim { background: var(--accent); color: white; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="app-container">
         <aside class="sidebar">
-            <h2 style="color: var(--accent); margin: 0;">Sede Lima V108</h2>
-            <div id="staff-stats">
-                <div class="stat-card"><h4>Diana (C1/C2)</h4><p id="count-dmoscoso">0</p></div>
-                <div class="stat-card"><h4>Joyce (C1/C2)</h4><p id="count-jmarin">0</p></div>
-                <div class="stat-card"><h4>Zuley (C1/C2)</h4><p id="count-zurteaga">0</p></div>
-                <div class="stat-card"><h4>Leyla (MJ)</h4><p id="count-lpasquel">0</p></div>
+            <div class="sidebar-header">
+                <strong>Sede Lima - Gestión Cuántica</strong>
+                <span style="font-size: 10px; background: #005c4b; padding: 3px 6px; border-radius: 4px;">V108.2</span>
             </div>
-            <hr style="border: 0; border-top: 1px solid #334155; width: 100%;">
-            <div class="stat-card" style="border-color: #10b981;">
-                <h4>Última Identidad Detectada</h4>
-                <p id="last-dni" style="font-size: 14px; color: #10b981;">Esperando DNI...</p>
+            <div class="staff-monitor">
+                <div class="staff-card"><h4>Joyce (C1/C2)</h4><p id="c-jmarin">0</p></div>
+                <div class="staff-card"><h4>Diana (C1/C2)</h4><p id="c-dmoscoso">0</p></div>
+                <div class="staff-card"><h4>Zuley (C1/C2)</h4><p id="c-zurteaga">0</p></div>
+                <div class="staff-card"><h4>Leyla / Linid (MJ)</h4><p id="c-lpasquel">0</p></div>
+                <hr style="border: 0; border-top: 1px solid #313d45; margin: 20px 0;">
+                <div style="background: #182229; padding: 10px; border-radius: 8px;">
+                    <small style="color: var(--accent);">Identificación en Tiempo Real:</small>
+                    <div id="id-display" style="font-family: monospace; font-size: 12px; margin-top: 5px;">Esperando datos...</div>
+                </div>
             </div>
-            <button onclick="location.reload()" style="background: #334155; color: white; margin-top: auto;">🔄 Refrescar Sistema</button>
         </aside>
 
-        <main class="main-panel">
+        <main class="main-content">
             <div class="chat-header">
+                <div style="width: 40px; height: 40px; border-radius: 50%; background: #313d45; display: flex; align-items: center; justify-content: center;">👤</div>
                 <div>
-                    <strong id="current-chat-name">Monitor Global de Mensajes</strong><br>
-                    <small style="color: #94a3b8;">En línea - Torre de Control Quantum</small>
+                    <div id="active-name" style="font-weight: bold;">Monitor Global de Campaña</div>
+                    <div style="font-size: 12px; color: #8696a0;">Historial Impecable - Lima</div>
                 </div>
-                <div style="font-size: 12px; color: var(--accent);">V108.2 MASTER</div>
             </div>
-            <div class="chat-area" id="chat-box">
+            <div class="chat-messages" id="chat-messages">
                 </div>
-            <div class="controls">
-                <input type="text" placeholder="Simular mensaje de nuevo prospecto...">
-                <button>Nuevo Chat</button>
+            <div class="chat-footer">
+                <input type="text" placeholder="Simular ingreso de prospecto conocido o nuevo...">
+                <button class="btn-sim">Nuevo Chat</button>
             </div>
         </main>
     </div>
 
     <script>
-        async function updateDashboard() {
+        async function fetchLogs() {
             try {
-                const response = await fetch('/api/historial');
-                const messages = await response.json();
-                const chatBox = document.getElementById('chat-box');
+                const res = await fetch('/api/historial');
+                const data = await res.json();
+                const container = document.getElementById('chat-messages');
                 
-                // Si hay nuevos mensajes, actualizamos
-                if (chatBox.dataset.lastCount !== messages.length.toString()) {
-                    chatBox.innerHTML = messages.map(msg => `
-                        <div class="bubble ${msg.tipo === 'in' ? 'in' : 'out'}">
-                            <span class="sender">${msg.nombre}</span>
-                            ${msg.texto.replace(/\n/g, '<br>')}
-                            <span class="meta">${msg.hora}</span>
+                if (container.dataset.count !== data.length.toString()) {
+                    container.innerHTML = data.map(m => `
+                        <div class="msg ${m.tipo === 'in' ? 'in' : 'out'}">
+                            <span class="sender">${m.nombre}</span>
+                            ${m.texto}
+                            <span class="time">${m.hora}</span>
                         </div>
                     `).join('');
-                    chatBox.dataset.lastCount = messages.length;
-                    chatBox.scrollTop = chatBox.scrollHeight;
+                    container.scrollTop = container.scrollHeight;
+                    container.dataset.count = data.length;
 
-                    // Actualizar DNI en la barra lateral
-                    const lastClientMsg = [...messages].reverse().find(m => m.tipo === 'in');
-                    if (lastClientMsg && lastClientMsg.nombre.includes('-')) {
-                        document.getElementById('last-dni').innerText = lastClientMsg.nombre;
-                    }
+                    // Actualizar Identidad Reciente
+                    const lastIn = [...data].reverse().find(msg => msg.tipo === 'in');
+                    if(lastIn) document.getElementById('id-display').innerText = lastIn.nombre;
                 }
-            } catch (e) { console.error("Error cargando monitor:", e); }
+            } catch (e) { console.error("Error al actualizar monitor:", e); }
         }
-
-        setInterval(updateDashboard, 2000);
-        updateDashboard();
+        setInterval(fetchLogs, 2000);
+        fetchLogs();
     </script>
 </body>
 </html>
