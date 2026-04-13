@@ -1,6 +1,6 @@
 """
 Bot WhatsApp — Creación Cuántica E.I.R.L. / Crear Poder Sin Límites Perú
-✅ V100: MASTER SHIELD (Alertas Corporativas + Panel Impecable)
+✅ V101: STAFF SHIELD (Alertas simultáneas a Zuley, Diana y Joyce + Panel)
 """
 import os, re, json, time, csv, logging, threading
 from flask import Flask, request, jsonify
@@ -32,7 +32,9 @@ class Config:
     CSV_BD_PATH = get_csv_bd_path()
     SESSIONS_PATH = os.path.join(DATA_DIR, "sesiones.json")
     HISTORIAL_PATH = os.path.join(DATA_DIR, "historial_chat.json")
-    GERENTE_TEL = "51919563284" # <--- TU NÚMERO CORPORATIVO INTEGRADO
+    
+    # 🌟 EQUIPO DE COORDINACIÓN: Diana, Joyce, Zuley
+    STAFF_TELS = ["51912379744", "51933599903", "51933599864"]
 
 # --- 2. HISTORIAL PARA EL PANEL (/chat) ---
 def get_historial():
@@ -99,20 +101,22 @@ def flujo_principal(tel, texto):
     perfil = obtener_perfil_crm(tel)
     nombre = perfil['nombre']
     
-    # 🌟 BLINDAJE DE PANEL: Primero guardamos el mensaje en tu panel, pase lo que pase.
+    # 🌟 BLINDAJE DE PANEL: Primero guardamos el mensaje en tu panel.
     append_historial(tel, nombre, texto, "in")
     
     # 1. PX Confirma (Botón 1 o SÍ)
     if "SÍ" in txt_up or "SI" in txt_up or "CONFIRM" in txt_up or txt_up == "1":
         msg_px = f"¡Excelente elección, {nombre}! 🚀 Registramos tu confirmación.\n\nEn breve nuestro equipo se comunicará contigo para asistirte con el registro formal en el Hotel José Antonio Deluxe.\n\nMientras tanto, si deseas, puedes ver los métodos de inversión escribiendo *PAGOS*."
         enviar_mensaje(tel, msg_px)
-        enviar_mensaje(Config.GERENTE_TEL, f"🚨 *CONFIRMACIÓN C1:* {nombre} (wa.me/{tel}) acaba de confirmar asistencia.")
+        for staff_tel in Config.STAFF_TELS:
+            enviar_mensaje(staff_tel, f"🚨 *CONFIRMACIÓN C1:* {nombre} (wa.me/{tel}) acaba de confirmar asistencia.")
         
-    # 2. PX o IMO pide Apoyo (Botón 2, 3 o Dudas)
+    # 2. PX o IMO pide Apoyo
     elif "DUDA" in txt_up or "APOYO" in txt_up or "INFORMACIÓN" in txt_up or txt_up == "2" or txt_up == "3":
         msg_px = f"Con mucho gusto, {nombre}. Te estamos derivando con nuestro equipo de coordinación para brindarte el apoyo que necesitas. 🙏"
         enviar_mensaje(tel, msg_px)
-        enviar_mensaje(Config.GERENTE_TEL, f"🚨 *SOLICITUD DE STAFF:* {nombre} (wa.me/{tel}) requiere asistencia. Dijo: '{texto}'")
+        for staff_tel in Config.STAFF_TELS:
+            enviar_mensaje(staff_tel, f"🚨 *SOLICITUD DE STAFF:* {nombre} (wa.me/{tel}) requiere asistencia. Dijo: '{texto}'")
         
     # 3. IMO Pide su lista de Pendientes
     elif "PENDIENTES" in txt_up and perfil["rol"] == "IMO":
@@ -125,7 +129,7 @@ def flujo_principal(tel, texto):
         msg_pago = f"💳 *Opciones de Inversión, {nombre}:*\n\n- BCP Soles: 193-XXXX-XXXX\n- Yape/Plin: 908652308\n\nPor favor, envía la captura de tu operación por este mismo medio."
         enviar_mensaje(tel, msg_pago)
         
-    # 5. Menú General / Cualquier otra palabra
+    # 5. Menú General
     else:
         if perfil["rol"] == "IMO":
             msg = f"🌟 *Portal IMO — {nombre}*\n\nEscribe:\n*PENDIENTES* para ver tu lista de enrolados.\n*APOYO* para hablar con nuestro Staff."
@@ -158,7 +162,7 @@ def chat_panel():
     try:
         with open("panel_chat.html", encoding="utf-8") as f: return f.read()
     except: 
-        return "Panel no encontrado. Asegúrate de tener el archivo panel_chat.html en tu repositorio.", 404
+        return "Panel no encontrado.", 404
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
