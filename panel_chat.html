@@ -3,112 +3,119 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Torre de Control V108 - Tiempo Real</title>
+    <title>Torre de Control V108.4 - Individualizado</title>
     <style>
-        :root { --bg: #0b141a; --side: #111b21; --header: #202c33; --accent: #00a884; --bubble-in: #202c33; --bubble-out: #005c4b; --text: #e9edef; }
+        :root { --bg: #0b141a; --side: #111b21; --header: #202c33; --accent: #00a884; --bubble-in: #202c33; --bubble-out: #005c4b; --text: #e9edef; --active: #2a3942; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; overflow: hidden; }
-        .app-container { display: grid; grid-template-columns: 380px 1fr; height: 100vh; }
+        .app-container { display: grid; grid-template-columns: 350px 1fr; height: 100vh; }
         
-        /* Sidebar con contadores en vivo */
+        /* Lista de Chats (Izquierda) */
         .sidebar { background: var(--side); border-right: 1px solid #313d45; display: flex; flex-direction: column; }
-        .sidebar-header { background: var(--header); padding: 15px; border-bottom: 1px solid #313d45; font-weight: bold; color: var(--accent); }
-        .staff-monitor { padding: 15px; flex: 1; overflow-y: auto; }
-        .staff-card { background: #182229; padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid var(--accent); transition: 0.3s; }
-        .staff-card:hover { background: #202c33; }
-        .staff-card h4 { margin: 0; font-size: 12px; opacity: 0.8; }
-        .staff-card p { margin: 5px 0 0; font-size: 20px; font-weight: bold; }
+        .sidebar-header { background: var(--header); padding: 15px; font-weight: bold; color: var(--accent); border-bottom: 1px solid #313d45; }
+        .chat-list { flex: 1; overflow-y: auto; }
+        .chat-item { padding: 15px; border-bottom: 1px solid #222d34; cursor: pointer; transition: 0.3s; }
+        .chat-item:hover { background: #182229; }
+        .chat-item.active { background: var(--active); }
+        .chat-item .name { font-weight: bold; font-size: 14px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .chat-item .last-msg { font-size: 12px; color: #8696a0; }
 
-        /* Area de Chat Estilo WhatsApp */
-        .main-content { display: flex; flex-direction: column; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); background-blend-mode: overlay; background-color: #0b141a; position: relative; }
-        .chat-header { background: var(--header); padding: 12px 20px; border-bottom: 1px solid #313d45; display: flex; align-items: center; gap: 12px; }
-        .chat-messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; scroll-behavior: smooth; }
+        /* Ventana de Chat (Derecha) */
+        .main-content { display: flex; flex-direction: column; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); background-blend-mode: overlay; background-color: #0b141a; }
+        .chat-header { background: var(--header); padding: 10px 20px; border-bottom: 1px solid #313d45; height: 60px; display: flex; align-items: center; }
+        .chat-messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
         
-        /* Burbujas dinámicas */
-        .msg { max-width: 70%; padding: 8px 14px; border-radius: 8px; font-size: 14.5px; position: relative; box-shadow: 0 1px 1px rgba(0,0,0,0.2); animation: fadeIn 0.3s ease; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        /* Burbujas */
+        .msg { max-width: 75%; padding: 8px 12px; border-radius: 8px; font-size: 14px; position: relative; box-shadow: 0 1px 1px rgba(0,0,0,0.2); }
         .msg.in { align-self: flex-start; background: var(--bubble-in); }
         .msg.out { align-self: flex-end; background: var(--bubble-out); }
-        .msg .sender { font-weight: bold; font-size: 11px; color: #34b7f1; display: block; margin-bottom: 3px; }
-        .msg .time { font-size: 10px; opacity: 0.6; text-align: right; margin-top: 4px; display: block; }
+        .msg .time { font-size: 10px; opacity: 0.5; text-align: right; margin-top: 4px; display: block; }
 
-        .chat-footer { background: var(--header); padding: 15px; display: flex; gap: 10px; }
-        input { flex: 1; background: #2a3942; border: none; padding: 12px; border-radius: 8px; color: white; outline: none; }
+        .welcome { display: flex; align-items: center; justify-content: center; height: 100%; color: #8696a0; text-align: center; padding: 40px; }
     </style>
 </head>
 <body>
     <div class="app-container">
         <aside class="sidebar">
-            <div class="sidebar-header">TORRE DE CONTROL - LIMA</div>
-            <div class="staff-monitor">
-                <div class="staff-card"><h4>Joyce Marín</h4><p id="stat-jmarin">0</p></div>
-                <div class="staff-card"><h4>Diana Moscoso</h4><p id="stat-dmoscoso">0</p></div>
-                <div class="staff-card"><h4>Zuley Urteaga</h4><p id="stat-zurteaga">0</p></div>
-                <div class="staff-card"><h4>Leyla Pasquel</h4><p id="stat-lpasquel">0</p></div>
-                <div style="margin-top: 20px; padding: 10px; background: #182229; border-radius: 8px; font-size: 12px;">
-                    <span style="color: var(--accent);">● EN VIVO:</span> <span id="status-text">Sincronizando...</span>
+            <div class="sidebar-header">LIMA V108.4 - CHATS</div>
+            <div class="chat-list" id="chat-list">
                 </div>
-            </div>
         </aside>
 
         <main class="main-content">
-            <div class="chat-header">
-                <div style="font-weight: bold;">Monitor de Campañas (IMOs & PX)</div>
+            <div class="chat-header" id="chat-header">
+                <strong id="selected-contact-name">Selecciona un chat para auditar</strong>
             </div>
-            <div class="chat-messages" id="msg-container"></div>
-            <div class="chat-footer">
-                <input type="text" placeholder="Escribe para simular un mensaje de sistema...">
+            <div class="chat-messages" id="msg-container">
+                <div class="welcome">
+                    <div>
+                        <h2 style="color: var(--accent);">Torre de Control Quantum</h2>
+                        <p>Selecciona a un IMO o Prospecto de la izquierda para ver su historial individualizado.</p>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
 
     <script>
-        let lastMessageCount = 0;
+        let allMessages = [];
+        let selectedPhone = null;
 
-        async function syncData() {
+        async function refreshData() {
             try {
                 const res = await fetch('/api/historial');
-                const data = await res.json();
-                const container = document.getElementById('msg-container');
-                
-                // Solo renderiza si hay mensajes nuevos
-                if (data.length !== lastMessageCount) {
-                    container.innerHTML = data.map(m => `
-                        <div class="msg ${m.tipo === 'in' ? 'in' : 'out'}">
-                            <span class="sender">${m.nombre}</span>
-                            ${m.texto}
-                            <span class="time">${m.hora}</span>
-                        </div>
-                    `).join('');
-                    
-                    container.scrollTop = container.scrollHeight;
-                    lastMessageCount = data.length;
-                    document.getElementById('status-text').innerText = "Actualizado hace un momento";
-                    
-                    // Actualizar estadísticas de staff en tiempo real
-                    updateStaffCounters(data);
+                allMessages = await res.json();
+                renderChatList();
+                if (selectedPhone) renderActiveChat();
+            } catch (e) { console.error("Error sync:", e); }
+        }
+
+        function renderChatList() {
+            const listContainer = document.getElementById('chat-list');
+            // Agrupar mensajes por teléfono
+            const contacts = {};
+            allMessages.forEach(m => {
+                if (!contacts[m.telefono]) {
+                    contacts[m.telefono] = { 
+                        nombre: m.nombre, 
+                        lastMsg: m.texto,
+                        time: m.hora 
+                    };
                 }
-            } catch (e) {
-                document.getElementById('status-text').innerText = "Error de conexión...";
-            }
-        }
-
-        function updateStaffCounters(data) {
-            const counts = { jmarin: 0, dmoscoso: 0, zurteaga: 0, lpasquel: 0 };
-            data.forEach(m => {
-                if (m.nombre.toLowerCase().includes('joyce')) counts.jmarin++;
-                if (m.nombre.toLowerCase().includes('diana')) counts.dmoscoso++;
-                if (m.nombre.toLowerCase().includes('zuley')) counts.zurteaga++;
-                if (m.nombre.toLowerCase().includes('leyla')) counts.lpasquel++;
             });
-            for (let key in counts) {
-                const el = document.getElementById(`stat-${key}`);
-                if (el) el.innerText = counts[key];
-            }
+
+            const html = Object.keys(contacts).map(phone => `
+                <div class="chat-item ${selectedPhone === phone ? 'active' : ''}" onclick="selectChat('${phone}')">
+                    <span class="name">${contacts[phone].nombre}</span>
+                    <span class="last-msg">${contacts[phone].lastMsg.substring(0, 30)}...</span>
+                </div>
+            `).join('');
+            
+            if (listContainer.innerHTML !== html) listContainer.innerHTML = html;
         }
 
-        // Sincronización cada 2 segundos (Tiempo Real)
-        setInterval(syncData, 2000);
-        syncData();
+        function selectChat(phone) {
+            selectedPhone = phone;
+            const contact = allMessages.find(m => m.telefono === phone);
+            document.getElementById('selected-contact-name').innerText = contact.nombre;
+            renderChatList();
+            renderActiveChat();
+        }
+
+        function renderActiveChat() {
+            const container = document.getElementById('msg-container');
+            const filtered = allMessages.filter(m => m.telefono === selectedPhone);
+            
+            container.innerHTML = filtered.map(m => `
+                <div class="msg ${m.tipo === 'in' ? 'in' : 'out'}">
+                    ${m.texto}
+                    <span class="time">${m.hora}</span>
+                </div>
+            `).join('');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        setInterval(refreshData, 2000);
+        refreshData();
     </script>
 </body>
 </html>
