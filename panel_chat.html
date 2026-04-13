@@ -7,26 +7,20 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { display: flex; height: 100vh; background: #f0f2f5; }
-        
-        /* Sidebar */
         .sidebar { width: 350px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
         .header { padding: 15px; background: #008069; color: white; }
         .header h2 { font-size: 18px; margin-bottom: 5px; }
         .online-status { display: flex; align-items: center; gap: 5px; font-size: 12px; }
         .dot { width: 8px; height: 8px; background: #31a24c; border-radius: 50%; }
-        
         .search-box { padding: 10px; border-bottom: 1px solid #ddd; }
         .search-box input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px; }
-        
         .filters { padding: 10px; display: flex; gap: 5px; border-bottom: 1px solid #ddd; }
         .filter-btn { padding: 5px 15px; border: 1px solid #ddd; background: white; border-radius: 15px; cursor: pointer; font-size: 12px; }
         .filter-btn.active { background: #008069; color: white; border-color: #008069; }
-        
         .stats { padding: 10px; display: flex; gap: 10px; border-bottom: 1px solid #ddd; }
         .stat-box { flex: 1; text-align: center; padding: 10px; background: #f5f5f5; border-radius: 5px; }
         .stat-number { font-size: 20px; font-weight: bold; color: #008069; }
         .stat-label { font-size: 11px; color: #666; }
-        
         .conversations { flex: 1; overflow-y: auto; }
         .conversation { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; }
         .conversation:hover { background: #f5f5f5; }
@@ -36,11 +30,8 @@
         .conv-time { font-size: 11px; color: #999; }
         .conv-message { font-size: 13px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .conv-phone { font-size: 11px; color: #999; margin-top: 3px; }
-        
-        /* Main content */
         .main { flex: 1; display: flex; flex-direction: column; background: white; }
         .empty-state { flex: 1; display: flex; align-items: center; justify-content: center; color: #999; font-size: 16px; }
-        
         .chat-header { padding: 15px; border-bottom: 1px solid #ddd; background: #f5f5f5; }
         .chat-messages { flex: 1; padding: 20px; overflow-y: auto; background: #e5ddd5; }
         .message { margin-bottom: 15px; max-width: 70%; padding: 8px 12px; border-radius: 8px; }
@@ -48,9 +39,7 @@
         .message.outgoing { background: #dcf8c6; margin-left: auto; }
         .message-content { font-size: 14px; }
         .message-time { font-size: 11px; color: #999; margin-top: 3px; }
-        
-        /* Simulator button */
-        .simulator-btn { background: #2196F3; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 12px; }
+        .simulator-btn { background: #2196F3; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 12px; margin-left: 10px; }
         .simulator-btn:hover { background: #1976D2; }
     </style>
 </head>
@@ -58,151 +47,69 @@
     <div class="sidebar">
         <div class="header">
             <h2>Mesa de Control CPSL</h2>
-            <div class="online-status">
-                <div class="dot"></div>
-                <span>Online - <span id="currentTime"></span></span>
-            </div>
+            <div class="online-status"><div class="dot"></div><span>Online - <span id="currentTime"></span></span></div>
         </div>
-        
-        <div class="search-box">
-            <input type="text" id="searchInput" placeholder="Buscar nombre o teléfono...">
-        </div>
-        
+        <div class="search-box"><input type="text" id="searchInput" placeholder="Buscar nombre o teléfono..."></div>
         <div class="filters">
             <button class="filter-btn active" data-filter="todos">Todos</button>
             <button class="filter-btn" data-filter="graduado">Graduados</button>
             <button class="filter-btn" data-filter="pendiente">Pendientes</button>
         </div>
-        
         <div class="stats">
-            <div class="stat-box">
-                <div class="stat-number" id="totalStats">0</div>
-                <div class="stat-label">TOTAL</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-number" id="gradsStats">0</div>
-                <div class="stat-label">GRADS</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-number" id="pendStats">0</div>
-                <div class="stat-label">PEND</div>
-            </div>
+            <div class="stat-box"><div class="stat-number" id="totalStats">0</div><div class="stat-label">TOTAL</div></div>
+            <div class="stat-box"><div class="stat-number" id="gradsStats">0</div><div class="stat-label">GRADS</div></div>
+            <div class="stat-box"><div class="stat-number" id="pendStats">0</div><div class="stat-label">PEND</div></div>
         </div>
-        
-        <div class="conversations" id="conversationsList">
-            <!-- Conversaciones se cargan aquí -->
-        </div>
+        <div class="conversations" id="conversationsList"></div>
     </div>
-    
     <div class="main">
-        <div class="empty-state" id="emptyState">
-            Selecciona una conversación
-        </div>
+        <div class="empty-state" id="emptyState">Selecciona una conversación</div>
     </div>
-
     <script>
         let currentFilter = 'todos';
         let conversations = [];
         let selectedConv = null;
-
-        // Actualizar hora
         function updateTime() {
             const now = new Date();
             document.getElementById('currentTime').textContent = now.toLocaleTimeString('es-PE', {hour: '2-digit', minute:'2-digit'});
         }
         setInterval(updateTime, 1000);
         updateTime();
-
-        // Cargar historial
         async function loadHistorial() {
             try {
                 const response = await fetch('/api/historial?limit=200');
                 const messages = await response.json();
-                
-                // Agrupar por teléfono
                 const grouped = {};
                 messages.forEach(msg => {
                     if (!grouped[msg.telefono]) {
-                        grouped[msg.telefono] = {
-                            telefono: msg.telefono,
-                            nombre: msg.nombre,
-                            messages: [],
-                            lastMessage: msg.hora,
-                            coordinadora: msg.coordinadora
-                        };
+                        grouped[msg.telefono] = {telefono: msg.telefono, nombre: msg.nombre, messages: [], lastMessage: msg.hora, coordinadora: msg.coordinadora};
                     }
                     grouped[msg.telefono].messages.push(msg);
                 });
-                
-                conversations = Object.values(grouped).sort((a, b) => 
-                    new Date(b.lastMessage) - new Date(a.lastMessage)
-                );
-                
+                conversations = Object.values(grouped).sort((a, b) => new Date(b.lastMessage) - new Date(a.lastMessage));
                 renderConversations();
                 updateStats();
-            } catch (error) {
-                console.error('Error cargando historial:', error);
-            }
+            } catch (error) { console.error('Error cargando historial:', error); }
         }
-
-        // Renderizar conversaciones
         function renderConversations() {
             const list = document.getElementById('conversationsList');
             const search = document.getElementById('searchInput').value.toLowerCase();
-            
             let filtered = conversations;
-            if (currentFilter === 'graduado') {
-                filtered = conversations.filter(c => c.nombre.toLowerCase().includes('grad'));
-            } else if (currentFilter === 'pendiente') {
-                filtered = conversations.filter(c => !c.coordinadora);
-            }
-            
-            if (search) {
-                filtered = filtered.filter(c => 
-                    c.nombre.toLowerCase().includes(search) || 
-                    c.telefono.includes(search)
-                );
-            }
-            
-            list.innerHTML = filtered.map(conv => `
-                <div class="conversation ${selectedConv === conv.telefono ? 'active' : ''}" 
-                     onclick="selectConversation('${conv.telefono}')">
-                    <div class="conv-header">
-                        <span class="conv-name">${conv.nombre}</span>
-                        <span class="conv-time">${formatTime(conv.lastMessage)}</span>
-                    </div>
-                    <div class="conv-message">${conv.messages[0].texto}</div>
-                    <div class="conv-phone">${conv.telefono}</div>
-                </div>
-            `).join('');
+            if (currentFilter === 'graduado') filtered = conversations.filter(c => c.nombre.toLowerCase().includes('grad'));
+            else if (currentFilter === 'pendiente') filtered = conversations.filter(c => !c.coordinadora);
+            if (search) filtered = filtered.filter(c => c.nombre.toLowerCase().includes(search) || c.telefono.includes(search));
+            list.innerHTML = filtered.map(conv => `<div class="conversation ${selectedConv === conv.telefono ? 'active' : ''}" onclick="selectConversation('${conv.telefono}')"><div class="conv-header"><span class="conv-name">${conv.nombre}</span><span class="conv-time">${formatTime(conv.lastMessage)}</span></div><div class="conv-message">${conv.messages[0].texto}</div><div class="conv-phone">${conv.telefono}</div></div>`).join('');
         }
-
-        // Seleccionar conversación
-        function selectConversation(tel) {
-            selectedConv = tel;
-            renderConversations();
-            // Aquí podrías cargar el chat completo
-        }
-
-        // Actualizar estadísticas
+        function selectConversation(tel) { selectedConv = tel; renderConversations(); }
         function updateStats() {
             document.getElementById('totalStats').textContent = conversations.length;
-            document.getElementById('gradsStats').textContent = 
-                conversations.filter(c => c.nombre.toLowerCase().includes('grad')).length;
-            document.getElementById('pendStats').textContent = 
-                conversations.filter(c => !c.coordinadora).length;
+            document.getElementById('gradsStats').textContent = conversations.filter(c => c.nombre.toLowerCase().includes('grad')).length;
+            document.getElementById('pendStats').textContent = conversations.filter(c => !c.coordinadora).length;
         }
-
-        // Formatear hora
         function formatTime(timestamp) {
             const date = new Date(timestamp);
-            return date.toLocaleString('es-PE', { 
-                day: '2-digit', month: '2-digit', 
-                hour: '2-digit', minute: '2-digit' 
-            });
+            return date.toLocaleString('es-PE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
         }
-
-        // Filtros
         document.querySelectorAll('.filter-btn').forEach(btn => {
             btn.addEventListener('click', function() {
                 document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
@@ -211,14 +118,8 @@
                 renderConversations();
             });
         });
-
-        // Búsqueda
         document.getElementById('searchInput').addEventListener('input', renderConversations);
-
-        // Cargar inicialmente
         loadHistorial();
-        
-        // Actualizar cada 10 segundos
         setInterval(loadHistorial, 10000);
     </script>
 </body>
