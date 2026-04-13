@@ -28,7 +28,7 @@ class Config:
     SESSIONS_PATH = os.path.join(DATA_DIR, "sesiones.json")
     
     # 🌟 AQUÍ PEGARÁS TU ENLACE DE MAKE.COM PARA GOOGLE SHEETS
-    URL_SHEETS = os.environ.get("URL_MAKE", "PEGA_AQUI_TU_WEBHOOK_DE_MAKE")
+    URL_SHEETS = os.environ.get("URL_MAKE", "https://hook.us2.make.com/ii4ut5wjlg1khsaes20coa7cgiom13n6")
     
     STAFF = {
         "Diana": {"tel": "51912379744"},
