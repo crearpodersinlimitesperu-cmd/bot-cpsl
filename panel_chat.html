@@ -1,121 +1,1403 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Torre de Control V108.4 - Individualizado</title>
-    <style>
-        :root { --bg: #0b141a; --side: #111b21; --header: #202c33; --accent: #00a884; --bubble-in: #202c33; --bubble-out: #005c4b; --text: #e9edef; --active: #2a3942; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; overflow: hidden; }
-        .app-container { display: grid; grid-template-columns: 350px 1fr; height: 100vh; }
-        
-        /* Lista de Chats (Izquierda) */
-        .sidebar { background: var(--side); border-right: 1px solid #313d45; display: flex; flex-direction: column; }
-        .sidebar-header { background: var(--header); padding: 15px; font-weight: bold; color: var(--accent); border-bottom: 1px solid #313d45; }
-        .chat-list { flex: 1; overflow-y: auto; }
-        .chat-item { padding: 15px; border-bottom: 1px solid #222d34; cursor: pointer; transition: 0.3s; }
-        .chat-item:hover { background: #182229; }
-        .chat-item.active { background: var(--active); }
-        .chat-item .name { font-weight: bold; font-size: 14px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .chat-item .last-msg { font-size: 12px; color: #8696a0; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Torre de Control — CPSL Lima V108</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
 
-        /* Ventana de Chat (Derecha) */
-        .main-content { display: flex; flex-direction: column; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); background-blend-mode: overlay; background-color: #0b141a; }
-        .chat-header { background: var(--header); padding: 10px 20px; border-bottom: 1px solid #313d45; height: 60px; display: flex; align-items: center; }
-        .chat-messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
-        
-        /* Burbujas */
-        .msg { max-width: 75%; padding: 8px 12px; border-radius: 8px; font-size: 14px; position: relative; box-shadow: 0 1px 1px rgba(0,0,0,0.2); }
-        .msg.in { align-self: flex-start; background: var(--bubble-in); }
-        .msg.out { align-self: flex-end; background: var(--bubble-out); }
-        .msg .time { font-size: 10px; opacity: 0.5; text-align: right; margin-top: 4px; display: block; }
+:root {
+  --verde:      #1D9E75;
+  --verde-clar: #E1F5EE;
+  --verde-osc:  #0F6E56;
+  --gris-bg:    #F0EFEB;
+  --gris-panel: #FAFAF8;
+  --gris-borde: #D3D1C7;
+  --gris-txt:   #5F5E5A;
+  --negro:      #1A1A18;
+  --blanco:     #FFFFFF;
+  --rojo:       #A32D2D;
+  --naranja:    #BA7517;
+  --azul:       #185FA5;
+  --morado:     #534AB7;
+  --burbuja-in: #FFFFFF;
+  --burbuja-out:#DCF8C6;
+  --sombra:     0 1px 3px rgba(0,0,0,.08);
+  --sombra-md:  0 4px 16px rgba(0,0,0,.10);
+}
 
-        .welcome { display: flex; align-items: center; justify-content: center; height: 100%; color: #8696a0; text-align: center; padding: 40px; }
-    </style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--gris-bg);
+  color: var(--negro);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── TOPBAR ─────────────────────────────────────── */
+.topbar {
+  height: 48px;
+  background: var(--negro);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 10px;
+  flex-shrink: 0;
+  z-index: 100;
+}
+.topbar-logo {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--verde);
+  letter-spacing: .5px;
+}
+.topbar-sep { flex: 1; }
+.topbar-badge {
+  font-size: 10px;
+  background: var(--verde);
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-weight: 600;
+}
+.topbar-online {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: #888;
+}
+.online-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--verde);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* ── LAYOUT PRINCIPAL ───────────────────────────── */
+.app {
+  display: grid;
+  grid-template-columns: 320px 1fr 260px;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── SIDEBAR IZQUIERDA ──────────────────────────── */
+.sidebar {
+  border-right: 1px solid var(--gris-borde);
+  display: flex;
+  flex-direction: column;
+  background: var(--blanco);
+  overflow: hidden;
+}
+
+.sb-header {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--gris-borde);
+  flex-shrink: 0;
+}
+
+.sb-search {
+  display: flex;
+  align-items: center;
+  background: var(--gris-bg);
+  border-radius: 8px;
+  padding: 6px 10px;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.sb-search input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--negro);
+  outline: none;
+}
+.sb-search input::placeholder { color: #b4b2a9; }
+
+.sb-tabs {
+  display: flex;
+  gap: 4px;
+}
+.sb-tab {
+  flex: 1;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 0;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--gris-txt);
+  background: transparent;
+  border: none;
+  font-family: inherit;
+}
+.sb-tab.on {
+  background: var(--verde-clar);
+  color: var(--verde-osc);
+  font-weight: 600;
+}
+
+.sb-stats {
+  display: grid;
+  grid-template-columns: repeat(3,1fr);
+  border-top: 1px solid var(--gris-borde);
+  border-bottom: 1px solid var(--gris-borde);
+  flex-shrink: 0;
+}
+.sb-stat {
+  text-align: center;
+  padding: 6px 2px;
+  border-right: 1px solid var(--gris-borde);
+}
+.sb-stat:last-child { border-right: none; }
+.sb-stat-n { font-size: 16px; font-weight: 700; }
+.sb-stat-l { font-size: 9px; color: var(--gris-txt); }
+
+.conv-list {
+  flex: 1;
+  overflow-y: auto;
+}
+.conv-list::-webkit-scrollbar { width: 4px; }
+.conv-list::-webkit-scrollbar-thumb { background: var(--gris-borde); border-radius: 2px; }
+
+.conv-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #f0efeb;
+  cursor: pointer;
+  transition: background .1s;
+}
+.conv-item:hover { background: #f8f8f5; }
+.conv-item.active {
+  background: var(--verde-clar);
+  border-left: 3px solid var(--verde);
+}
+
+.conv-avatar {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.av-imo    { background: #FFF3E0; color: #E65100; }
+.av-px     { background: var(--verde-clar); color: var(--verde-osc); }
+.av-nuevo  { background: #EDE7F6; color: #4527A0; }
+.av-ext    { background: #E3F2FD; color: #0D47A1; }
+
+.conv-body { flex: 1; min-width: 0; }
+.conv-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.conv-prev {
+  font-size: 12px;
+  color: var(--gris-txt);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+.conv-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.conv-time { font-size: 10px; color: var(--gris-txt); }
+.conv-badge {
+  width: 17px; height: 17px;
+  border-radius: 50%;
+  background: var(--verde);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tipo-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.tb-imo    { background:#FFF3E0; color:#E65100; }
+.tb-px     { background:var(--verde-clar); color:var(--verde-osc); }
+.tb-nuevo  { background:#EDE7F6; color:#4527A0; }
+.tb-derivado { background:#FFEBEE; color:#C62828; }
+.tb-ext    { background:#E3F2FD; color:#0D47A1; }
+
+.new-chat-btn {
+  margin: 10px 12px;
+  padding: 8px;
+  border: 1.5px dashed var(--gris-borde);
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--gris-txt);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.new-chat-btn:hover {
+  border-color: var(--verde);
+  color: var(--verde);
+  background: var(--verde-clar);
+}
+
+/* ── CHAT CENTRAL ───────────────────────────────── */
+.chat-area {
+  display: flex;
+  flex-direction: column;
+  background: #EAE7DC url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 40L40 0H30L0 30M40 40V30L10 40' fill='%23d5d2c8' opacity='.3'/%3E%3C/svg%3E");
+  overflow: hidden;
+}
+
+.chat-header {
+  background: #F0EFEB;
+  border-bottom: 1px solid var(--gris-borde);
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  box-shadow: var(--sombra);
+}
+.chat-header-info { flex: 1; min-width: 0; }
+.chat-header-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+.chat-header-sub {
+  font-size: 11px;
+  color: var(--gris-txt);
+  margin-top: 1px;
+}
+.chat-header-actions {
+  display: flex;
+  gap: 4px;
+}
+.ch-btn {
+  padding: 4px 8px;
+  border: 1px solid var(--gris-borde);
+  border-radius: 6px;
+  background: transparent;
+  font-family: inherit;
+  font-size: 10px;
+  color: var(--gris-txt);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ch-btn:hover { background: var(--blanco); }
+.ch-btn.primary {
+  background: var(--verde);
+  color: #fff;
+  border-color: var(--verde);
+}
+.ch-btn.primary:hover { background: var(--verde-osc); }
+
+.chat-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--gris-txt);
+}
+.chat-empty-icon {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.messages::-webkit-scrollbar { width: 4px; }
+.messages::-webkit-scrollbar-thumb { background: rgba(0,0,0,.15); border-radius: 2px; }
+
+.msg {
+  display: flex;
+  flex-direction: column;
+  max-width: 72%;
+}
+.msg.in  { align-self: flex-start; }
+.msg.out { align-self: flex-end; }
+.msg.system { align-self: center; max-width: 80%; }
+
+.bubble {
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+  word-break: break-word;
+  position: relative;
+  box-shadow: 0 1px 2px rgba(0,0,0,.12);
+}
+.msg.in  .bubble {
+  background: var(--burbuja-in);
+  border-radius: 0 8px 8px 8px;
+}
+.msg.out .bubble {
+  background: var(--burbuja-out);
+  border-radius: 8px 0 8px 8px;
+}
+.msg.system .bubble {
+  background: rgba(255,255,255,.7);
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--gris-txt);
+  text-align: center;
+}
+
+.msg-meta {
+  font-size: 10px;
+  color: var(--gris-txt);
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.msg.out .msg-meta { justify-content: flex-end; }
+.check-double { color: var(--azul); }
+
+.date-sep {
+  text-align: center;
+  font-size: 10px;
+  color: var(--gris-txt);
+  padding: 8px 0 4px;
+  flex-shrink: 0;
+}
+
+/* ── INPUT ──────────────────────────────────────── */
+.chat-input-area {
+  background: #F0EFEB;
+  border-top: 1px solid var(--gris-borde);
+  padding: 8px 12px 10px;
+  flex-shrink: 0;
+}
+
+.quick-replies {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 7px;
+}
+.qr-chip {
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  border: 1px solid var(--gris-borde);
+  background: var(--blanco);
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--gris-txt);
+  white-space: nowrap;
+}
+.qr-chip:hover { background: var(--verde-clar); border-color: var(--verde); color: var(--verde); }
+
+.input-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.msg-input {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 22px;
+  border: none;
+  background: var(--blanco);
+  font-family: inherit;
+  font-size: 13px;
+  resize: none;
+  outline: none;
+  min-height: 36px;
+  max-height: 100px;
+  line-height: 1.4;
+  box-shadow: var(--sombra);
+}
+.send-btn {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--verde);
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background .15s;
+}
+.send-btn:hover { background: var(--verde-osc); }
+.send-btn:disabled { background: #9FE1CB; cursor: not-allowed; }
+
+/* ── SIDEBAR DERECHA ────────────────────────────── */
+.sidebar-right {
+  border-left: 1px solid var(--gris-borde);
+  display: flex;
+  flex-direction: column;
+  background: var(--blanco);
+  overflow-y: auto;
+  font-size: 12px;
+}
+.sidebar-right::-webkit-scrollbar { width: 3px; }
+.sidebar-right::-webkit-scrollbar-thumb { background: var(--gris-borde); }
+
+.panel-section {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--gris-borde);
+}
+.panel-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--gris-txt);
+  margin-bottom: 8px;
+}
+
+/* Coordinadoras */
+.cc-card {
+  padding: 7px 0;
+  border-bottom: 1px solid #f0efeb;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cc-card:last-child { border-bottom: none; }
+.cc-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.cc-info { flex: 1; min-width: 0; }
+.cc-name {
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cc-casos {
+  font-size: 10px;
+  color: var(--gris-txt);
+}
+.cc-num {
+  font-size: 15px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Campañas */
+.camp-item {
+  padding: 6px 0;
+  border-bottom: 1px solid #f0efeb;
+}
+.camp-item:last-child { border-bottom: none; }
+.camp-name { font-size: 11px; font-weight: 600; }
+.camp-sub  { font-size: 10px; color: var(--gris-txt); }
+.camp-bar  {
+  height: 4px;
+  background: var(--gris-borde);
+  border-radius: 2px;
+  margin-top: 4px;
+  overflow: hidden;
+}
+.camp-bar-fill {
+  height: 100%;
+  background: var(--verde);
+  border-radius: 2px;
+  transition: width .5s;
+}
+
+/* Perfil del contacto activo */
+.perfil-field {
+  margin-bottom: 6px;
+}
+.perfil-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--gris-txt);
+  margin-bottom: 1px;
+}
+.perfil-val {
+  font-size: 11px;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+/* ── MODALES ─────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+}
+.modal {
+  background: var(--blanco);
+  border-radius: 12px;
+  padding: 22px 24px;
+  width: 420px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--sombra-md);
+}
+.modal h3 { font-size: 15px; margin-bottom: 4px; }
+.modal .sub { font-size: 11px; color: var(--gris-txt); margin-bottom: 16px; }
+.field { margin-bottom: 12px; }
+.field label {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--gris-txt);
+  margin-bottom: 3px;
+}
+.field input, .field select {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--gris-borde);
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  background: var(--gris-panel);
+}
+.field input:focus, .field select:focus {
+  border-color: var(--verde);
+  background: var(--blanco);
+}
+.modal-btns {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.btn {
+  flex: 1;
+  padding: 8px;
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--gris-borde);
+  background: transparent;
+  color: var(--gris-txt);
+}
+.btn.primary {
+  background: var(--verde);
+  color: #fff;
+  border-color: var(--verde);
+}
+.btn.primary:hover { background: var(--verde-osc); }
+
+/* ── SIMULADOR ────────────────────────────────────── */
+.sim-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 600;
+}
+.sim-box {
+  background: var(--blanco);
+  border-radius: 14px;
+  width: 380px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--sombra-md);
+}
+.sim-header {
+  background: var(--verde);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  font-weight: 600;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.sim-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+  background: #EAE7DC;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 300px;
+}
+.sim-input-row {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--blanco);
+  border-top: 1px solid var(--gris-borde);
+  flex-shrink: 0;
+}
+.sim-input {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--gris-borde);
+  border-radius: 20px;
+  font-family: inherit;
+  font-size: 12px;
+  outline: none;
+}
+.sim-send {
+  padding: 6px 12px;
+  background: var(--verde);
+  color: #fff;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ── NOTIF TOAST ─────────────────────────────────── */
+.toast-container {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.toast {
+  background: var(--negro);
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  box-shadow: var(--sombra-md);
+  animation: slideIn .2s ease;
+  max-width: 280px;
+}
+.toast.ok    { border-left: 3px solid var(--verde); }
+.toast.error { border-left: 3px solid var(--rojo); }
+@keyframes slideIn { from{transform:translateX(20px);opacity:0} to{transform:none;opacity:1} }
+
+/* ── SPINNER ─────────────────────────────────────── */
+.spinner {
+  width: 20px; height: 20px;
+  border: 2px solid var(--gris-borde);
+  border-top-color: var(--verde);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  margin: auto;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
 </head>
 <body>
-    <div class="app-container">
-        <aside class="sidebar">
-            <div class="sidebar-header">LIMA V108.4 - CHATS</div>
-            <div class="chat-list" id="chat-list">
-                </div>
-        </aside>
 
-        <main class="main-content">
-            <div class="chat-header" id="chat-header">
-                <strong id="selected-contact-name">Selecciona un chat para auditar</strong>
-            </div>
-            <div class="chat-messages" id="msg-container">
-                <div class="welcome">
-                    <div>
-                        <h2 style="color: var(--accent);">Torre de Control Quantum</h2>
-                        <p>Selecciona a un IMO o Prospecto de la izquierda para ver su historial individualizado.</p>
-                    </div>
-                </div>
-            </div>
-        </main>
+<!-- TOPBAR -->
+<div class="topbar">
+  <span class="topbar-logo">⚡ TORRE DE CONTROL</span>
+  <span style="font-size:10px;color:#555;font-family:'DM Mono',monospace">CPSL LIMA — V108</span>
+  <span class="topbar-sep"></span>
+  <div class="topbar-online">
+    <div class="online-dot" id="onlineDot"></div>
+    <span id="onlineTxt">Conectando…</span>
+  </div>
+  <span class="topbar-badge" id="syncBadge">SYNC</span>
+  <button class="btn" style="padding:3px 8px;font-size:10px;margin-left:6px" onclick="abrirCfg()">⚙ Config</button>
+  <button class="btn primary" style="padding:3px 8px;font-size:10px" onclick="abrirSim()">🧪 Simular</button>
+</div>
+
+<!-- APP -->
+<div class="app" id="app">
+
+  <!-- SIDEBAR IZQUIERDA -->
+  <div class="sidebar">
+    <div class="sb-header">
+      <div class="sb-search">
+        <span style="font-size:13px">🔍</span>
+        <input type="text" id="searchInput" placeholder="Buscar nombre o teléfono…" oninput="renderConvList()">
+      </div>
+      <div class="sb-tabs">
+        <button class="sb-tab on" data-tab="todos" onclick="setTab(this)">Todos</button>
+        <button class="sb-tab" data-tab="imo" onclick="setTab(this)">IMO</button>
+        <button class="sb-tab" data-tab="px" onclick="setTab(this)">PX</button>
+        <button class="sb-tab" data-tab="derivado" onclick="setTab(this)">Derivados</button>
+        <button class="sb-tab" data-tab="nuevo" onclick="setTab(this)">Nuevos</button>
+      </div>
     </div>
 
-    <script>
-        let allMessages = [];
-        let selectedPhone = null;
+    <div class="sb-stats">
+      <div class="sb-stat">
+        <div class="sb-stat-n" id="statTotal">0</div>
+        <div class="sb-stat-l">Total</div>
+      </div>
+      <div class="sb-stat">
+        <div class="sb-stat-n" id="statUnread" style="color:var(--verde)">0</div>
+        <div class="sb-stat-l">No leídos</div>
+      </div>
+      <div class="sb-stat">
+        <div class="sb-stat-n" id="statDerivados" style="color:var(--naranja)">0</div>
+        <div class="sb-stat-l">Derivados</div>
+      </div>
+    </div>
 
-        async function refreshData() {
-            try {
-                const res = await fetch('/api/historial');
-                allMessages = await res.json();
-                renderChatList();
-                if (selectedPhone) renderActiveChat();
-            } catch (e) { console.error("Error sync:", e); }
+    <div class="conv-list" id="convList"></div>
+
+    <button class="new-chat-btn" onclick="abrirNuevoChat()">
+      ✏️ Nuevo Chat
+    </button>
+  </div>
+
+  <!-- CHAT CENTRAL -->
+  <div class="chat-area" id="chatArea">
+    <div class="chat-empty" id="chatEmpty">
+      <div class="chat-empty-icon">💬</div>
+      <span style="font-size:13px;font-weight:500">Selecciona una conversación</span>
+      <span style="font-size:11px;color:#b4b2a9">Torre de Control activa — sincronización en tiempo real</span>
+    </div>
+  </div>
+
+  <!-- SIDEBAR DERECHA -->
+  <div class="sidebar-right">
+
+    <!-- Coordinadoras -->
+    <div class="panel-section">
+      <div class="panel-section-title">Coordinadoras</div>
+      <div id="ccCards">
+        <div class="spinner"></div>
+      </div>
+    </div>
+
+    <!-- Campañas activas -->
+    <div class="panel-section">
+      <div class="panel-section-title">Campañas Activas</div>
+      <div class="camp-item">
+        <div class="camp-name">🚀 PX Rezagados C1 E27</div>
+        <div class="camp-sub" id="campPxSub">259 enviados · E25+E26</div>
+        <div class="camp-bar"><div class="camp-bar-fill" id="campPxBar" style="width:36%"></div></div>
+      </div>
+      <div class="camp-item">
+        <div class="camp-name">👑 IMOs C1 E27</div>
+        <div class="camp-sub" id="campImoSub">279 IMOs · pendiente</div>
+        <div class="camp-bar"><div class="camp-bar-fill" id="campImoBar" style="width:0%;background:var(--naranja)"></div></div>
+      </div>
+      <div class="camp-item">
+        <div class="camp-name">📣 Campaña inicial IMOs</div>
+        <div class="camp-sub">282 enviados · completada</div>
+        <div class="camp-bar"><div class="camp-bar-fill" style="width:100%;background:var(--azul)"></div></div>
+      </div>
+    </div>
+
+    <!-- Perfil activo -->
+    <div class="panel-section" id="perfilPanel">
+      <div class="panel-section-title">Perfil Activo</div>
+      <div style="color:var(--gris-txt);font-size:11px">Selecciona una conversación</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MODAL CONFIG -->
+<div class="modal-overlay" id="cfgOverlay" style="display:none">
+  <div class="modal">
+    <h3>Configuración de Conexión</h3>
+    <p class="sub">Los datos se guardan solo en tu navegador.</p>
+    <div class="field">
+      <label>URL del Bot (Render)</label>
+      <input id="cfgUrl" placeholder="https://bot-cpsl.onrender.com" value="https://bot-cpsl.onrender.com">
+    </div>
+    <div class="field">
+      <label>WA Token</label>
+      <input id="cfgToken" type="password" placeholder="EAAxxxxxxx">
+    </div>
+    <div class="field">
+      <label>WA Phone Number ID</label>
+      <input id="cfgPhoneId" placeholder="1085205258006361" value="1085205258006361">
+    </div>
+    <div class="modal-btns">
+      <button class="btn" onclick="cerrarCfg()">Cancelar</button>
+      <button class="btn primary" onclick="guardarCfg()">Guardar y Conectar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL NUEVO CHAT -->
+<div class="modal-overlay" id="nuevoOverlay" style="display:none">
+  <div class="modal" style="width:360px">
+    <h3>Nuevo Chat</h3>
+    <p class="sub">Inicia una conversación outbound directa.</p>
+    <div class="field">
+      <label>Teléfono (con código de país)</label>
+      <input id="nuevoTel" type="tel" placeholder="51987654321">
+    </div>
+    <div class="field">
+      <label>Nombre (opcional)</label>
+      <input id="nuevoNombre" placeholder="Nombre del contacto">
+    </div>
+    <div class="field">
+      <label>Primer mensaje</label>
+      <input id="nuevoMsg" placeholder="Escribe el mensaje inicial…">
+    </div>
+    <div class="modal-btns">
+      <button class="btn" onclick="cerrarNuevo()">Cancelar</button>
+      <button class="btn primary" onclick="iniciarNuevoChat()">Iniciar Chat</button>
+    </div>
+  </div>
+</div>
+
+<!-- SIMULADOR -->
+<div class="sim-overlay" id="simOverlay" style="display:none">
+  <div class="sim-box">
+    <div class="sim-header">
+      <span>🧪 Simulador de Bot</span>
+      <span style="flex:1"></span>
+      <button onclick="cerrarSim()" style="background:transparent;border:none;color:#fff;cursor:pointer;font-size:16px">✕</button>
+    </div>
+    <div id="simMsg" class="sim-messages"></div>
+    <div class="sim-input-row">
+      <input class="sim-input" id="simInput" placeholder="Escribe un mensaje…" onkeydown="if(event.key==='Enter')enviarSim()">
+      <button class="sim-send" onclick="enviarSim()">Enviar</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOASTS -->
+<div class="toast-container" id="toasts"></div>
+
+<script>
+// ══ ESTADO GLOBAL ══════════════════════════════════════════
+const CFG_KEY = 'tc_v108_cfg';
+let CFG = {};
+let convs = [];         // {tel, nombre, tipo, msgs[], unread, estado, ts}
+let activeTel = null;
+let tabActivo = 'todos';
+let syncTimer  = null;
+let simTel = null;
+
+// Respuestas rápidas
+const QR_CHIPS = [
+  {l:'Confirmado ✅', t:'Confirmación registrada. Te esperamos el Viernes 1 de Mayo a las 9:00am en el Hotel José Antonio Deluxe, Miraflores. ¡Hasta pronto!'},
+  {l:'No puede 📅',  t:'Recibido. Tu inscripción sigue activa para el próximo equipo. Escríbenos cuando estés listo.'},
+  {l:'Info C1',      t:'El Capítulo 1 es un entrenamiento vivencial de 3 días: Vie 1, Sáb 2 y Dom 3 de Mayo. Hotel José Antonio Deluxe, Miraflores. Registro obligatorio: 9:00am del viernes.'},
+  {l:'Derivar',      t:''},
+];
+
+// ══ CONFIG ═════════════════════════════════════════════════
+function cargarCfg() {
+  try { CFG = JSON.parse(localStorage.getItem(CFG_KEY) || '{}'); } catch(e){ CFG={}; }
+  if(!CFG.url) CFG.url = 'https://bot-cpsl.onrender.com';
+  if(!CFG.phoneId) CFG.phoneId = '1085205258006361';
+  if(CFG.url) document.getElementById('cfgUrl').value = CFG.url;
+  if(CFG.token) document.getElementById('cfgToken').value = CFG.token;
+  if(CFG.phoneId) document.getElementById('cfgPhoneId').value = CFG.phoneId;
+}
+function guardarCfg() {
+  CFG.url     = document.getElementById('cfgUrl').value.trim().replace(/\/$/, '');
+  CFG.token   = document.getElementById('cfgToken').value.trim();
+  CFG.phoneId = document.getElementById('cfgPhoneId').value.trim();
+  localStorage.setItem(CFG_KEY, JSON.stringify(CFG));
+  cerrarCfg();
+  toast('Configuración guardada', 'ok');
+  iniciarSync();
+}
+function abrirCfg() { document.getElementById('cfgOverlay').style.display='flex'; }
+function cerrarCfg(){ document.getElementById('cfgOverlay').style.display='none'; }
+
+// ══ UTILIDADES ═════════════════════════════════════════════
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function nl2br(s){ return esc(s).replace(/\n/g,'<br>'); }
+function ini(n){
+  const p = (n||'').trim().split(' ');
+  return ((p[0]||'')[0]||'').toUpperCase() + ((p[1]||'')[0]||'').toUpperCase();
+}
+function ahora() {
+  return new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',timeZone:'America/Lima'});
+}
+function toast(msg, tipo='ok') {
+  const c = document.getElementById('toasts');
+  const d = document.createElement('div');
+  d.className = `toast ${tipo}`;
+  d.textContent = msg;
+  c.appendChild(d);
+  setTimeout(()=> d.remove(), 3500);
+}
+
+// Tipo → clase avatar/badge
+function tipoAv(t) {
+  if(t==='IMO'||t==='IMO_GRADUADO') return 'av-imo';
+  if(t==='PX') return 'av-px';
+  if(t==='NUEVO') return 'av-nuevo';
+  return 'av-ext';
+}
+function tipoBadge(t, estado) {
+  if(estado==='DERIVADO') return {cls:'tb-derivado', lbl:'derivado'};
+  if(t==='IMO'||t==='IMO_GRADUADO') return {cls:'tb-imo', lbl:t==='IMO_GRADUADO'?'graduado':'imo'};
+  if(t==='PX') return {cls:'tb-px', lbl:'px'};
+  if(t==='NUEVO') return {cls:'tb-nuevo', lbl:'nuevo'};
+  return {cls:'tb-ext', lbl:'externo'};
+}
+
+// ══ SINCRONIZACIÓN ═════════════════════════════════════════
+async function sincronizarHistorial() {
+  try {
+    const r = await fetch(CFG.url + '/api/historial');
+    if(!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    let cambios = false;
+
+    for(const m of data) {
+      const tel = String(m.telefono || '');
+      if(!tel) continue;
+      let c = convs.find(x => x.tel===tel);
+      if(!c) {
+        c = {tel, nombre: m.nombre||'+'+tel, tipo:'?', estado:'',
+              msgs:[], unread:0, ts:''};
+        convs.push(c);
+        cambios = true;
+      }
+      // Deducir tipo del nombre
+      if(c.tipo==='?' && m.nombre) {
+        if(m.nombre.includes('IMO')) c.tipo='IMO';
+        else if(m.nombre.includes('PX')) c.tipo='PX';
+        else if(m.nombre.includes('NUEVO')||m.nombre.includes('SIMULACI')) c.tipo='NUEVO';
+        else c.tipo='EXT';
+      }
+      // Agregar mensaje si no existe
+      const yaExiste = c.msgs.some(x => x.texto===m.texto && x.hora===m.hora && x.tipo===m.tipo);
+      if(!yaExiste) {
+        c.msgs.push({texto:m.texto, hora:m.hora, tipo:m.tipo});
+        c.ts = m.hora;
+        if(m.tipo==='in' && tel!==activeTel) {
+          c.unread++;
+          document.title = `🔴 Nuevo — Torre Control`;
         }
+        cambios = true;
+      }
+    }
+    if(cambios) { renderConvList(); if(activeTel) renderMessages(); }
+    setOnline(true);
+  } catch(e) {
+    setOnline(false);
+  }
+}
 
-        function renderChatList() {
-            const listContainer = document.getElementById('chat-list');
-            // Agrupar mensajes por teléfono
-            const contacts = {};
-            allMessages.forEach(m => {
-                if (!contacts[m.telefono]) {
-                    contacts[m.telefono] = { 
-                        nombre: m.nombre, 
-                        lastMsg: m.texto,
-                        time: m.hora 
-                    };
-                }
-            });
+async function sincronizarCC() {
+  try {
+    const r = await fetch(CFG.url + '/api/carga_coordinadoras');
+    if(!r.ok) return;
+    const data = await r.json();
+    renderCC(data);
+  } catch(e) {}
+}
 
-            const html = Object.keys(contacts).map(phone => `
-                <div class="chat-item ${selectedPhone === phone ? 'active' : ''}" onclick="selectChat('${phone}')">
-                    <span class="name">${contacts[phone].nombre}</span>
-                    <span class="last-msg">${contacts[phone].lastMsg.substring(0, 30)}...</span>
-                </div>
-            `).join('');
-            
-            if (listContainer.innerHTML !== html) listContainer.innerHTML = html;
+function setOnline(ok) {
+  document.getElementById('onlineDot').style.background = ok ? '#1D9E75' : '#A32D2D';
+  document.getElementById('onlineTxt').textContent = ok ? 'En línea' : 'Sin conexión';
+  document.getElementById('syncBadge').textContent = ok ? '● LIVE' : '○ OFFLINE';
+  document.getElementById('syncBadge').style.background = ok ? '#1D9E75' : '#A32D2D';
+}
+
+function iniciarSync() {
+  if(syncTimer) clearInterval(syncTimer);
+  sincronizarHistorial();
+  sincronizarCC();
+  syncTimer = setInterval(() => {
+    sincronizarHistorial();
+  }, 3000);
+  setInterval(sincronizarCC, 15000);
+}
+
+// ══ RENDER LISTA DE CONVERSACIONES ═════════════════════════
+function setTab(el) {
+  document.querySelectorAll('.sb-tab').forEach(t => t.classList.remove('on'));
+  el.classList.add('on');
+  tabActivo = el.dataset.tab;
+  renderConvList();
+}
+
+function renderConvList() {
+  const q = (document.getElementById('searchInput').value||'').toLowerCase();
+  let lista = convs.filter(c => {
+    const mq = !q || c.nombre.toLowerCase().includes(q) || c.tel.includes(q);
+    const mt = tabActivo==='todos' ||
+               (tabActivo==='imo' && (c.tipo==='IMO'||c.tipo==='IMO_GRADUADO')) ||
+               (tabActivo==='px'  && c.tipo==='PX') ||
+               (tabActivo==='derivado' && c.estado==='DERIVADO') ||
+               (tabActivo==='nuevo'    && (c.tipo==='NUEVO'||c.tipo==='EXT'||c.tipo==='?'));
+    return mq && mt;
+  });
+  lista.sort((a,b) => (b.unread-a.unread) || (b.ts>a.ts?1:-1));
+
+  // Stats
+  document.getElementById('statTotal').textContent    = convs.length;
+  document.getElementById('statUnread').textContent   = convs.filter(c=>c.unread>0).length;
+  document.getElementById('statDerivados').textContent= convs.filter(c=>c.estado==='DERIVADO').length;
+
+  const el = document.getElementById('convList');
+  if(!lista.length) {
+    el.innerHTML = '<div style="padding:20px;text-align:center;font-size:11px;color:#b4b2a9">Sin resultados</div>';
+    return;
+  }
+
+  el.innerHTML = lista.map(c => {
+    const lastMsg = c.msgs[c.msgs.length-1];
+    const prev    = lastMsg ? lastMsg.texto.slice(0,42)+(lastMsg.texto.length>42?'…':'') : '—';
+    const {cls,lbl} = tipoBadge(c.tipo, c.estado);
+    const avCls = tipoAv(c.tipo);
+    const iniciales = ini(c.nombre);
+    return `<div class="conv-item${activeTel===c.tel?' active':''}" onclick="selConv('${c.tel}')">
+      <div class="conv-avatar ${avCls}">${esc(iniciales)}</div>
+      <div class="conv-body">
+        <div class="conv-name">${esc(c.nombre.split(' ').slice(0,3).join(' '))}</div>
+        <div class="conv-prev">${esc(prev)}</div>
+        <div style="margin-top:2px">
+          <span class="tipo-badge ${cls}">${lbl}</span>
+          <span style="font-size:9px;color:#b4b2a9;margin-left:4px">+${esc(c.tel)}</span>
+        </div>
+      </div>
+      <div class="conv-meta">
+        <span class="conv-time">${esc(lastMsg?.hora||'')}</span>
+        ${c.unread>0 ? `<div class="conv-badge">${c.unread}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══ CHAT ═══════════════════════════════════════════════════
+function selConv(tel) {
+  activeTel = tel;
+  const c = convs.find(x=>x.tel===tel);
+  if(c) { c.unread=0; document.title='Torre de Control — CPSL Lima'; }
+  renderConvList();
+  renderChatPanel(c);
+  renderPerfil(c);
+}
+
+function renderChatPanel(c) {
+  if(!c) return;
+  const {cls, lbl} = tipoBadge(c.tipo, c.estado);
+  document.getElementById('chatArea').innerHTML = `
+    <div class="chat-header">
+      <div class="conv-avatar ${tipoAv(c.tipo)}" style="width:34px;height:34px;font-size:12px">${esc(ini(c.nombre))}</div>
+      <div class="chat-header-info">
+        <div class="chat-header-name">${esc(c.nombre.split(' ').slice(0,3).join(' '))}</div>
+        <div class="chat-header-sub">+${esc(c.tel)} &nbsp;·&nbsp; <span class="tipo-badge ${cls}">${lbl}</span></div>
+      </div>
+      <div class="chat-header-actions">
+        <button class="ch-btn" onclick="marcarEstado('${c.tel}','DERIVADO')">🔀 Derivar</button>
+        <button class="ch-btn" onclick="abrirSimConTel('${c.tel}')">🧪 Simular</button>
+        <button class="ch-btn primary" onclick="enfocarInput()">✏️ Escribir</button>
+      </div>
+    </div>
+    <div id="messages" class="messages"></div>
+    <div class="chat-input-area">
+      <div class="quick-replies">${QR_CHIPS.map((q,i)=>`<button class="qr-chip" onclick="usarQR(${i})">${esc(q.l)}</button>`).join('')}</div>
+      <div class="input-row">
+        <textarea class="msg-input" id="msgInput" placeholder="Escribe tu mensaje…" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        <button class="send-btn" id="sendBtn" onclick="enviarManual()">➤</button>
+      </div>
+    </div>`;
+  renderMessages();
+  setTimeout(scrollFin, 50);
+}
+
+function renderMessages() {
+  const el = document.getElementById('messages');
+  if(!el) return;
+  const c = convs.find(x=>x.tel===activeTel);
+  if(!c) return;
+  const atBottom = (el.scrollHeight - el.scrollTop - el.clientHeight) < 60;
+  const html = c.msgs.map(m => {
+    const dir = m.tipo==='in'?'in':'out';
+    const who = dir==='in' ? esc(c.nombre.split(' ')[0]) : 'Tú';
+    return `<div class="msg ${dir}">
+      <div class="bubble">${nl2br(m.texto)}</div>
+      <div class="msg-meta">
+        ${dir==='out'?`<span class="check-double">✓✓</span>`:''}
+        ${esc(m.hora)}
+      </div>
+    </div>`;
+  }).join('');
+  el.innerHTML = html || '<div style="text-align:center;padding:20px;font-size:11px;color:#b4b2a9">Sin mensajes aún</div>';
+  if(atBottom) scrollFin();
+}
+
+function scrollFin() {
+  const el = document.getElementById('messages');
+  if(el) el.scrollTop = el.scrollHeight;
+}
+function enfocarInput() { const el=document.getElementById('msgInput'); if(el) el.focus(); }
+function autoResize(el) {
+  el.style.height='auto';
+  el.style.height=Math.min(el.scrollHeight,100)+'px';
+}
+function handleKey(e) {
+  if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); enviarManual(); }
+}
+function usarQR(i) {
+  const el = document.getElementById('msgInput');
+  if(!el) return;
+  el.value = QR_CHIPS[i].t;
+  el.focus();
+}
+function marcarEstado(tel, estado) {
+  const c = convs.find(x=>x.tel===tel);
+  if(c){ c.estado=estado; renderConvList(); if(activeTel===tel) renderChatPanel(c); }
+}
+
+async function enviarManual() {
+  const el   = document.getElementById('msgInput');
+  const btn  = document.getElementById('sendBtn');
+  const texto= (el?.value||'').trim();
+  if(!texto || !activeTel) return;
+  btn.disabled=true;
+  el.value=''; el.style.height='auto';
+
+  // Agregar burbuja local optimista
+  const c = convs.find(x=>x.tel===activeTel);
+  if(c) {
+    c.msgs.push({texto, hora:ahora(), tipo:'out'});
+    renderMessages(); scrollFin();
+  }
+
+  // Enviar al bot
+  try {
+    if(!CFG.token || !CFG.phoneId) throw new Error('Sin credenciales WA');
+    const r = await fetch(`https://graph.facebook.com/v19.0/${CFG.phoneId}/messages`, {
+      method:'POST',
+      headers:{'Authorization':`Bearer ${CFG.token}`,'Content-Type':'application/json'},
+      body: JSON.stringify({messaging_product:'whatsapp',to:activeTel,type:'text',text:{body:texto}})
+    });
+    if(r.ok) toast('Enviado ✓','ok');
+    else {
+      const d = await r.json();
+      toast('Error WA: '+(d.error?.message||r.status),'error');
+    }
+  } catch(e) {
+    toast('Error: '+e.message, 'error');
+  }
+  btn.disabled=false;
+}
+
+// ══ PERFIL PANEL DERECHO ═══════════════════════════════════
+function renderPerfil(c) {
+  if(!c) return;
+  const el = document.getElementById('perfilPanel');
+  const {lbl} = tipoBadge(c.tipo, c.estado);
+  el.innerHTML = `
+    <div class="panel-section-title">Perfil Activo</div>
+    <div class="perfil-field">
+      <div class="perfil-label">Tipo</div>
+      <div class="perfil-val"><span class="tipo-badge ${tipoBadge(c.tipo,c.estado).cls}">${lbl}</span></div>
+    </div>
+    <div class="perfil-field">
+      <div class="perfil-label">Nombre</div>
+      <div class="perfil-val">${esc(c.nombre)}</div>
+    </div>
+    <div class="perfil-field">
+      <div class="perfil-label">Teléfono</div>
+      <div class="perfil-val" style="font-family:'DM Mono',monospace">+${esc(c.tel)}</div>
+    </div>
+    <div class="perfil-field">
+      <div class="perfil-label">Mensajes</div>
+      <div class="perfil-val">${c.msgs.length} (${c.msgs.filter(m=>m.tipo==='in').length} recibidos)</div>
+    </div>
+    <div class="perfil-field">
+      <div class="perfil-label">Estado</div>
+      <div class="perfil-val">${esc(c.estado||'activo')}</div>
+    </div>
+    <div style="margin-top:8px">
+      <button class="btn" style="width:100%;font-size:11px;margin-bottom:4px" onclick="abrirSimConTel('${c.tel}')">🧪 Simular</button>
+      <button class="btn primary" style="width:100%;font-size:11px" onclick="enfocarInput()">✏️ Responder</button>
+    </div>`;
+}
+
+// ══ COORDINADORAS ══════════════════════════════════════════
+function renderCC(data) {
+  const el = document.getElementById('ccCards');
+  const colors = {
+    dmoscoso:'#1D9E75', jmarin:'#185FA5',
+    lpasquel:'#BA7517', zurteaga:'#534AB7', lvalencia:'#A32D2D'
+  };
+  el.innerHTML = Object.entries(data).map(([key, cc]) => {
+    const color = colors[key]||'#888';
+    const carga = cc.casos_activos||0;
+    return `<div class="cc-card">
+      <div class="cc-dot" style="background:${color}"></div>
+      <div class="cc-info">
+        <div class="cc-name">${esc(cc.nombre)}</div>
+        <div class="cc-casos">${carga} caso${carga!==1?'s':''} activo${carga!==1?'s':''}</div>
+      </div>
+      <div class="cc-num" style="color:${carga>5?'#A32D2D':carga>2?'#BA7517':'#1D9E75'}">${carga}</div>
+    </div>`;
+  }).join('') || '<div style="font-size:11px;color:#b4b2a9">Sin datos</div>';
+}
+
+// ══ NUEVO CHAT ═════════════════════════════════════════════
+function abrirNuevoChat() { document.getElementById('nuevoOverlay').style.display='flex'; }
+function cerrarNuevo()     { document.getElementById('nuevoOverlay').style.display='none'; }
+
+async function iniciarNuevoChat() {
+  const tel    = (document.getElementById('nuevoTel').value||'').trim().replace(/\D/g,'');
+  const nombre = (document.getElementById('nuevoNombre').value||'').trim() || '+'+tel;
+  const msg    = (document.getElementById('nuevoMsg').value||'').trim();
+  if(!tel){ toast('Teléfono requerido','error'); return; }
+
+  // Crear o buscar conversación
+  let c = convs.find(x=>x.tel===tel);
+  if(!c){ c={tel,nombre,tipo:'EXT',estado:'',msgs:[],unread:0,ts:''}; convs.push(c); }
+
+  cerrarNuevo();
+  selConv(tel);
+
+  // Enviar mensaje si hay
+  if(msg && CFG.token && CFG.phoneId) {
+    try {
+      await fetch(`https://graph.facebook.com/v19.0/${CFG.phoneId}/messages`,{
+        method:'POST',
+        headers:{'Authorization':`Bearer ${CFG.token}`,'Content-Type':'application/json'},
+        body: JSON.stringify({messaging_product:'whatsapp',to:tel,type:'text',text:{body:msg}})
+      });
+      c.msgs.push({texto:msg,hora:ahora(),tipo:'out'});
+      toast('Chat iniciado ✓','ok');
+    } catch(e){ toast('Error al enviar: '+e.message,'error'); }
+  }
+  renderConvList(); renderMessages();
+  document.getElementById('nuevoTel').value='';
+  document.getElementById('nuevoNombre').value='';
+  document.getElementById('nuevoMsg').value='';
+}
+
+// ══ SIMULADOR ══════════════════════════════════════════════
+function abrirSim() {
+  simTel = 'SIM_'+Date.now();
+  document.getElementById('simOverlay').style.display='flex';
+  document.getElementById('simMsg').innerHTML='';
+  setTimeout(()=>{ document.getElementById('simInput').focus(); }, 100);
+}
+function abrirSimConTel(tel) {
+  simTel = 'SIM_'+tel.slice(-9);
+  document.getElementById('simOverlay').style.display='flex';
+  // Cargar historial del tel simulado
+  const c = convs.find(x=>x.tel===tel);
+  if(c) {
+    document.getElementById('simMsg').innerHTML = c.msgs.map(m=>`
+      <div class="msg ${m.tipo==='in'?'in':'out'}">
+        <div class="bubble" style="font-size:12px">${nl2br(m.texto)}</div>
+        <div class="msg-meta" style="font-size:9px">${esc(m.hora)}</div>
+      </div>`).join('');
+    setTimeout(()=>{
+      const el=document.getElementById('simMsg');
+      if(el) el.scrollTop=el.scrollHeight;
+    },50);
+  } else {
+    document.getElementById('simMsg').innerHTML='';
+  }
+  setTimeout(()=>{ document.getElementById('simInput').focus(); }, 100);
+}
+function cerrarSim() {
+  document.getElementById('simOverlay').style.display='none';
+  simTel = null;
+}
+
+async function enviarSim() {
+  const inp = document.getElementById('simInput');
+  const txt = (inp.value||'').trim();
+  if(!txt || !simTel) return;
+  inp.value='';
+
+  // Agregar burbuja saliente en simulador
+  const simEl = document.getElementById('simMsg');
+  simEl.innerHTML += `<div class="msg out">
+    <div class="bubble" style="font-size:12px">${nl2br(txt)}</div>
+    <div class="msg-meta" style="font-size:9px">${ahora()}</div>
+  </div>`;
+  simEl.scrollTop = simEl.scrollHeight;
+
+  // Enviar al bot
+  try {
+    const r = await fetch(CFG.url+'/api/mensaje_simulador',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({telefono:simTel, texto:txt})
+    });
+    if(!r.ok) throw new Error(r.status);
+
+    // Esperar respuesta del bot y mostrarla
+    setTimeout(async()=>{
+      try {
+        const rh = await fetch(CFG.url+'/api/historial');
+        const hist = await rh.json();
+        const misMsg = hist.filter(m=>String(m.telefono)===String(simTel));
+        // Mostrar últimos mensajes del bot (out)
+        const botMsgs = misMsg.filter(m=>m.tipo==='out');
+        const simEl2 = document.getElementById('simMsg');
+        if(simEl2 && botMsgs.length>0) {
+          const ultimo = botMsgs[botMsgs.length-1];
+          simEl2.innerHTML += `<div class="msg in">
+            <div class="bubble" style="font-size:12px">${nl2br(ultimo.texto)}</div>
+            <div class="msg-meta" style="font-size:9px">${esc(ultimo.hora)}</div>
+          </div>`;
+          simEl2.scrollTop=simEl2.scrollHeight;
         }
+      } catch(e){}
+    }, 1500);
+  } catch(e) {
+    toast('Error simulador: '+e.message,'error');
+  }
+}
 
-        function selectChat(phone) {
-            selectedPhone = phone;
-            const contact = allMessages.find(m => m.telefono === phone);
-            document.getElementById('selected-contact-name').innerText = contact.nombre;
-            renderChatList();
-            renderActiveChat();
-        }
-
-        function renderActiveChat() {
-            const container = document.getElementById('msg-container');
-            const filtered = allMessages.filter(m => m.telefono === selectedPhone);
-            
-            container.innerHTML = filtered.map(m => `
-                <div class="msg ${m.tipo === 'in' ? 'in' : 'out'}">
-                    ${m.texto}
-                    <span class="time">${m.hora}</span>
-                </div>
-            `).join('');
-            container.scrollTop = container.scrollHeight;
-        }
-
-        setInterval(refreshData, 2000);
-        refreshData();
-    </script>
+// ══ INIT ═══════════════════════════════════════════════════
+cargarCfg();
+iniciarSync();
+</script>
 </body>
 </html>
