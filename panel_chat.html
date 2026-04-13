@@ -1,1131 +1,225 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CPSL — Centro de Comunicaciones Corporativo</title>
-<style><!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CPSL — Centro de Comunicaciones Corporativo</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f4f0;color:#1a1a18;height:100vh;overflow:hidden}
-.app{display:grid;grid-template-columns:320px 1fr;height:100vh}
-.sidebar{border-right:.5px solid #d3d1c7;display:flex;flex-direction:column;background:#f5f4f0;min-width:0}
-.sb-header{padding:12px 14px 10px;border-bottom:.5px solid #d3d1c7}
-.sb-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-.sb-title{font-size:13px;font-weight:600}
-.sync-row{display:flex;align-items:center;gap:4px}
-.sync-dot{width:6px;height:6px;border-radius:50%;background:#d3d1c7;transition:background .3s;flex-shrink:0}
-.sync-dot.ok{background:#1D9E75}
-.sync-dot.err{background:#A32D2D}
-.sync-text{font-size:10px;color:#888780}
-.btn-cfg{font-size:10px;padding:5px 10px;border:none;border-radius:6px;background:#1a73e8;color:#fff;cursor:pointer;font-weight:600;transition:background .2s}
-.btn-cfg:hover{background:#1557b0}
-.search{width:100%;padding:7px 10px;font-size:13px;border:.5px solid #b4b2a9;border-radius:8px;background:#fff;color:#1a1a18;outline:none}
-.search:focus{border-color:#1D9E75}
-.tabs{display:flex;gap:4px;padding:8px 14px;border-bottom:.5px solid #d3d1c7;flex-wrap:wrap}
-.tab{font-size:11px;padding:3px 8px;border-radius:20px;border:.5px solid #d3d1c7;background:transparent;color:#888780;cursor:pointer;white-space:nowrap}
-.tab.on{background:#fff;color:#1a1a18;border-color:#888780;font-weight:600}
-.tab.grad-tab{border-color:#E1BEE7;color:#6A1B9A}
-.tab.grad-tab.on{background:#F3E5F5;border-color:#6A1B9A;color:#4A148C;font-weight:700}
-.stats{display:grid;grid-template-columns:repeat(5,1fr);border-bottom:.5px solid #d3d1c7}
-.stat{text-align:center;padding:7px 2px;border-right:.5px solid #d3d1c7}
-.stat:last-child{border-right:none}
-.stat-n{font-size:14px;font-weight:600}
-.stat-l{font-size:9px;color:#888780;text-transform:uppercase}
-.list{overflow-y:auto;flex:1}
-.item{padding:10px 14px;border-bottom:.5px solid #d3d1c7;cursor:pointer;transition:background .1s}
-.item:hover{background:#fff}
-.item.on{background:#fff;border-left:2px solid #1D9E75}
-.item-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px}
-.item-name{font-size:13px;font-weight:600;color:#1a1a18;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px}
-.item-time{font-size:10px;color:#888780;flex-shrink:0}
-.item-prev{font-size:12px;color:#5f5e5a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px}
-.item-bot{display:flex;align-items:center;justify-content:space-between;margin-top:3px}
-.dot-unread{width:7px;height:7px;border-radius:50%;background:#1D9E75;flex-shrink:0}
-.badge{display:inline-block;font-size:10px;padding:2px 6px;border-radius:10px;font-weight:600}
-.b-pendiente{background:#FAEEDA;color:#854F0B}
-.b-rol-grad{background:#F3E5F5;color:#4A148C}
-.b-rol-imo{background:#E1F5EE;color:#0F6E56}
-.b-rol-px{background:#f1f1f1;color:#666}
-
-/* ESTILO DEL BOTÓN NUEVO CHAT */
-.new-btn{margin:10px 14px;padding:8px;width:calc(100% - 28px);background:transparent;border:.5px dashed #b4b2a9;border-radius:8px;font-size:12px;color:#888780;cursor:pointer;text-align:center;transition:background 0.2s}
-.new-btn:hover{background:#fff;color:#1a1a18;border-color:#888780}
-
-.chat{display:flex;flex-direction:column;height:100vh;background:#fff;position:relative}
-.ch-header{padding:12px 18px;border-bottom:.5px solid #d3d1c7;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
-.ch-left{display:flex;align-items:center;gap:10px}
-.avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0}
-.av-imo{background:#E1F5EE;color:#0F6E56}
-.av-ext{background:#EEEDFE;color:#534AB7}
-.av-grad{background:#F3E5F5;color:#4A148C;border:1px solid #E1BEE7}
-.ch-name{font-size:14px;font-weight:600;color:#1a1a18}
-.ch-sub{font-size:11px;color:#888780;margin-top:1px;display:flex;gap:4px;align-items:center}
-.messages{flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:8px;background:#fafaf8}
-.msg{display:flex;flex-direction:column;max-width:76%}
-.msg.in{align-self:flex-start}
-.msg.out{align-self:flex-end}
-.msg-who{font-size:10px;color:#888780;margin-bottom:2px}
-.msg.out .msg-who{text-align:right}
-.bubble{padding:8px 12px;border-radius:12px;font-size:13px;line-height:1.5;word-break:break-word}
-.msg.in .bubble{background:#fff;color:#1a1a18;border:.5px solid #d3d1c7;border-radius:3px 12px 12px 12px}
-.msg.out .bubble{background:#1D9E75;color:#fff;border-radius:12px 3px 12px 12px}
-.input-row{display:flex;gap:7px;align-items:flex-end}
-.tinput{flex:1;padding:10px 14px;font-size:13px;border:.5px solid #b4b2a9;border-radius:20px;background:#f5f4f0;color:#1a1a18;resize:none;outline:none;min-height:40px;max-height:110px}
-.tinput:focus{border-color:#1D9E75;background:#fff}
-.send{padding:10px 18px;background:#1D9E75;color:#fff;border:none;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer}
-.footer{border-top:.5px solid #d3d1c7;padding:12px 18px;background:#fff;flex-shrink:0}
-
-/* ESTILOS DE LOS MODALES (NUEVO CHAT Y SIMULADOR) */
-.sim-overlay, .new-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:999;backdrop-filter:blur(2px)}
-.sim-phone{width:360px;height:640px;background:#efeae2;border-radius:30px;box-shadow:0 20px 40px rgba(0,0,0,0.3);display:flex;flex-direction:column;overflow:hidden;border:8px solid #333;position:relative}
-.sim-header{background:#005e54;color:#fff;padding:15px;display:flex;align-items:center;gap:12px;box-shadow:0 1px 3px rgba(0,0,0,0.2);z-index:2}
-.sim-avatar{width:36px;height:36px;background:#dfe5e7;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px}
-.sim-info{flex:1}
-.sim-name{font-weight:600;font-size:15px}
-.sim-status{font-size:11px;opacity:0.8}
-.sim-close{background:none;border:none;color:#fff;font-size:24px;cursor:pointer}
-.sim-body{flex:1;background:url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');background-size:cover;overflow-y:auto;padding:15px;display:flex;flex-direction:column;gap:8px}
-.sim-msg{max-width:85%;padding:8px 12px;border-radius:8px;font-size:13.5px;line-height:1.4;position:relative;word-wrap:break-word}
-.sim-msg.bot{align-self:flex-start;background:#fff;border-top-left-radius:0;box-shadow:0 1px 1px rgba(0,0,0,0.1)}
-.sim-msg.user{align-self:flex-end;background:#dcf8c6;border-top-right-radius:0;box-shadow:0 1px 1px rgba(0,0,0,0.1)}
-.sim-time{font-size:10px;color:#999;display:block;text-align:right;margin-top:4px}
-.sim-footer{background:#f0f0f0;padding:10px;display:flex;gap:8px;align-items:center}
-.sim-input{flex:1;padding:12px 15px;border-radius:20px;border:none;outline:none;font-size:14px}
-.sim-send{width:40px;height:40px;border-radius:50%;background:#008f68;color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px}
-.sim-send:hover{background:#007555}
-
-/* Modal Nuevo Chat */
-.modal{background:#fff;border-radius:12px;padding:28px 32px;width:380px;max-height:90vh;overflow-y:auto}
-.field{margin-bottom:14px}
-.field label{display:block;font-size:11px;font-weight:600;color:#5f5e5a;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
-.field input{width:100%;padding:8px 10px;font-size:13px;border:.5px solid #b4b2a9;border-radius:8px;background:#fafaf8;color:#1a1a18;outline:none}
-.field input:focus{border-color:#1D9E75;background:#fff}
-</style>
-</head>
-<body>
-
-<div class="app" id="app">
-  <div class="sidebar">
-    <div class="sb-header">
-      <div class="sb-top">
-        <span class="sb-title">Mesa de Control CPSL</span>
-        <div class="sync-row">
-          <div class="sync-dot" id="sdot"></div><span class="sync-text" id="stxt">—</span>
-          <button class="btn-cfg" onclick="abrirSimulador()">🧪 Simulador Interactivo</button>
-        </div>
-      </div>
-      <input class="search" type="text" id="search" placeholder="Buscar nombre o teléfono…" oninput="renderLista()">
-    </div>
-    <div class="tabs">
-      <button class="tab on" data-tab="todos" onclick="setTab(this)">Todos</button>
-      <button class="tab grad-tab" data-tab="graduado" onclick="setTab(this)">🎓 Graduados</button>
-      <button class="tab" data-tab="pendiente" onclick="setTab(this)">Pendientes</button>
-    </div>
-    <div class="stats">
-      <div class="stat"><div class="stat-n" id="st0">0</div><div class="stat-l">Total</div></div>
-      <div class="stat"><div class="stat-n" id="st4" style="color:#6A1B9A">0</div><div class="stat-l">Grads</div></div>
-      <div class="stat"><div class="stat-n" id="st2" style="color:#BA7517">0</div><div class="stat-l">Pend</div></div>
-    </div>
-    <div class="list" id="list"></div>
-    <button class="new-btn" onclick="abrirNuevo()">+ Iniciar nueva conversación</button>
-  </div>
-  <div class="chat" id="chat">
-    <div class="empty" style="flex:1;display:flex;align-items:center;justify-content:center;color:#888">
-      <span>Selecciona una conversación</span>
-    </div>
-  </div>
-</div>
-
-<div class="new-overlay" id="ovl-new">
-  <div class="modal">
-    <h2 style="margin-bottom:14px">Nueva conversación manual</h2>
-    <p style="font-size:12px; color:#666; margin-bottom:15px">Abre un canal directo con un prospecto para enviarle un mensaje.</p>
-    <div class="field"><label>Nombre del Contacto</label><input id="n-nombre" placeholder="Ej: Juan Perez"></div>
-    <div class="field"><label>Teléfono (con código de país)</label><input id="n-tel" type="tel" placeholder="Ej: 51987654321"></div>
-    <div style="display:flex;gap:8px;margin-top:20px">
-      <button style="flex:1;padding:9px;border:.5px solid #b4b2a9;border-radius:8px;background:transparent;font-size:13px;color:#5f5e5a;cursor:pointer" onclick="cerrarNuevo()">Cancelar</button>
-      <button style="flex:1;padding:9px;background:#1D9E75;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer" onclick="crearNuevo()">Iniciar Chat</button>
-    </div>
-  </div>
-</div>
-
-<div class="sim-overlay" id="sim-modal">
-  <div class="sim-phone">
-    <div class="sim-header">
-      <div class="sim-avatar">🤖</div>
-      <div class="sim-info">
-        <div class="sim-name">Bot CPSL (Simulador)</div>
-        <div class="sim-status" id="sim-status-text">en línea</div>
-      </div>
-      <button class="sim-close" onclick="cerrarSimulador()">×</button>
-    </div>
-    <div class="sim-body" id="sim-body">
-      <div style="text-align:center;margin:10px 0;font-size:11px;color:#666;background:rgba(225,245,254,0.8);padding:4px 8px;border-radius:10px;align-self:center">
-        Estás simulando ser un usuario de WhatsApp.<br>Escribe "Menu" para iniciar.
-      </div>
-    </div>
-    <div class="sim-footer">
-      <input type="text" class="sim-input" id="sim-input" placeholder="Escribe un mensaje aquí..." onkeydown="if(event.key==='Enter'){enviarMensajeSimulador();}">
-      <button class="sim-send" onclick="enviarMensajeSimulador()">➤</button>
-    </div>
-  </div>
-</div>
-
-<script>
-let convs = []; let curTel = null; let filtro = 'todos';
-let simActivo = null;
-
-function esc(s){ return String(s).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
-function nl2br(s){ return esc(s).replace(/\n/g, '<br>'); }
-function ini(n){ const p=n.trim().split(' '); return ((p[0]||'')[0]+(p[1]||'')[0]||'').toUpperCase(); }
-function hora(){ return new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit', timeZone: 'America/Lima'}); }
-
-function parseRole(rawName) {
-  let match = rawName.match(/^\((.*?)\)\s*(.*)$/);
-  if(match) {
-    let r = match[1].toUpperCase();
-    let isGrad = (r === 'GRADUADO' || r === 'MJ');
-    return { rol: isGrad ? 'GRADUADO' : r, nombre: match[2], isGrad: isGrad };
-  }
-  return { rol: 'PROSPECTO', nombre: rawName, isGrad: false };
-}
-
-function getRoleBadgeHTML(rolData) {
-  if(rolData.isGrad) return `<span class="badge b-rol-grad">🎓 Graduado</span>`;
-  if(rolData.rol === 'IMO') return `<span class="badge b-rol-imo">🌟 IMO</span>`;
-  return `<span class="badge b-rol-px">${rolData.rol}</span>`;
-}
-
-// ══════════════════════════════════════════════════════════════
-// LÓGICA DE NUEVA CONVERSACIÓN (MANUAL)
-// ══════════════════════════════════════════════════════════════
-function abrirNuevo() { document.getElementById('ovl-new').style.display='flex'; }
-function cerrarNuevo() { document.getElementById('ovl-new').style.display='none'; }
-
-function crearNuevo() {
-  const nombre = document.getElementById('n-nombre').value.trim();
-  const rawTel = document.getElementById('n-tel').value.trim();
-  const tel = rawTel.split('').filter(c => c >= '0' && c <= '9').join('');
-  
-  if(!nombre || !tel){ alert('Nombre y teléfono son obligatorios.'); return; }
-  
-  let existe = convs.find(c => c.tel === tel);
-  if(existe){ 
-      cerrarNuevo(); selConv(tel); return; 
-  }
-  
-  const c = {tel: tel, rawNombre: nombre, estado: 'pendiente', unread: false, msgs: []};
-  convs.push(c);
-  document.getElementById('n-nombre').value = ''; 
-  document.getElementById('n-tel').value = '';
-  cerrarNuevo(); 
-  renderStats(); 
-  renderLista(); 
-  selConv(tel);
-}
-
-// ══════════════════════════════════════════════════════════════
-// LÓGICA DEL SIMULADOR INTERACTIVO
-// ══════════════════════════════════════════════════════════════
-function abrirSimulador() {
-    let num = prompt("Ingresa un número ficticio para empezar la simulación:\n(Ej: 51999888777)");
-    if (!num) return;
-    num = num.split('').filter(c => c >= '0' && c <= '9').join('');
-    if(num.length < 8) { alert("Número inválido"); return; }
-    
-    simActivo = "SIM_" + num;
-    document.getElementById('sim-modal').style.display = 'flex';
-    document.getElementById('sim-body').innerHTML = `
-      <div style="text-align:center;margin:10px 0;font-size:11px;color:#666;background:rgba(225,245,254,0.8);padding:4px 8px;border-radius:10px;align-self:center">
-        Simulando conexión como: +${num}<br>Escribe "MENU" para interactuar.
-      </div>
-    `;
-    document.getElementById('sim-input').focus();
-    
-    const c = convs.find(x => x.tel === simActivo);
-    if(c && c.msgs) {
-        c.msgs.forEach(m => agregarBurbujaSimulador(m.dir, m.texto, m.h));
-    }
-}
-
-function cerrarSimulador() {
-    document.getElementById('sim-modal').style.display = 'none';
-    simActivo = null;
-    renderLista();
-}
-
-function agregarBurbujaSimulador(dir, texto, tiempo) {
-    const clase = dir === 'in' ? 'user' : 'bot';
-    const b = document.createElement('div');
-    b.className = `sim-msg ${clase}`;
-    let txtFormat = esc(texto).replace(/\*(.*?)\*/g, "<strong>$1</strong>").replace(/\n/g, '<br>');
-    b.innerHTML = `${txtFormat}<span class="sim-time">${esc(tiempo)}</span>`;
-    const body = document.getElementById('sim-body');
-    body.appendChild(b);
-    body.scrollTop = body.scrollHeight;
-}
-
-async function enviarMensajeSimulador() {
-    if(!simActivo) return;
-    const inp = document.getElementById('sim-input');
-    const txt = inp.value.trim();
-    if(!txt) return;
-    
-    inp.value = '';
-    const h = hora();
-    agregarBurbujaSimulador('in', txt, h);
-    document.getElementById('sim-status-text').textContent = 'escribiendo...';
-
-    await fetch('/api/mensaje_simulador', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({telefono: simActivo, texto: txt})
-    });
-    
-    setTimeout(fetchHistorial, 1000);
-}
-
-// ══════════════════════════════════════════════════════════════
-// LÓGICA PRINCIPAL DEL PANEL
-// ══════════════════════════════════════════════════════════════
-async function fetchHistorial() {
-    try {
-        const res = await fetch('/api/historial');
-        const data = await res.json();
-        let cambios = false;
-        let nuevosMsgsSimulador = false;
-
-        for(let m of data) {
-            let c = convs.find(x => x.tel === m.telefono);
-            if (!c) {
-                c = {tel: m.telefono, rawNombre: m.nombre || '+' + m.telefono, estado: 'pendiente', unread: false, msgs: []};
-                convs.push(c); cambios = true;
-            } else if (c.rawNombre !== m.nombre && m.nombre && m.nombre.includes('(')) {
-                c.rawNombre = m.nombre; cambios = true;
-            }
-            
-            if (!c.msgs.some(x => x.texto === m.texto && x.h === m.hora)) {
-                let dir = m.tipo === 'in' ? 'in' : 'out';
-                c.msgs.push({dir, texto: m.texto, h: m.hora, st: dir === 'out' ? 'Enviado' : ''});
-                if (dir === 'in' && curTel !== m.telefono) { c.unread = true; }
-                cambios = true;
-                
-                if(simActivo === m.telefono) {
-                    agregarBurbujaSimulador(dir, m.texto, m.hora);
-                    nuevosMsgsSimulador = true;
-                }
-            }
-        }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mesa de Control CPSL</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { display: flex; height: 100vh; background: #f0f2f5; }
         
-        if(nuevosMsgsSimulador) { document.getElementById('sim-status-text').textContent = 'en línea'; }
-        if (cambios) { renderStats(); renderLista(); if (curTel && !simActivo) renderChat(true); }
-        document.getElementById('sdot').className = 'sync-dot ok';
-        document.getElementById('stxt').textContent = "Online - " + hora();
-    } catch (e) {
-        document.getElementById('sdot').className = 'sync-dot err';
-        document.getElementById('stxt').textContent = 'Error Sync';
-    }
-}
-
-function renderStats(){
-  document.getElementById('st0').textContent = convs.length;
-  document.getElementById('st4').textContent = convs.filter(c => parseRole(c.rawNombre).isGrad).length;
-  document.getElementById('st2').textContent = convs.filter(c => c.estado === 'pendiente').length;
-}
-
-function renderLista(){
-  const q = document.getElementById('search').value.toLowerCase();
-  const lista = convs.filter(c => {
-    const p = parseRole(c.rawNombre);
-    const mq = !q || p.nombre.toLowerCase().includes(q) || c.tel.includes(q);
-    const mt = filtro === 'todos' || (filtro === 'graduado' && p.isGrad) || (c.estado === filtro && filtro !== 'graduado');
-    return mq && mt;
-  }).sort((a,b) => b.unread - a.unread || (b.msgs[b.msgs.length-1]?.h > a.msgs[a.msgs.length-1]?.h ? 1 : -1));
-
-  const el = document.getElementById('list');
-  if(!lista.length){ el.innerHTML='<div style="padding:20px;text-align:center;font-size:12px;color:#888">Sin resultados</div>'; return; }
-
-  el.innerHTML = lista.map(c => {
-    const p = parseRole(c.rawNombre);
-    const last = c.msgs[c.msgs.length-1];
-    return `
-      <div class="item ${curTel === c.tel ? 'on' : ''}" onclick="selConv('${c.tel}')">
-        <div class="item-top">
-          <span class="item-name">${esc(p.nombre)}</span>
-          <span class="item-time">${esc(last?.h||'')}</span>
-        </div>
-        <div class="item-prev">${esc((last?.texto||'').slice(0,40))}</div>
-        <div class="item-bot">
-          <div style="display:flex;gap:4px">${p.isGrad ? getRoleBadgeHTML(p) : ''}</div>
-          <div style="display:flex;align-items:center;gap:4px">
-            <span style="font-size:10px;color:#b4b2a9">+${esc(c.tel)}</span>
-            ${c.unread ? '<div class="dot-unread"></div>' : ''}
-          </div>
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-function setTab(el){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
-  el.classList.add('on');
-  filtro = el.dataset.tab;
-  renderLista();
-}
-
-function selConv(tel){ curTel = tel; const c = convs.find(x=>x.tel===tel); if(c) c.unread=false; renderLista(); renderChat(); }
-
-function renderChat(onlyMsgs = false){
-  const c = convs.find(x=>x.tel===curTel);
-  if(!c) return;
-  const p = parseRole(c.rawNombre);
-  
-  if(!onlyMsgs) {
-      const avCls = p.isGrad ? 'av-grad' : (p.rol === 'IMO' ? 'av-imo' : 'av-ext');
-      document.getElementById('chat').innerHTML = `
-        <div class="ch-header">
-          <div class="ch-left">
-            <div class="avatar ${avCls}">${p.isGrad ? '👑' : esc(ini(p.nombre))}</div>
-            <div>
-              <div class="ch-name">${esc(p.nombre)}</div>
-              <div class="ch-sub">+${esc(c.tel)} &nbsp;·&nbsp; ${getRoleBadgeHTML(p)}</div>
-            </div>
-          </div>
-        </div>
-        <div class="messages" id="msgs"></div>
-        <div class="footer">
-          <div class="input-row">
-            <textarea class="tinput" id="tinput" placeholder="Escribe tu mensaje manual... (Enter para enviar)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviar();}"></textarea>
-            <button class="send" onclick="enviar()">Enviar</button>
-          </div>
-        </div>
-      `;
-  }
-  
-  const msgEl = document.getElementById('msgs');
-  msgEl.innerHTML = c.msgs.map(m => `
-    <div class="msg ${m.dir==='in'?'in':'out'}">
-      <div class="msg-who">${m.dir==='in' ? esc(p.nombre) : 'Tú'} · ${esc(m.h)}</div>
-      <div class="bubble">${nl2br(m.texto)}</div>
-    </div>
-  `).join('');
-  msgEl.scrollTop = msgEl.scrollHeight;
-}
-
-async function enviar(){
-  const ti = document.getElementById('tinput');
-  if(!ti) return;
-  const txt = ti.value.trim();
-  if(!txt || !curTel) return;
-  
-  const c = convs.find(x=>x.tel===curTel);
-  c.msgs.push({dir:'out', texto: txt, h: hora(), st:'Enviando'});
-  ti.value = '';
-  renderChat(true);
-
-  await fetch('/api/enviar', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({telefono: curTel, mensaje: txt})
-  });
-  fetchHistorial();
-}
-
-setInterval(fetchHistorial, 2500);
-fetchHistorial();
-</script>
-</body>
-</html>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f4f0;color:#1a1a18;height:100vh;overflow:hidden}
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:900}
-.modal{background:#fff;border-radius:12px;padding:28px 32px;width:500px;max-height:90vh;overflow-y:auto}
-.modal h2{font-size:16px;font-weight:600;margin-bottom:4px}
-.modal .sub{font-size:12px;color:#888780;margin-bottom:20px}
-.field{margin-bottom:14px}
-.field label{display:block;font-size:11px;font-weight:600;color:#5f5e5a;margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px}
-.field input,.field textarea{width:100%;padding:8px 10px;font-size:13px;border:.5px solid #b4b2a9;border-radius:8px;background:#fafaf8;color:#1a1a18;outline:none;font-family:'SF Mono',monospace}
-.field textarea{resize:vertical;min-height:80px;font-size:11px}
-.field input:focus,.field textarea:focus{border-color:#1D9E75;background:#fff}
-.btn-primary{width:100%;padding:10px;background:#1D9E75;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;margin-top:6px}
-.btn-primary:hover{background:#0F6E56}
-.modal-note{text-align:center;margin-top:10px;font-size:11px;color:#888780}
-.btn-link{background:none;border:none;color:#1D9E75;font-size:11px;cursor:pointer;text-decoration:underline;padding:0}
-.app{display:grid;grid-template-columns:300px 1fr;height:100vh}
-.sidebar{border-right:.5px solid #d3d1c7;display:flex;flex-direction:column;background:#f5f4f0;min-width:0}
-.sb-header{padding:12px 14px 10px;border-bottom:.5px solid #d3d1c7}
-.sb-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
-.sb-title{font-size:13px;font-weight:600}
-.sync-row{display:flex;align-items:center;gap:4px}
-.sync-dot{width:6px;height:6px;border-radius:50%;background:#d3d1c7;transition:background .3s;flex-shrink:0}
-.sync-dot.ok{background:#1D9E75}
-.sync-dot.busy{background:#BA7517;animation:blink 1s infinite}
-.sync-dot.err{background:#A32D2D}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
-.sync-text{font-size:10px;color:#888780}
-.btn-cfg{font-size:10px;padding:2px 6px;border:.5px solid #d3d1c7;border-radius:6px;background:transparent;color:#888780;cursor:pointer;margin-left:2px}
-.btn-cfg:hover{background:#fff}
-.search{width:100%;padding:7px 10px;font-size:13px;border:.5px solid #b4b2a9;border-radius:8px;background:#fff;color:#1a1a18;outline:none}
-.search:focus{border-color:#1D9E75}
-.tabs{display:flex;gap:4px;padding:8px 14px;border-bottom:.5px solid #d3d1c7;flex-wrap:wrap}
-.tab{font-size:11px;padding:3px 8px;border-radius:20px;border:.5px solid #d3d1c7;background:transparent;color:#888780;cursor:pointer;white-space:nowrap}
-.tab.on{background:#fff;color:#1a1a18;border-color:#888780;font-weight:600}
-.stats{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:.5px solid #d3d1c7}
-.stat{text-align:center;padding:7px 2px;border-right:.5px solid #d3d1c7}
-.stat:last-child{border-right:none}
-.stat-n{font-size:15px;font-weight:600}
-.stat-l{font-size:10px;color:#888780}
-.list{overflow-y:auto;flex:1}
-.item{padding:10px 14px;border-bottom:.5px solid #d3d1c7;cursor:pointer;transition:background .1s}
-.item:hover{background:#fff}
-.item.on{background:#fff;border-left:2px solid #1D9E75}
-.item-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px}
-.item-name{font-size:13px;font-weight:600;color:#1a1a18;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px}
-.item-time{font-size:10px;color:#888780;flex-shrink:0}
-.item-prev{font-size:12px;color:#5f5e5a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px}
-.item-bot{display:flex;align-items:center;justify-content:space-between;margin-top:3px}
-.dot-unread{width:7px;height:7px;border-radius:50%;background:#1D9E75;flex-shrink:0}
-.new-btn{margin:10px 14px;padding:8px;width:calc(100% - 28px);background:transparent;border:.5px dashed #b4b2a9;border-radius:8px;font-size:12px;color:#888780;cursor:pointer;text-align:center}
-.new-btn:hover{background:#fff;color:#1a1a18;border-color:#888780}
-.badge{display:inline-block;font-size:10px;padding:2px 6px;border-radius:10px;font-weight:600}
-.b-pendiente{background:#FAEEDA;color:#854F0B}
-.b-confirma{background:#EAF3DE;color:#3B6D11}
-.b-noasiste{background:#FCEBEB;color:#A32D2D}
-.b-stop{background:#F1EFE8;color:#5F5E5A}
-.b-cambio{background:#E6F1FB;color:#185FA5}
-.b-externo{background:#EEEDFE;color:#534AB7}
-.chat{display:flex;flex-direction:column;height:100vh;background:#fff}
-.ch-header{padding:12px 18px;border-bottom:.5px solid #d3d1c7;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
-.ch-left{display:flex;align-items:center;gap:10px}
-.avatar{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0}
-.av-imo{background:#E1F5EE;color:#0F6E56}
-.av-ext{background:#EEEDFE;color:#534AB7}
-.ch-name{font-size:14px;font-weight:600;color:#1a1a18}
-.ch-sub{font-size:11px;color:#888780;margin-top:1px}
-.ch-actions{display:flex;gap:4px;flex-wrap:wrap}
-.btn-s{font-size:11px;padding:4px 8px;border-radius:7px;border:.5px solid #b4b2a9;background:transparent;color:#5f5e5a;cursor:pointer;white-space:nowrap}
-.btn-s:hover{background:#f5f4f0}
-.messages{flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:8px;background:#fafaf8}
-.msg{display:flex;flex-direction:column;max-width:76%}
-.msg.in{align-self:flex-start}
-.msg.out{align-self:flex-end}
-.msg-who{font-size:10px;color:#888780;margin-bottom:2px}
-.msg.out .msg-who{text-align:right}
-.bubble{padding:8px 12px;border-radius:12px;font-size:13px;line-height:1.5;word-break:break-word}
-.msg.in .bubble{background:#fff;color:#1a1a18;border:.5px solid #d3d1c7;border-radius:3px 12px 12px 12px}
-.msg.out .bubble{background:#1D9E75;color:#fff;border-radius:12px 3px 12px 12px}
-.msg.out.pending .bubble{background:#5DCAA5}
-.msg-st{font-size:10px;color:#888780;margin-top:2px;text-align:right}
-.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#888780;gap:8px;font-size:13px}
-.footer{border-top:.5px solid #d3d1c7;padding:9px 14px 11px;background:#fff;flex-shrink:0}
-.px-row{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:7px;align-items:center}
-.px-lbl{font-size:10px;color:#888780}
-.px-chip{font-size:11px;padding:2px 8px;border-radius:20px;border:.5px solid #b4b2a9;color:#5f5e5a;cursor:pointer;background:transparent}
-.px-chip:hover{background:#f5f4f0}
-.px-chip.on{background:#E1F5EE;color:#0F6E56;border-color:#5DCAA5}
-.qr-row{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:7px}
-.qr{font-size:11px;padding:3px 8px;border-radius:20px;border:.5px solid #b4b2a9;background:transparent;color:#5f5e5a;cursor:pointer;white-space:nowrap}
-.qr:hover{background:#f5f4f0;color:#1a1a18}
-.input-row{display:flex;gap:7px;align-items:flex-end}
-.tinput{flex:1;padding:8px 11px;font-size:13px;border:.5px solid #b4b2a9;border-radius:8px;background:#f5f4f0;color:#1a1a18;resize:none;outline:none;min-height:36px;max-height:110px;font-family:inherit;line-height:1.4}
-.tinput:focus{border-color:#1D9E75;background:#fff}
-.send{padding:8px 16px;background:#1D9E75;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex-shrink:0}
-.send:hover{background:#0F6E56}
-.send:disabled{background:#9FE1CB;cursor:not-allowed}
-.foot-meta{display:flex;justify-content:space-between;margin-top:3px}
-.foot-meta span{font-size:10px;color:#888780}
-</style>
+        /* Sidebar */
+        .sidebar { width: 350px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
+        .header { padding: 15px; background: #008069; color: white; }
+        .header h2 { font-size: 18px; margin-bottom: 5px; }
+        .online-status { display: flex; align-items: center; gap: 5px; font-size: 12px; }
+        .dot { width: 8px; height: 8px; background: #31a24c; border-radius: 50%; }
+        
+        .search-box { padding: 10px; border-bottom: 1px solid #ddd; }
+        .search-box input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px; }
+        
+        .filters { padding: 10px; display: flex; gap: 5px; border-bottom: 1px solid #ddd; }
+        .filter-btn { padding: 5px 15px; border: 1px solid #ddd; background: white; border-radius: 15px; cursor: pointer; font-size: 12px; }
+        .filter-btn.active { background: #008069; color: white; border-color: #008069; }
+        
+        .stats { padding: 10px; display: flex; gap: 10px; border-bottom: 1px solid #ddd; }
+        .stat-box { flex: 1; text-align: center; padding: 10px; background: #f5f5f5; border-radius: 5px; }
+        .stat-number { font-size: 20px; font-weight: bold; color: #008069; }
+        .stat-label { font-size: 11px; color: #666; }
+        
+        .conversations { flex: 1; overflow-y: auto; }
+        .conversation { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; }
+        .conversation:hover { background: #f5f5f5; }
+        .conversation.active { background: #e8f5e9; }
+        .conv-header { display: flex; justify-content: space-between; margin-bottom: 5px; }
+        .conv-name { font-weight: 600; font-size: 14px; }
+        .conv-time { font-size: 11px; color: #999; }
+        .conv-message { font-size: 13px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .conv-phone { font-size: 11px; color: #999; margin-top: 3px; }
+        
+        /* Main content */
+        .main { flex: 1; display: flex; flex-direction: column; background: white; }
+        .empty-state { flex: 1; display: flex; align-items: center; justify-content: center; color: #999; font-size: 16px; }
+        
+        .chat-header { padding: 15px; border-bottom: 1px solid #ddd; background: #f5f5f5; }
+        .chat-messages { flex: 1; padding: 20px; overflow-y: auto; background: #e5ddd5; }
+        .message { margin-bottom: 15px; max-width: 70%; padding: 8px 12px; border-radius: 8px; }
+        .message.incoming { background: white; align-self: flex-start; }
+        .message.outgoing { background: #dcf8c6; margin-left: auto; }
+        .message-content { font-size: 14px; }
+        .message-time { font-size: 11px; color: #999; margin-top: 3px; }
+        
+        /* Simulator button */
+        .simulator-btn { background: #2196F3; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-size: 12px; }
+        .simulator-btn:hover { background: #1976D2; }
+    </style>
 </head>
 <body>
-
-<div class="overlay" id="ovl-cfg">
-  <div class="modal">
-    <h2>Configurar conexión</h2>
-    <p class="sub">Los datos se guardan solo en tu navegador. No salen de tu PC.</p>
-    <div class="field">
-      <label>Sheet ID</label>
-      <input id="c-sid" placeholder="1NqEgzCkixVhMn3VLhsy_GVWwYBfwLQ1rwdHVcKTRyjo">
-    </div>
-    <div class="field">
-      <label>Nombre de la pestaña</label>
-      <input id="c-sname" value="Hoja 1">
-    </div>
-    <div class="field">
-      <label>Credenciales Google — JSON completo</label>
-      <textarea id="c-creds" placeholder='{"type":"service_account",...}'></textarea>
-    </div>
-    <div class="field">
-      <label>WA Token</label>
-      <input id="c-watok" type="password" placeholder="EAAxxxxxxx">
-    </div>
-    <div class="field">
-      <label>WA Phone Number ID</label>
-      <input id="c-wapid" placeholder="1085205258006361">
-    </div>
-    <button class="btn-primary" onclick="guardarCfg()">Conectar y abrir app</button>
-    <p class="modal-note"><button class="btn-link" onclick="usarDemoMode()">Continuar en modo demo</button></p>
-  </div>
-</div>
-
-<div class="overlay" id="ovl-new" style="display:none">
-  <div class="modal" style="width:380px;padding:22px 26px">
-    <h2 style="margin-bottom:14px">Nueva conversación</h2>
-    <div class="field"><label>Nombre</label><input id="n-nombre" placeholder="Nombre completo"></div>
-    <div class="field"><label>Teléfono (con código de país)</label><input id="n-tel" type="tel" placeholder="51987654321"></div>
-    <div style="display:flex;gap:8px;margin-top:4px">
-      <button style="flex:1;padding:9px;border:.5px solid #b4b2a9;border-radius:8px;background:transparent;font-size:13px;color:#5f5e5a;cursor:pointer" onclick="cerrarNuevo()">Cancelar</button>
-      <button style="flex:1;padding:9px;background:#1D9E75;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer" onclick="crearNuevo()">Iniciar</button>
-    </div>
-  </div>
-</div>
-
-<div class="app" id="app" style="display:none">
-  <div class="sidebar">
-    <div class="sb-header">
-      <div class="sb-top">
-        <span class="sb-title">Mesa de Control CPSL</span>
-        <div class="sync-row">
-          <div class="sync-dot" id="sdot"></div>
-          <span class="sync-text" id="stxt">—</span>
-          <button class="sim-btn btn-cfg" style="background:#1a73e8; color:white; border:none;" onclick="iniciarSimulador()">🧪 Simular</button>
-          <button class="btn-cfg" onclick="abrirCfg()">⚙</button>
+    <div class="sidebar">
+        <div class="header">
+            <h2>Mesa de Control CPSL</h2>
+            <div class="online-status">
+                <div class="dot"></div>
+                <span>Online - <span id="currentTime"></span></span>
+            </div>
         </div>
-      </div>
-      <input class="search" type="text" id="search" placeholder="Buscar nombre o teléfono…" oninput="renderLista()">
+        
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="Buscar nombre o teléfono...">
+        </div>
+        
+        <div class="filters">
+            <button class="filter-btn active" data-filter="todos">Todos</button>
+            <button class="filter-btn" data-filter="graduado">Graduados</button>
+            <button class="filter-btn" data-filter="pendiente">Pendientes</button>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-box">
+                <div class="stat-number" id="totalStats">0</div>
+                <div class="stat-label">TOTAL</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number" id="gradsStats">0</div>
+                <div class="stat-label">GRADS</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number" id="pendStats">0</div>
+                <div class="stat-label">PEND</div>
+            </div>
+        </div>
+        
+        <div class="conversations" id="conversationsList">
+            <!-- Conversaciones se cargan aquí -->
+        </div>
     </div>
-    <div class="tabs">
-      <button class="tab on" data-tab="todos" onclick="setTab(this)">Todos</button>
-      <button class="tab" data-tab="pendiente" onclick="setTab(this)">Pendiente</button>
-      <button class="tab" data-tab="confirma" onclick="setTab(this)">Confirma</button>
-      <button class="tab" data-tab="no asiste" onclick="setTab(this)">No asiste</button>
-      <button class="tab" data-tab="externo" onclick="setTab(this)">Externos</button>
-    </div>
-    <div class="stats">
-      <div class="stat"><div class="stat-n" id="st0">0</div><div class="stat-l">Total</div></div>
-      <div class="stat"><div class="stat-n" id="st1" style="color:#1D9E75">0</div><div class="stat-l">Confirman</div></div>
-      <div class="stat"><div class="stat-n" id="st2" style="color:#BA7517">0</div><div class="stat-l">Pendiente</div></div>
-      <div class="stat"><div class="stat-n" id="st3" style="color:#A32D2D">0</div><div class="stat-l">No asiste</div></div>
-    </div>
-    <div class="list" id="list"></div>
-    <button class="new-btn" onclick="abrirNuevo()">+ Nueva conversación</button>
-  </div>
-  <div class="chat" id="chat">
-    <div class="empty">
-      <div style="width:44px;height:44px;border-radius:50%;background:#E1F5EE;display:flex;align-items:center;justify-content:center;font-size:20px">💬</div>
-      <span>Selecciona una conversación</span>
-      <span style="font-size:11px;color:#b4b2a9">Dual-Sync activo (Tiempo Real) - Hora Perú</span>
-    </div>
-  </div>
-</div>
-
-<script>
-const CFG_KEY  = 'cpsl_cfg_v2';
-let CFG = {}; let DEMO = false; let convs = []; let curTel = null; let filtro = 'todos';
-let syncing = false; let syncTimer = null; let rowMap = {}; let _tok = null; let _tokExp = 0;
-
-const QR = [
-  {l:'Info C1', t:'Hola, aquí tienes la información del Capítulo 1:\n\nHotel José Antonio Deluxe\nCalle Bellavista 133, Miraflores\n\nViernes: registro 9:00am, inicio 10:00am\nSábado: ingreso 9:00am, inicio 10:00am\nDomingo: inicio 9:00am, cierre 9:00pm\n\nComunicaciones Crear Poder Sin Límites Perú'},
-  {l:'Confirmar', t:'Hola, gracias por informarnos. Confirmación registrada.\n\nLos esperamos en el Hotel José Antonio Deluxe. Mesa de registro a las 9:00am.\n\nComunicaciones Crear Poder Sin Límites Perú'},
-  {l:'No asiste', t:'Hola, recibido. La inscripción sigue activa para el siguiente equipo inmediato.\n\nComunicaciones Crear Poder Sin Límites Perú'},
-  {l:'Cambio nombre', t:'Hola, los cambios de nombre se gestionan con Coordinación antes del miércoles previo hasta las 6:00pm.\n\nComunicaciones Crear Poder Sin Límites Perú'}
-];
-
-function esc(s){ return String(s).split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;').split('"').join('&quot;').split("'").join('&#39;'); }
-function nl2br(s){ return esc(s).split('\n').join('<br>'); }
-function ini(n){ const p=n.trim().split(' '); return ((p[0]||'')[0]+(p[1]||'')[0]||'').toUpperCase(); }
-function hora(){ return new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit', timeZone: 'America/Lima'}); }
-function fecha(){ return new Date().toLocaleString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit', timeZone: 'America/Lima'}); }
-
-function badgeClass(estado, ext){
-  if(ext) return 'b-externo';
-  const e = (estado||'').toLowerCase().split(' ').join('');
-  return {confirma:'b-confirma',pendiente:'b-pendiente',noasiste:'b-noasiste',stop:'b-stop',cambio:'b-cambio'}[e] || 'b-pendiente';
-}
-
-function setSyncStatus(tipo, txt){
-  const d = document.getElementById('sdot'); const s = document.getElementById('stxt');
-  if(d) d.className = 'sync-dot ' + tipo;
-  if(s) s.textContent = txt;
-}
-function setFootStatus(msg){ const el = document.getElementById('fstatus'); if(el) el.textContent = msg; }
-
-function cargarCfg(){
-  try { CFG = JSON.parse(localStorage.getItem(CFG_KEY)||'{}'); } catch(e){ CFG={}; }
-  if(CFG.sid) document.getElementById('c-sid').value = CFG.sid;
-  if(CFG.sname) document.getElementById('c-sname').value = CFG.sname;
-  if(CFG.watok) document.getElementById('c-watok').value = CFG.watok;
-  if(CFG.wapid) document.getElementById('c-wapid').value = CFG.wapid;
-}
-
-function guardarCfg(){
-  const sid   = document.getElementById('c-sid').value.trim();
-  const sname = document.getElementById('c-sname').value.trim()||'Hoja 1';
-  const creds = document.getElementById('c-creds').value.trim();
-  const watok = document.getElementById('c-watok').value.trim();
-  const wapid = document.getElementById('c-wapid').value.trim();
-
-  if(!sid)  { alert('El Sheet ID es obligatorio.'); return; }
-  if(!creds){ alert('Las credenciales JSON son obligatorias.'); return; }
-
-  try{
-    const c = JSON.parse(creds);
-    if(!c.private_key||!c.client_email) throw new Error('Faltan campos');
-  } catch(e){
-    alert('El JSON no es válido: '+e.message); return;
-  }
-
-  CFG = {sid, sname, creds, watok, wapid};
-  localStorage.setItem(CFG_KEY, JSON.stringify({sid, sname, watok, wapid}));
-  sessionStorage.setItem('cpsl_creds', creds);
-
-  DEMO = false;
-  document.getElementById('ovl-cfg').style.display='none';
-  document.getElementById('app').style.display='grid';
-  iniciar();
-}
-
-function abrirCfg(){
-  document.getElementById('ovl-cfg').style.display='flex';
-  document.getElementById('app').style.display='none';
-  if(syncTimer) { clearInterval(syncTimer); syncTimer=null; }
-}
-
-function usarDemoMode(){
-  DEMO = true; CFG = {sid:'demo', sname:'Hoja 1', creds:'', watok:'', wapid:''};
-  document.getElementById('ovl-cfg').style.display='none';
-  document.getElementById('app').style.display='grid';
-  convs = [];
-  iniciarUI();
-}
-
-async function getToken(){
-  if(_tok && Date.now() < _tokExp - 60000) return _tok;
-  if(DEMO) return null;
-  const credsStr = CFG.creds || sessionStorage.getItem('cpsl_creds') || '';
-  if(!credsStr) return null;
-
-  try{
-    const creds = JSON.parse(credsStr);
-    const now = Math.floor(Date.now()/1000);
-    const b64u = s => btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    const enc = s => b64u(unescape(encodeURIComponent(JSON.stringify(s))));
-
-    const hdr = enc({alg:'RS256',typ:'JWT'});
-    const pld = enc({iss:creds.client_email, scope:'https://www.googleapis.com/auth/spreadsheets', aud:'https://oauth2.googleapis.com/token', iat:now, exp:now+3600});
-
-    let pemBody = creds.private_key.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\r|\n|\s/g, '');
-    const keyBuf = Uint8Array.from(atob(pemBody), c=>c.charCodeAt(0)).buffer;
-    const cryptoKey = await crypto.subtle.importKey('pkcs8', keyBuf, {name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'}, false, ['sign']);
-    const sigBuf = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', cryptoKey, new TextEncoder().encode(hdr + '.' + pld));
     
-    const sig = b64u(String.fromCharCode(...new Uint8Array(sigBuf)));
-    const jwt = `${hdr}.${pld}.${sig}`;
+    <div class="main">
+        <div class="empty-state" id="emptyState">
+            Selecciona una conversación
+        </div>
+    </div>
 
-    const r = await fetch('https://oauth2.googleapis.com/token', { 
-        method:'POST', 
-        headers:{'Content-Type':'application/x-www-form-urlencoded'}, 
-        body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
-    });
-    if(!r.ok) throw new Error('Token HTTP '+r.status);
-    const d = await r.json();
-    if(!d.access_token) throw new Error(d.error_description||'Sin token');
-    
-    _tok = d.access_token;
-    _tokExp = Date.now() + (d.expires_in||3600)*1000;
-    return _tok;
-  } catch(e){
-    setSyncStatus('err','Auth Error');
-    return null;
-  }
-}
+    <script>
+        let currentFilter = 'todos';
+        let conversations = [];
+        let selectedConv = null;
 
-async function sheetFetch(url, opts, retries=2){
-  for(let i=0; i<=retries; i++){
-    try{
-      const r = await fetch(url, opts);
-      if(r.status===429||r.status===503){ if(i<retries){ await new Promise(res=>setTimeout(res,1500*(i+1))); continue; } throw new Error('Rate limit'); }
-      return r;
-    } catch(e){ if(i===retries) throw e; await new Promise(res=>setTimeout(res,1000)); }
-  }
-}
+        // Actualizar hora
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = now.toLocaleTimeString('es-PE', {hour: '2-digit', minute:'2-digit'});
+        }
+        setInterval(updateTime, 1000);
+        updateTime();
 
-const rng = () => encodeURIComponent((CFG.sname||'Hoja 1')+'!A:H');
-const shBase = () => `https://sheets.googleapis.com/v4/spreadsheets/${CFG.sid}/values/${rng()}`;
+        // Cargar historial
+        async function loadHistorial() {
+            try {
+                const response = await fetch('/api/historial?limit=200');
+                const messages = await response.json();
+                
+                // Agrupar por teléfono
+                const grouped = {};
+                messages.forEach(msg => {
+                    if (!grouped[msg.telefono]) {
+                        grouped[msg.telefono] = {
+                            telefono: msg.telefono,
+                            nombre: msg.nombre,
+                            messages: [],
+                            lastMessage: msg.hora,
+                            coordinadora: msg.coordinadora
+                        };
+                    }
+                    grouped[msg.telefono].messages.push(msg);
+                });
+                
+                conversations = Object.values(grouped).sort((a, b) => 
+                    new Date(b.lastMessage) - new Date(a.lastMessage)
+                );
+                
+                renderConversations();
+                updateStats();
+            } catch (error) {
+                console.error('Error cargando historial:', error);
+            }
+        }
 
-async function leerSheet(){
-  const tok = await getToken();
-  if(!tok) return null;
-  const r = await sheetFetch(shBase(), {headers:{Authorization:`Bearer ${tok}`}});
-  if(!r||!r.ok){ setSyncStatus('err','Error Sheet'); return null; }
-  const data = await r.json();
-  return data.values || [];
-}
-
-async function escribirCelda(fila, col, valor){
-  const tok = await getToken();
-  if(!tok) return false;
-  const colLetter = String.fromCharCode(64+col);
-  const rango = encodeURIComponent(`${CFG.sname||'Hoja 1'}!${colLetter}${fila}`);
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${CFG.sid}/values/${rango}?valueInputOption=USER_ENTERED`;
-  const r = await sheetFetch(url,{ method:'PUT', headers:{Authorization:`Bearer ${tok}`,'Content-Type':'application/json'}, body:JSON.stringify({values:[[valor]]}) });
-  return r && r.ok;
-}
-
-async function appendFila(vals){
-  const tok = await getToken();
-  if(!tok) return false;
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${CFG.sid}/values/${rng()}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
-  const r = await sheetFetch(url,{ method:'POST', headers:{Authorization:`Bearer ${tok}`,'Content-Type':'application/json'}, body:JSON.stringify({values:[vals]}) });
-  return r && r.ok;
-}
-
-async function enviarWA(tel, texto){
-  const watok = CFG.watok || '';
-  const wapid = CFG.wapid || '';
-  if(!watok||!wapid) return {ok:false, err:'Sin credenciales WA'};
-  try{
-    const r = await fetch(`https://graph.facebook.com/v19.0/${wapid}/messages`,{ method:'POST', headers:{Authorization:`Bearer ${watok}`,'Content-Type':'application/json'}, body:JSON.stringify({messaging_product:'whatsapp',to:String(tel),type:'text',text:{body:texto,preview_url:false}}) });
-    const d = await r.json();
-    if(!r.ok) return {ok:false, err:(d.error?.message||'Error')};
-    return {ok:true};
-  } catch(e){ return {ok:false, err:e.message}; }
-}
-
-async function sincronizarMensajesInstantaneos() {
-    try {
-        let res = await fetch('/api/historial');
-        let data = await res.json();
-        let cambios = false;
-
-        for(let m of data) {
-            let tel = m.telefono;
-            let c = convs.find(x => x.tel === tel);
-            if (!c) {
-                c = {tel: tel, nombre: m.nombre || '+' + tel, estado: 'pendiente', ext: true, unread: false, rowNum: null, px: [], msgs: []};
-                convs.push(c);
-                cambios = true;
+        // Renderizar conversaciones
+        function renderConversations() {
+            const list = document.getElementById('conversationsList');
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            
+            let filtered = conversations;
+            if (currentFilter === 'graduado') {
+                filtered = conversations.filter(c => c.nombre.toLowerCase().includes('grad'));
+            } else if (currentFilter === 'pendiente') {
+                filtered = conversations.filter(c => !c.coordinadora);
             }
             
-            let ya = c.msgs.some(x => x.texto === m.texto);
-            if (!ya) {
-                let dir = m.tipo === 'in' ? 'in' : 'out';
-                c.msgs.push({dir: dir, texto: m.texto, h: m.hora, st: dir === 'out' ? 'Enviado' : '', tipo: dir, row: 999999});
-                if (dir === 'in' && curTel !== tel) {
-                    c.unread = true;
-                    document.title = "🔴 Nuevo Mensaje - CPSL";
-                }
-                cambios = true;
+            if (search) {
+                filtered = filtered.filter(c => 
+                    c.nombre.toLowerCase().includes(search) || 
+                    c.telefono.includes(search)
+                );
             }
+            
+            list.innerHTML = filtered.map(conv => `
+                <div class="conversation ${selectedConv === conv.telefono ? 'active' : ''}" 
+                     onclick="selectConversation('${conv.telefono}')">
+                    <div class="conv-header">
+                        <span class="conv-name">${conv.nombre}</span>
+                        <span class="conv-time">${formatTime(conv.lastMessage)}</span>
+                    </div>
+                    <div class="conv-message">${conv.messages[0].texto}</div>
+                    <div class="conv-phone">${conv.telefono}</div>
+                </div>
+            `).join('');
         }
 
-        if (cambios) {
-            renderLista();
-            if (curTel) actualizarMensajes();
+        // Seleccionar conversación
+        function selectConversation(tel) {
+            selectedConv = tel;
+            renderConversations();
+            // Aquí podrías cargar el chat completo
         }
-    } catch (e) {}
-}
 
-async function sincronizarSheets(){
-  if(syncing||DEMO) return;
-  syncing = true;
-  setSyncStatus('busy','Sincronizando Sheets…');
-  try{
-    const rows = await leerSheet();
-    if(!rows){ syncing=false; return; }
+        // Actualizar estadísticas
+        function updateStats() {
+            document.getElementById('totalStats').textContent = conversations.length;
+            document.getElementById('gradsStats').textContent = 
+                conversations.filter(c => c.nombre.toLowerCase().includes('grad')).length;
+            document.getElementById('pendStats').textContent = 
+                conversations.filter(c => !c.coordinadora).length;
+        }
 
-    let cambios = false;
-    rows.forEach((row, i) => {
-      if(i===0) return;
-      const tel    = String(row[1]||'').trim();
-      const nombre = String(row[2]||'').trim();
-      const estado = String(row[5]||'pendiente').toLowerCase();
-      if(!tel) return;
+        // Formatear hora
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleString('es-PE', { 
+                day: '2-digit', month: '2-digit', 
+                hour: '2-digit', minute: '2-digit' 
+            });
+        }
 
-      rowMap[tel] = i+1;
-      let c = convs.find(x=>x.tel===tel);
-      if(!c){
-        c = {tel, nombre:nombre||'+'+tel, estado, ext:!nombre, unread:false, rowNum:i+1, px:[], msgs:[]};
-        convs.push(c); cambios=true;
-      }
-      if(nombre && c.nombre==='+'+tel){ c.nombre=nombre; cambios=true; }
-      if(estado && c.estado!==estado){ c.estado=estado; cambios=true; }
-    });
+        // Filtros
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                currentFilter = this.dataset.filter;
+                renderConversations();
+            });
+        });
 
-    if(cambios){ renderStats(); renderLista(); if(curTel) actualizarMensajes(); }
-    setSyncStatus('ok', hora());
-  } catch(e){
-    setSyncStatus('err','Sync Error');
-  } finally{ syncing=false; }
-}
+        // Búsqueda
+        document.getElementById('searchInput').addEventListener('input', renderConversations);
 
-function renderStats(){
-  document.getElementById('st0').textContent = convs.length;
-  document.getElementById('st1').textContent = convs.filter(c=>c.estado==='confirma').length;
-  document.getElementById('st2').textContent = convs.filter(c=>c.estado==='pendiente').length;
-  document.getElementById('st3').textContent = convs.filter(c=>c.estado==='no asiste'||c.estado==='stop').length;
-}
-
-function renderLista(){
-  const q = (document.getElementById('search')||{value:''}).value.toLowerCase();
-  const lista = convs.filter(c=>{
-    const mq = !q || c.nombre.toLowerCase().includes(q) || c.tel.includes(q);
-    const mt = filtro==='todos' ||(filtro==='externo'&&c.ext) ||(!c.ext&&c.estado===filtro);
-    return mq && mt;
-  }).sort((a,b)=>(b.unread-a.unread)||((b.msgs[b.msgs.length-1]?.h||'')>(a.msgs[a.msgs.length-1]?.h||'')?1:-1));
-
-  const el = document.getElementById('list');
-  if(!el) return;
-  if(!lista.length){ el.innerHTML='<div style="padding:18px;text-align:center;font-size:12px;color:#888780">Sin resultados</div>'; return; }
-
-  el.innerHTML = lista.map(c => {
-    const last = c.msgs[c.msgs.length-1];
-    const prev = last ? last.texto.slice(0,44)+(last.texto.length>44?'…':'') : '—';
-    const bc   = badgeClass(c.estado, c.ext);
-    const elbl = c.ext ? 'externo' : c.estado;
-    return `
-      <div class="item ${curTel === c.tel ? 'on' : ''}" onclick="selConv('${c.tel}')">
-        <div class="item-top">
-          <span class="item-name">${esc(c.nombre.split(' ').slice(0,3).join(' '))}</span>
-          <span class="item-time">${esc(last?.h||'')}</span>
-        </div>
-        <div class="item-prev">${esc(prev)}</div>
-        <div class="item-bot">
-          <span class="badge ${bc}">${esc(elbl)}</span>
-          <div style="display:flex;align-items:center;gap:4px">
-            <span style="font-size:10px;color:#b4b2a9">+${esc(c.tel)}</span>
-            ${c.unread ? '<div class="dot-unread"></div>' : ''}
-          </div>
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-function setTab(el){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
-  el.classList.add('on');
-  filtro = el.dataset.tab;
-  renderLista();
-}
-
-function selConv(tel){ 
-    curTel = tel; 
-    const c = convs.find(x=>x.tel===tel); 
-    if(c) c.unread=false; 
-    document.title = "CPSL — Panel"; 
-    renderLista(); 
-    renderChat(); 
-}
-
-function renderChat(){
-  const c = convs.find(x=>x.tel===curTel);
-  if(!c) return;
-  const av = c.ext?'av-ext':'av-imo';
-  const bc = badgeClass(c.estado, c.ext);
-  const elbl = c.ext?'externo / no es IMO de campaña':c.estado;
-
-  let pxBtns = '';
-  if(c.px.length > 0) {
-      pxBtns = `<div class="px-row"><span class="px-lbl">Px:</span>` + c.px.map(p => `<button class="px-chip" onclick="togglePx(this, '${p}')">${esc(p)}</button>`).join('') + `</div>`;
-  }
-
-  let qrBtns = `<div class="qr-row">` + QR.map((r,i) => `<button class="qr" onclick="usarQR(${i})">${esc(r.l)}</button>`).join('') + `</div>`;
-
-  document.getElementById('chat').innerHTML = `
-    <div class="ch-header">
-      <div class="ch-left">
-        <div class="avatar ${av}">${esc(ini(c.nombre))}</div>
-        <div>
-          <div class="ch-name">${esc(c.nombre)}</div>
-          <div class="ch-sub">+${esc(c.tel)} &nbsp;·&nbsp; <span class="badge ${bc}">${esc(elbl)}</span></div>
-        </div>
-      </div>
-      <div class="ch-actions">
-        <button class="btn-s" onclick="setEstado('confirma')">✓ Confirma</button>
-        <button class="btn-s" onclick="setEstado('pendiente')">⏳ Pendiente</button>
-        <button class="btn-s" onclick="setEstado('no asiste')">✗ No asiste</button>
-        <button class="btn-s" onclick="setEstado('cambio')">↔ Cambio</button>
-        <button class="btn-s" onclick="setEstado('stop')">— Stop</button>
-      </div>
-    </div>
-    <div class="messages" id="msgs"></div>
-    <div class="footer">
-      ${pxBtns}
-      ${qrBtns}
-      <div class="input-row">
-        <textarea class="tinput" id="tinput" placeholder="Escribe tu respuesta… (Enter = enviar | Shift+Enter = nueva línea)" onkeydown="handleKey(event)" oninput="onInput(this)"></textarea>
-        <button class="send" style="background:#534AB7; padding:8px;" onclick="enviarMedia()" title="Enviar Imagen (En desarrollo)">📎</button>
-        <button class="send" id="sbtn" onclick="enviar()">Enviar</button>
-      </div>
-      <div class="foot-meta"><span id="fchars">0 caracteres</span><span id="fstatus"></span></div>
-    </div>
-  `;
-
-  poblarMensajes(c); scrollFin();
-  const ti = document.getElementById('tinput'); if(ti) ti.focus();
-}
-
-function enviarMedia() {
-    alert("🚀 Opción 'Enviar Imagen' habilitada. (Integración de Media API en proceso para la siguiente versión).");
-}
-
-function actualizarMensajes(){
-  const c = convs.find(x=>x.tel===curTel);
-  if(!c) return;
-  const el = document.getElementById('msgs');
-  if(!el) return;
-  poblarMensajes(c);
-  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
-  if(atBottom) scrollFin();
-}
-
-function poblarMensajes(c){
-  const el = document.getElementById('msgs');
-  if(!el) return;
-  if(!c.msgs.length){ el.innerHTML='<div style="text-align:center;font-size:12px;color:#b4b2a9;padding:20px">Sin mensajes registrados</div>'; return; }
-  
-  el.innerHTML = c.msgs.map(m => {
-    const quien = m.dir==='in' ? esc(c.nombre.split(' ').slice(0,2).join(' ')) : 'Tu';
-    const st = m.dir==='out' ? `<div class="msg-st">${esc(m.st||'Enviado')}</div>` : '';
-    return `
-      <div class="msg ${m.dir==='in'?'in':'out'} ${m.pending?'pending':''}">
-        <div class="msg-who">${quien} · ${esc(m.h)}</div>
-        <div class="bubble">${nl2br(m.texto)}</div>
-        ${st}
-      </div>
-    `;
-  }).join('');
-}
-
-function scrollFin(){ setTimeout(()=>{ const e=document.getElementById('msgs'); if(e) e.scrollTop=e.scrollHeight; },50); }
-
-function onInput(el){
-  el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,110)+'px';
-  const fc=document.getElementById('fchars'); if(fc) fc.textContent=el.value.length+' caracteres';
-}
-function handleKey(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); enviar(); } }
-
-async function enviar(){
-  const ti = document.getElementById('tinput');
-  const sb = document.getElementById('sbtn');
-  const texto = ti ? ti.value.trim() : '';
-  if(!texto||!curTel) return;
-
-  sb.disabled = true;
-  const h = hora();
-  const c = convs.find(x=>x.tel===curTel);
-  if(!c){ sb.disabled=false; return; }
-
-  const mObj = {dir:'out', texto, h, st:'Enviando…', pending:true, tipo:'man', row: 999999};
-  c.msgs.push(mObj);
-
-  ti.value=''; ti.style.height='auto';
-  const fc=document.getElementById('fchars'); if(fc) fc.textContent='0 caracteres';
-
-  actualizarMensajes(); scrollFin(); setFootStatus('Enviando…');
-
-  let waOk = false;
-  if(CFG.watok&&CFG.wapid){
-    const res = await enviarWA(curTel, texto);
-    waOk = res.ok;
-    setFootStatus(waOk ? 'Enviado por WhatsApp' : '⚠ WA: Error — guardando en Sheet');
-  } else { setFootStatus('Sin token WA — guardando en Sheet para reenvío del bot'); }
-
-  if(!DEMO){
-    const ok = await appendFila([fecha(), curTel, c.nombre, '', '', 'RESPUESTA MANUAL', texto, waOk ? 'ENVIADO' : 'ERROR WA']);
-    if(ok){ 
-        setFootStatus('✓ Registrado en Sheets'); 
-        setTimeout(sincronizarSheets, 1000); 
-    } else {
-        setFootStatus('⚠ Error guardando en Sheet');
-    }
-  } else { setFootStatus('Modo demo — no se guarda en Sheet'); }
-
-  mObj.pending = false;
-  mObj.st = waOk ? 'Enviado' : (DEMO ? 'Demo' : 'En cola');
-  actualizarMensajes(); renderLista(); sb.disabled = false;
-}
-
-async function setEstado(estado){
-  const c = convs.find(x=>x.tel===curTel);
-  if(!c) return;
-  c.estado = estado;
-  if(!DEMO){ const rn = rowMap[curTel]; if(rn) await escribirCelda(rn, 6, estado); }
-  renderChat(); renderLista(); renderStats();
-}
-
-function usarQR(idx){ const ti = document.getElementById('tinput'); if(!ti) return; ti.value = QR[idx].t; onInput(ti); ti.focus(); }
-
-function togglePx(btn, px){ 
-    btn.classList.toggle('on'); 
-    const ti = document.getElementById('tinput'); 
-    if(!ti) return; 
-    if(btn.classList.contains('on')){ 
-        ti.value += (ti.value&&!ti.value.endsWith('\n')?' ':'')+px; 
-        onInput(ti); ti.focus(); 
-    } 
-}
-
-function iniciarSimulador() {
-    let num = prompt("Ingresa el número a simular:\nEj: 51999888777");
-    if (!num) return;
-    num = num.split('').filter(c => c >= '0' && c <= '9').join('');
-    let simTel = "SIM_" + num;
-    curTel = simTel;
-    
-    fetch('/api/mensaje_simulador', { 
-        method: 'POST', headers: {'Content-Type': 'application/json'}, 
-        body: JSON.stringify({telefono: simTel, texto: "MENU"}) 
-    }).then(() => {
-        setTimeout(sincronizarSheets, 1500);
-    });
-}
-
-function abrirNuevo(){ document.getElementById('ovl-new').style.display='flex'; }
-function cerrarNuevo(){ document.getElementById('ovl-new').style.display='none'; }
-async function crearNuevo(){
-  const nombre = document.getElementById('n-nombre').value.trim();
-  const rawTel = document.getElementById('n-tel').value.trim();
-  const tel = rawTel.split('').filter(c => c >= '0' && c <= '9').join('');
-  if(!nombre||!tel){ alert('Nombre y teléfono son obligatorios.'); return; }
-  const existe = convs.find(c=>c.tel===tel);
-  if(existe){ cerrarNuevo(); selConv(tel); return; }
-  const c = {tel, nombre, estado:'pendiente', ext:true, unread:false, rowNum:null, px:[], msgs:[]};
-  convs.push(c);
-  if(!DEMO){ const ok = await appendFila([fecha(),tel,nombre,'','','pendiente','','']); if(ok) setTimeout(sincronizarSheets, 800); }
-  document.getElementById('n-nombre').value=''; document.getElementById('n-tel').value='';
-  cerrarNuevo(); renderStats(); renderLista(); selConv(tel);
-}
-
-function iniciarUI(){ renderStats(); renderLista(); }
-async function iniciar(){ 
-    setSyncStatus('busy','Conectando a Sheets…'); 
-    await sincronizarSheets(); 
-    iniciarUI(); 
-    
-    setInterval(sincronizarMensajesInstantaneos, 2500); 
-    if(syncTimer) clearInterval(syncTimer); 
-    syncTimer = setInterval(sincronizarSheets, 8000); 
-}
-
-cargarCfg();
-const savedCreds = sessionStorage.getItem('cpsl_creds');
-const savedCfg   = localStorage.getItem(CFG_KEY);
-if(savedCreds && savedCfg){
-  try{
-    const sc = JSON.parse(savedCfg);
-    CFG = {...sc, creds: savedCreds};
-    document.getElementById('ovl-cfg').style.display='none';
-    document.getElementById('app').style.display='grid';
-    iniciar();
-  } catch(e){ }
-}
-</script>
+        // Cargar inicialmente
+        loadHistorial();
+        
+        // Actualizar cada 10 segundos
+        setInterval(loadHistorial, 10000);
+    </script>
 </body>
 </html>
