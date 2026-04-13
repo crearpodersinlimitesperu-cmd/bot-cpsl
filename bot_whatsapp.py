@@ -1,6 +1,6 @@
 """
-Bot WhatsApp — Creación Cuántica E.I.R.L. / Crear Poder Sin Límites Perú
-✅ V104: EVOLUCIÓN TOTAL (Perfiles IMO/PX/Nuevo + Menús + Modo Silencio/Derivación)
+Bot WhatsApp — Creación Cuántica E.I.R.L.
+✅ V105: EVOLUCIÓN TOTAL + CONEXIÓN A GOOGLE SHEETS
 """
 import os, re, json, time, csv, logging, threading
 from flask import Flask, request, jsonify
@@ -22,12 +22,14 @@ class Config:
     TOKEN = os.environ.get("WA_TOKEN", "")
     PHONE_ID = os.environ.get("WA_PHONE_ID", "")
     VERIFY_TOKEN = "cpsl2026"
-    CSV_BD_PATH = os.path.join(DATA_DIR, "base_datos.csv") # Se ajustará según tu lógica de búsqueda
+    CSV_BD_PATH = os.path.join(DATA_DIR, "base_datos.csv")
     HISTORIAL_PATH = os.path.join(DATA_DIR, "historial_chat.json")
     ASIGNACIONES_PATH = os.path.join(DATA_DIR, "asignaciones.json")
-    SESSIONS_PATH = os.path.join(DATA_DIR, "sesiones.json") # Recuperamos la memoria de menús
+    SESSIONS_PATH = os.path.join(DATA_DIR, "sesiones.json")
     
-    # EQUIPO DE COORDINACIÓN
+    # 🌟 AQUÍ PEGARÁS TU ENLACE DE MAKE.COM PARA GOOGLE SHEETS
+    URL_SHEETS = os.environ.get("URL_MAKE", "PEGA_AQUI_TU_WEBHOOK_DE_MAKE")
+    
     STAFF = {
         "Diana": {"tel": "51912379744"},
         "Joyce": {"tel": "51933599903"},
@@ -59,16 +61,13 @@ def gestionar_json(ruta, accion, data=None):
 def obtener_o_asignar_staff(tel_cliente):
     memoria = gestionar_json(Config.ASIGNACIONES_PATH, "leer")
     tel_str = str(tel_cliente)
-    
     if tel_str in memoria:
         asig = memoria[tel_str]
         return asig.get("nombre", asig) if isinstance(asig, dict) else asig
-    
     conteo = {nombre: 0 for nombre in Config.STAFF.keys()}
     for asig in memoria.values():
         nombre_asig = asig.get("nombre", asig) if isinstance(asig, dict) else asig
         if nombre_asig in conteo: conteo[nombre_asig] += 1
-    
     nombre_elegida = min(conteo, key=conteo.get)
     memoria[tel_str] = nombre_elegida
     gestionar_json(Config.ASIGNACIONES_PATH, "guardar", memoria)
@@ -85,9 +84,7 @@ def obtener_perfil_crm(telefono):
                     tel_imo = str(row.get('TEL. IMO', row.get('Tel. IMO', '')))[-9:]
                     nombre_pref = row.get('PREF.', row.get('Nombre', 'Aliado')).strip()
                     nombre_full = f"{row.get('APELLIDO', '')} {row.get('NOMBRE', '')}".strip()
-                    
-                    if tel_px == tel_norm:
-                        perfil["nombre"], perfil["rol"] = nombre_pref, "PROSPECTO"
+                    if tel_px == tel_norm: perfil["nombre"], perfil["rol"] = nombre_pref, "PROSPECTO"
                     if tel_imo == tel_norm:
                         perfil["rol"] = "IMO"
                         perfil["nombre"] = row.get('NOMBRE IMO', 'Líder').split()[0].title()
@@ -95,7 +92,21 @@ def obtener_perfil_crm(telefono):
         except: pass
     return perfil
 
-# --- 3. HISTORIAL Y COMUNICACIÓN ---
+# --- 3. GOOGLE SHEETS & HISTORIAL ---
+def enviar_a_sheets(telefono, nombre, rol, mensaje, estado):
+    if "PEGA_AQUI" in Config.URL_SHEETS: return # Si no hay webhook, no hace nada
+    datos = {
+        "fecha": datetime.now(TZ_LIMA).strftime("%d/%m/%Y %H:%M:%S"),
+        "telefono": str(telefono),
+        "nombre": nombre,
+        "rol": rol,
+        "mensaje": mensaje,
+        "coordinadora": obtener_o_asignar_staff(telefono),
+        "estado_bot": estado
+    }
+    try: req_lib.post(Config.URL_SHEETS, json=datos, timeout=3)
+    except: pass
+
 def append_historial(telefono, nombre, texto, tipo):
     try:
         with FileLock(Config.HISTORIAL_PATH + ".lock", timeout=5):
@@ -114,7 +125,7 @@ def enviar_wa(tel, texto, log_name="BOT"):
         append_historial(tel, log_name, texto, "out")
     except: pass
 
-# --- 4. CEREBRO DEL BOT (La Evolución) ---
+# --- 4. CEREBRO DEL BOT (V104 INTACTO) ---
 def flujo_principal(tel, texto, nombre_wa):
     txt_up = str(texto).strip().upper()
     perfil = obtener_perfil_crm(tel)
@@ -122,39 +133,35 @@ def flujo_principal(tel, texto, nombre_wa):
     rol = perfil["rol"]
     
     append_historial(tel, nombre, texto, "in")
-    
-    # Manejo de Sesiones (Navegación)
     sesiones = gestionar_json(Config.SESSIONS_PATH, "leer")
     estado = sesiones.get(str(tel), "INICIO")
     
-    # Palabras clave para reiniciar el menú
-    if txt_up in ["MENU", "MENÚ", "0", "SALIR", "VOLVER"]:
-        estado = "INICIO"
+    # DISPARO A GOOGLE SHEETS
+    threading.Thread(target=enviar_a_sheets, args=(tel, nombre, rol, texto, estado)).start()
+    
+    if txt_up in ["MENU", "MENÚ", "0", "SALIR", "VOLVER"]: estado = "INICIO"
         
-    # 🚨 MODO SILENCIO (Derivación activa)
+    # MODO SILENCIO
     if estado == "DERIVADO":
-        # El bot NO responde, solo le reenvía el mensaje a la coordinadora en silencio
         coord_name = obtener_o_asignar_staff(tel)
         tel_coord = Config.STAFF[coord_name]["tel"]
         enviar_wa(tel_coord, f"💬 *Mensaje de {nombre} (wa.me/{tel}):*\n{texto}", "ALERTA_STAFF")
-        return # Cortamos la ejecución aquí para que el bot no moleste al cliente.
+        return 
 
     respuesta = ""
     derivar = False
 
-    # 🌳 ÁRBOL DE MENÚS INTELIGENTES
     if estado == "INICIO":
-        if rol == "IMO": # Graduados
+        if rol == "IMO":
             respuesta = f"👑 *Portal de Graduados IMO — {nombre}*\n\n1️⃣ Ver TODOS mis enrolados\n2️⃣ Ver PENDIENTES de C1\n3️⃣ Próximas fechas\n4️⃣ Hablar con Coordinación\n0️⃣ Salir"
             estado = "MENU_IMO"
-        elif rol == "PROSPECTO": # En Proceso
+        elif rol == "PROSPECTO":
             respuesta = f"🌟 *Hola {nombre}*\n¡Bienvenido a CPSL Perú!\n\n1️⃣ Información de los Entrenamientos\n2️⃣ Ver fechas 2026\n3️⃣ Inversión y Pagos\n4️⃣ Hablar con Coordinación\n0️⃣ Finalizar"
             estado = "MENU_PX"
-        else: # No está en base (NUEVOS)
+        else:
             respuesta = f"🌟 *Bienvenido a Crear Poder Sin Límites Perú*\nCanal Corporativo Oficial. Responde con el número de tu elección:\n\n1️⃣ Información de los Entrenamientos\n2️⃣ Inversión y Métodos de Pago\n3️⃣ Fechas Disponibles\n4️⃣ Hablar con Coordinación\n0️⃣ Finalizar"
             estado = "MENU_NUEVO"
 
-    # SUB-MENÚ: IMO
     elif estado == "MENU_IMO":
         if txt_up == "1" or txt_up == "2":
             lista = perfil["enrolados"]
@@ -164,44 +171,33 @@ def flujo_principal(tel, texto, nombre_wa):
         elif txt_up == "9": estado = "INICIO"; respuesta = "Escribe *MENU* para ver tus opciones."
         else: respuesta = "Opción no reconocida. Escribe *0* para menú principal."
 
-    # SUB-MENÚ: PROSPECTOS Y NUEVOS
     elif estado in ["MENU_PX", "MENU_NUEVO"]:
         if txt_up == "1":
-            respuesta = "📘 *Crear Poder Sin Límites*\nSelecciona el nivel que estás listo para explorar:\n\n1️⃣ C1 (Capítulo Uno) - Descubrimiento\n2️⃣ C2 (Capítulo Dos) - La Experiencia\n3️⃣ MJ (Maestría del Juego) - La Práctica\n9️⃣ Regresar"
+            respuesta = "📘 *Crear Poder Sin Límites*\nSelecciona el nivel que estás listo para explorar:\n\n1️⃣ C1 (Capítulo Uno) - Descubrimiento\n2️⃣ C2 (Capítulo Dos) - La Experiencia\n3️⃣ MJ (Maestría del Juego)\n9️⃣ Regresar"
             estado = "MENU_NIVELES"
-        elif txt_up == "2" and estado == "MENU_PX": # En PROSPECTO el 2 es fechas
-            respuesta = "📅 *FECHAS 2026*\n🚀 C1: Vie 01 Mayo\n🔥 C2: Jue 14 Mayo\n👑 MJ: Vie 17 Abril\n\n9️⃣ Volver"
-        elif txt_up == "2" and estado == "MENU_NUEVO": # En NUEVO el 2 es pagos
-            respuesta = "💳 *Opciones de Inversión:*\n\n- BCP Soles: 193-XXXX-XXXX\n- Yape/Plin: 908652308\n\nPor favor, envía la captura de tu operación por este medio.\n\n9️⃣ Volver"
-        elif txt_up == "3" and estado == "MENU_PX": # En PROSPECTO el 3 es pagos
-            respuesta = "💳 *Opciones de Inversión:*\n\n- BCP Soles: 193-XXXX-XXXX\n- Yape/Plin: 908652308\n\nPor favor, envía la captura de tu operación por este medio.\n\n9️⃣ Volver"
-        elif txt_up == "3" and estado == "MENU_NUEVO": # En NUEVO el 3 es fechas
-            respuesta = "📅 *FECHAS 2026*\n🚀 C1: Vie 01 Mayo\n🔥 C2: Jue 14 Mayo\n👑 MJ: Vie 17 Abril\n\n9️⃣ Volver"
+        elif txt_up == "2" and estado == "MENU_PX": respuesta = "📅 *FECHAS 2026*\n🚀 C1: Vie 01 Mayo\n🔥 C2: Jue 14 Mayo\n👑 MJ: Vie 17 Abril\n\n9️⃣ Volver"
+        elif txt_up == "2" and estado == "MENU_NUEVO": respuesta = "💳 *Opciones de Inversión:*\n- BCP Soles: 193-XXXX-XXXX\n- Yape/Plin: 908652308\n\nEnvía la captura por este medio.\n\n9️⃣ Volver"
+        elif txt_up == "3" and estado == "MENU_PX": respuesta = "💳 *Opciones de Inversión:*\n- BCP Soles: 193-XXXX-XXXX\n- Yape/Plin: 908652308\n\nEnvía la captura por este medio.\n\n9️⃣ Volver"
+        elif txt_up == "3" and estado == "MENU_NUEVO": respuesta = "📅 *FECHAS 2026*\n🚀 C1: Vie 01 Mayo\n🔥 C2: Jue 14 Mayo\n👑 MJ: Vie 17 Abril\n\n9️⃣ Volver"
         elif txt_up == "4": derivar = True
         elif txt_up == "9": estado = "INICIO"; respuesta = "Escribe *MENU* para ver tus opciones."
         else: respuesta = "Opción no reconocida. Escribe *0* para menú principal."
         
     elif estado == "MENU_NIVELES":
-        if txt_up == "1": respuesta = "🚀 *C1 (Capítulo Uno) - El Descubrimiento*\nUn entrenamiento vivencial de 3 días diseñado para romper paradigmas y observar tus mecanismos de defensa.\n\n4️⃣ Hablar con Coordinación para registro\n9️⃣ Regresar"
+        if txt_up == "1": respuesta = "🚀 *C1 (Capítulo Uno) - El Descubrimiento*\nUn entrenamiento vivencial de 3 días diseñado para romper paradigmas.\n\n4️⃣ Hablar con Coordinación para registro\n9️⃣ Regresar"
         elif txt_up == "2": respuesta = "🔥 *C2 (Capítulo Dos) - La Experiencia*\n4 días de inmersión total para estirar tus límites.\n\n4️⃣ Hablar con Coordinación\n9️⃣ Regresar"
         elif txt_up == "3": respuesta = "👑 *MJ (Maestría del Juego)*\n100 días de práctica llevándolo a tu vida real.\n\n4️⃣ Hablar con Coordinación\n9️⃣ Regresar"
         elif txt_up == "4": derivar = True
         elif txt_up == "9": estado = "INICIO"; respuesta = "Escribe *MENU* para volver."
         else: respuesta = "Opción no reconocida. Escribe *0* para menú principal."
 
-    # 🤝 ÚLTIMO RECURSO: DERIVACIÓN Y MODO SILENCIO
     if derivar or "APOYO" in txt_up or "HUMANO" in txt_up:
         coord_name = obtener_o_asignar_staff(tel)
         tel_coord = Config.STAFF[coord_name]["tel"]
-        
-        # Le decimos al cliente que ya llegó una humana y silenciamos al bot
         respuesta = f"🙏 Derivando...\n\n¡Hola {nombre}! Soy {coord_name}, tu coordinadora asignada de Crear Poder Sin Límites. He recibido tu solicitud y desde este momento te atiendo yo personalmente por aquí. ¿En qué te ayudo?"
         estado = "DERIVADO" 
-        
-        # Avisamos a la coordinadora
         enviar_wa(tel_coord, f"🚨 *NUEVA ASIGNACIÓN:* {nombre} (wa.me/{tel}) requiere apoyo. Perfil: {rol}.", "ALERTA_STAFF")
 
-    # Guardamos el estado y enviamos el mensaje
     if respuesta:
         sesiones[str(tel)] = estado
         gestionar_json(Config.SESSIONS_PATH, "guardar", sesiones)
