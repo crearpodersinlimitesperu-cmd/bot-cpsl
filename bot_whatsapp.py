@@ -1,6 +1,6 @@
 """
 Bot WhatsApp — Creación Cuántica E.I.R.L. / Crear Poder Sin Límites Perú
-✅ V103: AUTO-FIX (GPS para Panel + Lector de Memoria Avanzado)
+✅ V104: EVOLUCIÓN TOTAL (Perfiles IMO/PX/Nuevo + Menús + Modo Silencio/Derivación)
 """
 import os, re, json, time, csv, logging, threading
 from flask import Flask, request, jsonify
@@ -13,112 +13,201 @@ logger = logging.getLogger("BotCrear")
 
 app = Flask(__name__)
 
-# --- 1. CONFIGURACIÓN ---
+# --- 1. CONFIGURACIÓN MAESTRA ---
 TZ_LIMA = timezone(timedelta(hours=-5))
 DATA_DIR = "/data" if os.path.exists("/data") else "."
-BASE_DIR = os.path.dirname(os.path.abspath(__file__)) # GPS para encontrar el panel
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 class Config:
     TOKEN = os.environ.get("WA_TOKEN", "")
     PHONE_ID = os.environ.get("WA_PHONE_ID", "")
     VERIFY_TOKEN = "cpsl2026"
+    CSV_BD_PATH = os.path.join(DATA_DIR, "base_datos.csv") # Se ajustará según tu lógica de búsqueda
     HISTORIAL_PATH = os.path.join(DATA_DIR, "historial_chat.json")
     ASIGNACIONES_PATH = os.path.join(DATA_DIR, "asignaciones.json")
+    SESSIONS_PATH = os.path.join(DATA_DIR, "sesiones.json") # Recuperamos la memoria de menús
     
-    # EQUIPO DE COORDINACIÓN OFICIAL
+    # EQUIPO DE COORDINACIÓN
     STAFF = {
-        "Diana": {"tel": "51912379744", "casos": 0},
-        "Joyce": {"tel": "51933599903", "casos": 0},
-        "Zuley": {"tel": "51933599864", "casos": 0}
+        "Diana": {"tel": "51912379744"},
+        "Joyce": {"tel": "51933599903"},
+        "Zuley": {"tel": "51933599864"}
     }
 
-# --- 2. GESTIÓN DE ASIGNACIONES (Memoria con Auto-Fix) ---
-def cargar_asignaciones():
-    if os.path.exists(Config.ASIGNACIONES_PATH):
-        try:
-            with open(Config.ASIGNACIONES_PATH, "r", encoding="utf-8") as f: return json.load(f)
-        except: pass
+def get_csv_bd_path():
+    for path in [".", DATA_DIR]:
+        archivos = [f for f in os.listdir(path) if f.startswith("campana_") and f.endswith(".csv")]
+        if archivos:
+            archivos.sort(key=lambda x: os.path.getmtime(os.path.join(path, x)), reverse=True)
+            return os.path.join(path, archivos[0])
+    return "base_datos.csv"
+Config.CSV_BD_PATH = get_csv_bd_path()
+
+# --- 2. MOTORES DE MEMORIA Y ESTADO ---
+def gestionar_json(ruta, accion, data=None):
+    try:
+        if accion == "leer":
+            if os.path.exists(ruta):
+                with open(ruta, "r", encoding="utf-8") as f: return json.load(f)
+            return {}
+        elif accion == "guardar":
+            with FileLock(ruta + ".lock", timeout=5):
+                with open(ruta, "w", encoding="utf-8") as f: json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e: logger.error(f"Error JSON en {ruta}: {e}")
     return {}
 
-def guardar_asignaciones(data):
-    try:
-        with FileLock(Config.ASIGNACIONES_PATH + ".lock", timeout=5):
-            with open(Config.ASIGNACIONES_PATH, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
-    except Exception as e: logger.error(f"Error en asignación: {e}")
-
 def obtener_o_asignar_staff(tel_cliente):
-    memoria = cargar_asignaciones()
+    memoria = gestionar_json(Config.ASIGNACIONES_PATH, "leer")
     tel_str = str(tel_cliente)
     
     if tel_str in memoria:
         asig = memoria[tel_str]
-        # Si el rompehielo lo guardó como diccionario, sacamos solo el nombre
         return asig.get("nombre", asig) if isinstance(asig, dict) else asig
     
-    # Reparto Equitativo
     conteo = {nombre: 0 for nombre in Config.STAFF.keys()}
     for asig in memoria.values():
         nombre_asig = asig.get("nombre", asig) if isinstance(asig, dict) else asig
         if nombre_asig in conteo: conteo[nombre_asig] += 1
     
-    # Elegir a la coordinadora con menos carga
     nombre_elegida = min(conteo, key=conteo.get)
     memoria[tel_str] = nombre_elegida
-    guardar_asignaciones(memoria)
+    gestionar_json(Config.ASIGNACIONES_PATH, "guardar", memoria)
     return nombre_elegida
 
-# --- 3. HISTORIAL Y PANEL ---
+def obtener_perfil_crm(telefono):
+    tel_norm = str(telefono)[-9:]
+    perfil = {"rol": "NUEVO", "nombre": "Aliado", "enrolados": []}
+    if os.path.exists(Config.CSV_BD_PATH):
+        try:
+            with open(Config.CSV_BD_PATH, 'r', encoding='utf-8-sig') as f:
+                for row in csv.DictReader(f):
+                    tel_px = str(row.get('TELÉFONO PX', row.get('Teléfono', '')))[-9:]
+                    tel_imo = str(row.get('TEL. IMO', row.get('Tel. IMO', '')))[-9:]
+                    nombre_pref = row.get('PREF.', row.get('Nombre', 'Aliado')).strip()
+                    nombre_full = f"{row.get('APELLIDO', '')} {row.get('NOMBRE', '')}".strip()
+                    
+                    if tel_px == tel_norm:
+                        perfil["nombre"], perfil["rol"] = nombre_pref, "PROSPECTO"
+                    if tel_imo == tel_norm:
+                        perfil["rol"] = "IMO"
+                        perfil["nombre"] = row.get('NOMBRE IMO', 'Líder').split()[0].title()
+                        if nombre_full: perfil["enrolados"].append(f"• {nombre_full}")
+        except: pass
+    return perfil
+
+# --- 3. HISTORIAL Y COMUNICACIÓN ---
 def append_historial(telefono, nombre, texto, tipo):
     try:
         with FileLock(Config.HISTORIAL_PATH + ".lock", timeout=5):
+            h = []
             if os.path.exists(Config.HISTORIAL_PATH):
                 with open(Config.HISTORIAL_PATH, "r", encoding="utf-8") as f: h = json.load(f)
-            else: h = []
-            h.append({
-                "telefono": str(telefono),
-                "nombre": nombre or "Aliado",
-                "texto": texto,
-                "tipo": tipo,
-                "hora": datetime.now(TZ_LIMA).strftime("%d/%m %H:%M")
-            })
+            h.append({"telefono": str(telefono), "nombre": nombre, "texto": texto, "tipo": tipo, "hora": datetime.now(TZ_LIMA).strftime("%d/%m %H:%M")})
             with open(Config.HISTORIAL_PATH, "w", encoding="utf-8") as f: json.dump(h[-2000:], f, ensure_ascii=False)
     except: pass
 
-# --- 4. MOTOR DE RESPUESTAS ---
-def enviar_wa(tel, texto):
+def enviar_wa(tel, texto, log_name="BOT"):
     url = f"https://graph.facebook.com/v19.0/{Config.PHONE_ID}/messages"
     payload = {"messaging_product": "whatsapp", "to": str(tel), "type": "text", "text": {"body": texto}}
     try:
         req_lib.post(url, json=payload, headers={"Authorization": f"Bearer {Config.TOKEN}"})
+        append_historial(tel, log_name, texto, "out")
     except: pass
 
+# --- 4. CEREBRO DEL BOT (La Evolución) ---
 def flujo_principal(tel, texto, nombre_wa):
     txt_up = str(texto).strip().upper()
-    append_historial(tel, nombre_wa, texto, "in")
+    perfil = obtener_perfil_crm(tel)
+    nombre = perfil["nombre"] if perfil["nombre"] != "Aliado" else nombre_wa
+    rol = perfil["rol"]
     
-    # Triggers de Derivación (Confirmar o Pedir Apoyo)
-    if any(word in txt_up for word in ["SÍ", "SI", "APOYO", "DUDA", "STAFF", "INFORMACIÓN"]) or txt_up in ["1", "2", "3"]:
-        nombre_coord = obtener_o_asignar_staff(tel)
-        tel_coord = Config.STAFF[nombre_coord]["tel"]
-        
-        # Respuesta al Cliente
-        resp = f"¡Excelente decisión! 🚀 Soy {nombre_coord}, tu Coordinadora de C1 y C2. He recibido tu solicitud y desde este momento te apoyaré personalmente en tu proceso."
-        enviar_wa(tel, resp)
-        append_historial(tel, "BOT", f"Derivado a {nombre_coord}", "out")
-        
-        # Alerta a la Coordinadora
-        alerta = f"🚨 *NUEVA ASIGNACIÓN:* {nombre_wa} (wa.me/{tel}) requiere tu apoyo. Dijo: '{texto}'"
-        enviar_wa(tel_coord, alerta)
+    append_historial(tel, nombre, texto, "in")
     
-    elif "PAGO" in txt_up:
-        enviar_wa(tel, "💳 *Cuentas Corporativas:* BCP Soles 193-XXXX-XXXX. Envía tu captura por aquí.")
-        append_historial(tel, "BOT", "Envió opciones de pago.", "out")
-    else:
-        msg = f"🌟 *Crear Poder Sin Límites*\n\nEscribe:\n*1* para Confirmar asistencia\n*2* si necesitas Apoyo o Información\n*PAGOS* para opciones bancarias."
-        enviar_wa(tel, msg)
-        append_historial(tel, "BOT", "Envió Menú Principal", "out")
+    # Manejo de Sesiones (Navegación)
+    sesiones = gestionar_json(Config.SESSIONS_PATH, "leer")
+    estado = sesiones.get(str(tel), "INICIO")
+    
+    # Palabras clave para reiniciar el menú
+    if txt_up in ["MENU", "MENÚ", "0", "SALIR", "VOLVER"]:
+        estado = "INICIO"
+        
+    # 🚨 MODO SILENCIO (Derivación activa)
+    if estado == "DERIVADO":
+        # El bot NO responde, solo le reenvía el mensaje a la coordinadora en silencio
+        coord_name = obtener_o_asignar_staff(tel)
+        tel_coord = Config.STAFF[coord_name]["tel"]
+        enviar_wa(tel_coord, f"💬 *Mensaje de {nombre} (wa.me/{tel}):*\n{texto}", "ALERTA_STAFF")
+        return # Cortamos la ejecución aquí para que el bot no moleste al cliente.
 
+    respuesta = ""
+    derivar = False
+
+    # 🌳 ÁRBOL DE MENÚS INTELIGENTES
+    if estado == "INICIO":
+        if rol == "IMO": # Graduados
+            respuesta = f"👑 *Portal de Graduados IMO — {nombre}*\n\n1️⃣ Ver TODOS mis enrolados\n2️⃣ Ver PENDIENTES de C1\n3️⃣ Próximas fechas\n4️⃣ Hablar con Coordinación\n0️⃣ Salir"
+            estado = "MENU_IMO"
+        elif rol == "PROSPECTO": # En Proceso
+            respuesta = f"🌟 *Hola {nombre}*\n¡Bienvenido a CPSL Perú!\n\n1️⃣ Información de los Entrenamientos\n2️⃣ Ver fechas 2026\n3️⃣ Inversión y Pagos\n4️⃣ Hablar con Coordinación\n0️⃣ Finalizar"
+            estado = "MENU_PX"
+        else: # No está en base (NUEVOS)
+            respuesta = f"🌟 *Bienvenido a Crear Poder Sin Límites Perú*\nCanal Corporativo Oficial. Responde con el número de tu elección:\n\n1️⃣ Información de los Entrenamientos\n2️⃣ Inversión y Métodos de Pago\n3️⃣ Fechas Disponibles\n4️⃣ Hablar con Coordinación\n0️⃣ Finalizar"
+            estado = "MENU_NUEVO"
+
+    # SUB-MENÚ: IMO
+    elif estado == "MENU_IMO":
+        if txt_up == "1" or txt_up == "2":
+            lista = perfil["enrolados"]
+            respuesta = "*Tus prospectos:*\n" + ("\n".join(lista) if lista else "Aún no tienes registros.") + "\n\n9️⃣ Menú Principal"
+        elif txt_up == "3": respuesta = "📅 *FECHAS 2026*\n🚀 C1: Vie 01 Mayo\n🔥 C2: Jue 14 Mayo\n👑 MJ: Vie 17 Abril\n\n9️⃣ Volver"
+        elif txt_up == "4": derivar = True
+        elif txt_up == "9": estado = "INICIO"; respuesta = "Escribe *MENU* para ver tus opciones."
+        else: respuesta = "Opción no reconocida. Escribe *0* para menú principal."
+
+    # SUB-MENÚ: PROSPECTOS Y NUEVOS
+    elif estado in ["MENU_PX", "MENU_NUEVO"]:
+        if txt_up == "1":
+            respuesta = "📘 *Crear Poder Sin Límites*\nSelecciona el nivel que estás listo para explorar:\n\n1️⃣ C1 (Capítulo Uno) - Descubrimiento\n2️⃣ C2 (Capítulo Dos) - La Experiencia\n3️⃣ MJ (Maestría del Juego) - La Práctica\n9️⃣ Regresar"
+            estado = "MENU_NIVELES"
+        elif txt_up == "2" and estado == "MENU_PX": # En PROSPECTO el 2 es fechas
+            respuesta = "📅 *FECHAS 2026*\n🚀 C1: Vie 01 Mayo\n🔥 C2: Jue 14 Mayo\n👑 MJ: Vie 17 Abril\n\n9️⃣ Volver"
+        elif txt_up == "2" and estado == "MENU_NUEVO": # En NUEVO el 2 es pagos
+            respuesta = "💳 *Opciones de Inversión:*\n\n- BCP Soles: 193-XXXX-XXXX\n- Yape/Plin: 908652308\n\nPor favor, envía la captura de tu operación por este medio.\n\n9️⃣ Volver"
+        elif txt_up == "3" and estado == "MENU_PX": # En PROSPECTO el 3 es pagos
+            respuesta = "💳 *Opciones de Inversión:*\n\n- BCP Soles: 193-XXXX-XXXX\n- Yape/Plin: 908652308\n\nPor favor, envía la captura de tu operación por este medio.\n\n9️⃣ Volver"
+        elif txt_up == "3" and estado == "MENU_NUEVO": # En NUEVO el 3 es fechas
+            respuesta = "📅 *FECHAS 2026*\n🚀 C1: Vie 01 Mayo\n🔥 C2: Jue 14 Mayo\n👑 MJ: Vie 17 Abril\n\n9️⃣ Volver"
+        elif txt_up == "4": derivar = True
+        elif txt_up == "9": estado = "INICIO"; respuesta = "Escribe *MENU* para ver tus opciones."
+        else: respuesta = "Opción no reconocida. Escribe *0* para menú principal."
+        
+    elif estado == "MENU_NIVELES":
+        if txt_up == "1": respuesta = "🚀 *C1 (Capítulo Uno) - El Descubrimiento*\nUn entrenamiento vivencial de 3 días diseñado para romper paradigmas y observar tus mecanismos de defensa.\n\n4️⃣ Hablar con Coordinación para registro\n9️⃣ Regresar"
+        elif txt_up == "2": respuesta = "🔥 *C2 (Capítulo Dos) - La Experiencia*\n4 días de inmersión total para estirar tus límites.\n\n4️⃣ Hablar con Coordinación\n9️⃣ Regresar"
+        elif txt_up == "3": respuesta = "👑 *MJ (Maestría del Juego)*\n100 días de práctica llevándolo a tu vida real.\n\n4️⃣ Hablar con Coordinación\n9️⃣ Regresar"
+        elif txt_up == "4": derivar = True
+        elif txt_up == "9": estado = "INICIO"; respuesta = "Escribe *MENU* para volver."
+        else: respuesta = "Opción no reconocida. Escribe *0* para menú principal."
+
+    # 🤝 ÚLTIMO RECURSO: DERIVACIÓN Y MODO SILENCIO
+    if derivar or "APOYO" in txt_up or "HUMANO" in txt_up:
+        coord_name = obtener_o_asignar_staff(tel)
+        tel_coord = Config.STAFF[coord_name]["tel"]
+        
+        # Le decimos al cliente que ya llegó una humana y silenciamos al bot
+        respuesta = f"🙏 Derivando...\n\n¡Hola {nombre}! Soy {coord_name}, tu coordinadora asignada de Crear Poder Sin Límites. He recibido tu solicitud y desde este momento te atiendo yo personalmente por aquí. ¿En qué te ayudo?"
+        estado = "DERIVADO" 
+        
+        # Avisamos a la coordinadora
+        enviar_wa(tel_coord, f"🚨 *NUEVA ASIGNACIÓN:* {nombre} (wa.me/{tel}) requiere apoyo. Perfil: {rol}.", "ALERTA_STAFF")
+
+    # Guardamos el estado y enviamos el mensaje
+    if respuesta:
+        sesiones[str(tel)] = estado
+        gestionar_json(Config.SESSIONS_PATH, "guardar", sesiones)
+        enviar_wa(tel, respuesta)
+
+# --- 5. RUTAS WEB ---
 @app.route("/webhook", methods=["GET", "POST"])
 def webhook():
     if request.method == "GET":
@@ -126,12 +215,8 @@ def webhook():
     try:
         data = request.get_json()
         msg = data["entry"][0]["changes"][0]["value"]["messages"][0]
-        
-        try:
-            nombre = data["entry"][0]["changes"][0]["value"]["contacts"][0]["profile"]["name"]
-        except:
-            nombre = "Aliado"
-            
+        try: nombre = data["entry"][0]["changes"][0]["value"]["contacts"][0]["profile"]["name"]
+        except: nombre = "Aliado"
         cuerpo = msg["text"]["body"] if "text" in msg else msg.get("button", {}).get("text", "")
         if cuerpo: threading.Thread(target=flujo_principal, args=(msg["from"], cuerpo, nombre)).start()
     except: pass
@@ -146,13 +231,9 @@ def api_historial():
 @app.route("/chat")
 def chat_panel():
     try:
-        # GPS Activado: Buscando el archivo en la misma ruta exacta del script
         html_path = os.path.join(BASE_DIR, "panel_chat.html")
-        with open(html_path, encoding="utf-8") as f: 
-            return f.read()
-    except Exception as e: 
-        logger.error(f"Error abriendo HTML: {e}")
-        return "Panel no encontrado. Por favor, asegúrate de haber subido 'panel_chat.html' a GitHub.", 404
+        with open(html_path, encoding="utf-8") as f: return f.read()
+    except: return "Panel no encontrado.", 404
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
