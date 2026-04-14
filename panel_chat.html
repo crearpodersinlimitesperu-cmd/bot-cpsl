@@ -848,9 +848,13 @@ body {
           <option value="px">Solo PX (E25/E26)</option>
         </select>
       </div>
-      <div style="display:flex;gap:4px;margin-bottom:6px">
+      <div style="display:flex;gap:4px;margin-bottom:4px">
         <button class="btn primary" style="flex:1;font-size:11px;padding:5px" onclick="iniciarSeguimiento()">▶ Iniciar</button>
         <button class="btn" style="flex:1;font-size:11px;padding:5px" onclick="verLogSeg()">📋 Log</button>
+      </div>
+      <div style="display:flex;gap:4px;margin-bottom:6px">
+        <button class="btn" style="flex:1;font-size:11px;padding:5px;color:var(--naranja)" onclick="detectarSinRespuesta()">👁 Sin resp.</button>
+        <button class="btn" style="flex:1;font-size:11px;padding:5px;color:var(--verde)" onclick="iniciarReenvio()">🔄 Reenviar</button>
       </div>
       <div id="segProgreso" style="display:none">
         <div class="camp-bar" style="margin-bottom:4px">
@@ -1644,6 +1648,43 @@ iniciarSync();
 setInterval(sincronizarWorker, 10000);
 sincronizarWorker();
 
+// ══ REENVÍO DESDE SHEET ══════════════════════════════════════
+async function verSinRespuesta() {
+  if(!CFG.url) { toast('Sin URL configurada','error'); return; }
+  try {
+    toast('Consultando Sheet...','ok');
+    const r = await fetch(CFG.url+'/api/seguimiento/sin_respuesta?horas=48');
+    const data = await r.json();
+    const w = window.open('','_blank','width=700,height=500');
+    if(!data.length) { w.document.write('<p style="padding:20px;font-family:monospace">Sin candidatos (todos respondieron o enviados hace <48h)</p>'); return; }
+    const html2 = `<html><body style="font-family:monospace;font-size:12px;padding:16px">
+      <h3 style="margin:0 0 12px">Sin respuesta (>48h) — ${data.length} contactos</h3>
+      <table border="1" cellpadding="6" style="border-collapse:collapse;width:100%">
+        <tr style="background:#eee"><th>Tel</th><th>Nombre</th><th>Tipo</th><th>Enviado</th><th>Horas</th></tr>
+        ${data.map(d=>`<tr><td>${d.tel}</td><td>${d.nombre}</td><td>${d.tipo}</td><td>${d.fecha_envio}</td><td>${d.horas}h</td></tr>`).join('')}
+      </table></body></html>`;
+    w.document.write(html2);
+  } catch(e) { toast('Error: '+e.message,'error'); }
+}
+
+async function iniciarReenvio() {
+  if(!CFG.url) { toast('Sin URL configurada','error'); return; }
+  const horas = prompt('Reenviar a quienes no respondieron en más de X horas:', '48');
+  if(!horas) return;
+  if(!window.confirm(`¿Reenviar plantilla a contactos sin respuesta en más de ${horas}h?`)) return;
+  try {
+    const r = await fetch(CFG.url+'/api/seguimiento/reenviar',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({horas_espera: parseInt(horas)})
+    });
+    const d = await r.json();
+    if(d.error) { toast(d.error,'error'); return; }
+    toast(`Reenvío iniciado (>${horas}h sin resp)`,'ok');
+    setTimeout(sincronizarWorker, 2000);
+  } catch(e) { toast('Error: '+e.message,'error'); }
+}
+
 // ══ WORKER SEGUIMIENTO ════════════════════════════════════════
 async function sincronizarWorker() {
   try {
@@ -1694,6 +1735,42 @@ async function iniciarSeguimiento() {
     const d = await r.json();
     if(d.error) { toast(d.error,'error'); return; }
     toast(`Seguimiento iniciado — modo: ${modo}`,'ok');
+    setTimeout(sincronizarWorker, 1000);
+  } catch(e) { toast('Error: '+e.message,'error'); }
+}
+
+async function detectarSinRespuesta() {
+  if(!CFG.url) { toast('Configura URL primero','error'); return; }
+  try {
+    const horas = prompt('¿Cuántas horas sin respuesta para considerar pendiente?','48');
+    if(!horas) return;
+    toast('Consultando Sheet...','ok');
+    const r = await fetch(`${CFG.url}/api/seguimiento/detectar?horas=${horas}`);
+    const d = await r.json();
+    if(d.error){ toast(d.error,'error'); return; }
+    const w = window.open('','_blank','width=700,height=500');
+    const rows = (d.contactos||[]).map(c =>
+      `${c.tipo} | ${c.nombre} | +${c.tel} | ${Math.round(c.horas)}h sin resp`
+    ).join('\n');
+    w.document.write(`<pre style="font:13px monospace;padding:16px">`+
+      `Total sin respuesta: ${d.total}\n\n${rows||'Ninguno'}</pre>`);
+  } catch(e) { toast('Error: '+e.message,'error'); }
+}
+
+async function iniciarReenvio() {
+  if(!CFG.url) { toast('Configura URL primero','error'); return; }
+  const horas = prompt('Reenviar a quienes lleven más de N horas sin responder:','48');
+  if(!horas) return;
+  if(!window.confirm(`¿Reenviar mensajes a contactos con más de ${horas}h sin respuesta?`)) return;
+  try {
+    const r = await fetch(CFG.url+'/api/seguimiento/reenvio',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({horas_espera: parseInt(horas)})
+    });
+    const d = await r.json();
+    if(d.error){ toast(d.error,'error'); return; }
+    toast('Reenvío iniciado — revisa el Log','ok');
     setTimeout(sincronizarWorker, 1000);
   } catch(e) { toast('Error: '+e.message,'error'); }
 }
