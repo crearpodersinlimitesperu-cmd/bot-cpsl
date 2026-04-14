@@ -652,11 +652,18 @@ def wh_post():
         tipo = msg.get("type","")
         if tipo=="text":
             txt = str(msg["text"]["body"])
-            add_hist(tel,"IN",txt,"in")
-            reg(tel,"","","",txt,"MSG_IN")
+            s_wh = get_s(tel)
+            p_wh = s_wh.get("p") or perfil_crm(tel)
+            nom_h = f"({p_wh.get('tipo','?')}) {p_wh.get('nombre') or tel}"
+            add_hist(tel, nom_h, txt, "in")
+            reg(tel, p_wh.get("nombre",""), p_wh.get("tipo",""), txt, "MSG_IN",
+                staff=p_wh.get("staff_nom",""))
             threading.Thread(target=flujo,args=(tel,txt),daemon=False,name=f"f{tel[-4:]}").start()
         else:
-            add_hist(tel,"IN",f"[{tipo}]","in")
+            s_wh = get_s(tel)
+            p_wh = s_wh.get("p") or {"tipo":"?","nombre":None}
+            nom_h = f"({p_wh.get('tipo','?')}) {p_wh.get('nombre') or tel}"
+            add_hist(tel, nom_h, f"[{tipo}]", "in")
             wa(tel,"Por favor responde con texto o el número de tu opción.","SIS")
     except Exception as e: logger.error(f"wh {e}",exc_info=True)
     return jsonify({"status":"ok"}),200
@@ -697,7 +704,10 @@ def api_sim():
     d=request.json or {}
     tel=d.get("telefono",""); txt=d.get("texto","")
     if not tel or not txt: return jsonify({"error":"faltan datos"}),400
-    add_hist(tel,"SIM",txt,"in")
+    s_sim = get_s(tel)
+    p_sim = s_sim.get("p") or {"tipo":"SIM","nombre":"Simulación"}
+    nom_s = f"({p_sim.get('tipo','SIM')}) {p_sim.get('nombre') or tel}"
+    add_hist(tel, nom_s, txt, "in")
     threading.Thread(target=flujo,args=(tel,txt),daemon=True,name=f"sim{tel[-4:]}").start()
     return jsonify({"status":"ok"}),200
 
