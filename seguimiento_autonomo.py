@@ -265,6 +265,30 @@ def run_seguimiento(modo="ambos", limite_imos=None, limite_px=None):
 
             add_log(f"CSV cargado: {len(imos_map)} IMOs, {len(px_list)} PX")
 
+            # ── Leer Sheet para saber quién ya respondió ──────
+            # Esto evita contactar a alguien que ya respondió aunque
+            # no esté en el archivo de progreso local
+            respondieron = set()
+            try:
+                filas_sheet = leer_sheet_completo()
+                RESP_POSITIVAS = {"CONFIRMA","MSG_IN","CONFIRMA_C1E27",
+                                  "SOLICITUD_ALIADO","IMO_CONFIRMA_ENROLADO"}
+                for fila in filas_sheet:
+                    # fila: [fecha, dir, tel, nombre, dni, tipo, staff, msg, evento, estado, n_px, wa_id]
+                    if len(fila) >= 9:
+                        dir_f   = str(fila[1]).strip().upper()
+                        tel_f   = str(fila[2]).strip()
+                        evento_f= str(fila[8]).strip().upper()
+                        # Si hay un MSG_IN de este tel → ya respondió
+                        if dir_f == "IN" and tel_f:
+                            respondieron.add(tel_f)
+                        # Si hay confirmación directa
+                        if evento_f in RESP_POSITIVAS and tel_f:
+                            respondieron.add(tel_f)
+                add_log(f"Sheet leído: {len(filas_sheet)} filas, {len(respondieron)} ya respondieron")
+            except Exception as e:
+                add_log(f"Sheet no disponible: {e} — usando solo progreso local", "WARN")
+
             total_env = 0
 
             # ── PASO 1: IMOs ──────────────────────────────────
@@ -272,6 +296,7 @@ def run_seguimiento(modo="ambos", limite_imos=None, limite_px=None):
                 cands_imo = []
                 for tel, pxs in imos_map.items():
                     if tel in ya_env_imos: continue
+                    if tel in respondieron: continue  # ya respondió según Sheet
                     nom  = nc(pxs[0].get("IMO",""))
                     pila = np_(pxs[0].get("IMO",""))
                     px_lst = [f"{r.get('Nombre','').strip().title()} {r.get('Apellido','').strip().title()} ({r.get('Equipo','')})"
@@ -313,7 +338,9 @@ def run_seguimiento(modo="ambos", limite_imos=None, limite_px=None):
             if modo in ("px","ambos"):
                 # Solo PX de E26 y E25 (los más urgentes)
                 cands_px = [p for p in px_list
-                            if p["tel"] not in ya_env_px and p["eq_num"]>=25]
+                            if p["tel"] not in ya_env_px
+                            and p["tel"] not in respondieron  # ya respondió según Sheet
+                            and p["eq_num"]>=25]
                 cands_px.sort(key=lambda x:(-x["eq_num"]))
                 if limite_px: cands_px=cands_px[:limite_px]
 
@@ -406,6 +433,222 @@ if AUTO:
 # ── FLASK ENDPOINTS (integrado al bot principal vía import) ──
 # Si se importa desde bot_whatsapp.py, estos endpoints quedan disponibles
 # Si se corre directo, levanta servidor propio
+
+# ══════════════════════════════════════════════════════════════
+# LEER SHEET Y DETECTAR SIN RESPUESTA
+# ══════════════════════════════════════════════════════════════
+def leer_sheet_completo():
+    """Lee todas las filas del Sheet. Retorna lista de dicts."""
+    if not SHEET_ID: return []
+    try:
+        tok = sheets_tok()
+        if not tok: return []
+        tab = SHEET_TAB.replace(" ","%20")
+        r = req.get(
+            f"https://sheets.googleapis.com/v4/spreadsheets/{SHEET_ID}/values/{tab}!A:K",
+            headers={"Authorization":f"Bearer {tok}"},
+            timeout=15
+        )
+        if r.status_code != 200:
+            log.error(f"Sheet read {r.status_code}: {r.text[:100]}")
+            return []
+        vals = r.json().get("values",[])
+        if len(vals) < 2: return []
+        headers = vals[0]
+        rows = []
+        for row in vals[1:]:
+            # Completar celdas faltantes
+            while len(row) < len(headers): row.append("")
+            rows.append(dict(zip(headers, row)))
+        return rows
+    except Exception as e:
+        log.error(f"leer_sheet {e}")
+        return []
+
+def detectar_sin_respuesta(horas_espera=48):
+    """
+    Cruza el Sheet para encontrar contactos que:
+    1. Recibieron un mensaje de seguimiento (SEGUIMIENTO_IMO / SEGUIMIENTO_PX)
+    2. NO han respondido (sin MSG_IN posterior)
+    3. Han pasado > horas_espera desde el envío
+    
+    Retorna lista de dicts {tel, nombre, tipo, fecha_envio, horas_sin_resp}
+    """
+    from datetime import datetime, timedelta, timezone
+    TZ = timezone(timedelta(hours=-5))
+    AHORA = datetime.now(TZ)
+    
+    filas = leer_sheet_completo()
+    if not filas:
+        log.warning("Sheet vacío o sin acceso")
+        return []
+    
+    # Columna headers que usa el bot:
+    # A=Fecha/Hora, B=IN/OUT, C=Tel, D=Nombre, E=Tipo, F=Staff,
+    # G=Mensaje, H=Evento, I=Estado, J=Equipo, K=N_PX o WA_ID
+    
+    # Agrupar por teléfono
+    from collections import defaultdict
+    por_tel = defaultdict(list)
+    for f in filas:
+        tel = f.get("C","").strip() or f.get("Teléfono","").strip() or f.get("telefono","").strip()
+        # Detectar columna correcta (headers pueden variar)
+        for k in f:
+            v = f[k].strip()
+            if v.startswith("51") and len(v)==11:
+                tel = v; break
+        if tel: por_tel[tel].append(f)
+    
+    # Detectar col de fecha y evento (buscar por contenido)
+    def get_fecha(fila):
+        for k,v in fila.items():
+            if v and "/" in v and ":" in v and len(v)>10:
+                try:
+                    return datetime.strptime(v[:16], "%d/%m/%Y %H:%M").replace(tzinfo=TZ)
+                except: pass
+        return None
+    
+    def get_evento(fila):
+        for k,v in fila.items():
+            if v in ("SEGUIMIENTO_IMO","SEGUIMIENTO_PX","MSG_IN","BOT_OUT",
+                     "CONFIRMA","STOP","NO_ASISTE"):
+                return v
+        # Buscar en col H (índice 7)
+        vals = list(fila.values())
+        if len(vals) > 7: return vals[7]
+        return ""
+    
+    def get_nombre(fila):
+        for k,v in fila.items():
+            if v and len(v)>3 and not v.startswith("51") and "/" not in v:
+                return v
+        return ""
+    
+    sin_resp = []
+    EVENTOS_ENVIO = {"SEGUIMIENTO_IMO","SEGUIMIENTO_PX","BOT_OUT","plantilla_enviada"}
+    EVENTOS_RESP  = {"MSG_IN","CONFIRMA","STOP","NO_ASISTE","DERIVADO"}
+    
+    for tel, filas_tel in por_tel.items():
+        # Ordenar por fecha
+        filas_con_fecha = [(get_fecha(f), get_evento(f), get_nombre(f), f)
+                           for f in filas_tel]
+        filas_con_fecha.sort(key=lambda x: x[0] or AHORA)
+        
+        # Buscar último envío de seguimiento
+        ultimo_envio = None
+        ultimo_nombre = ""
+        ultimo_tipo = ""
+        
+        for fecha, evento, nombre, fila in filas_con_fecha:
+            if evento in EVENTOS_ENVIO:
+                ultimo_envio = fecha
+                ultimo_nombre = nombre or ultimo_nombre
+                ultimo_tipo = "IMO" if "IMO" in evento else "PX"
+        
+        if not ultimo_envio: continue
+        
+        # Ver si respondió después del último envío
+        respondio = any(
+            fecha and fecha > ultimo_envio and evento in EVENTOS_RESP
+            for fecha, evento, _, _ in filas_con_fecha
+        )
+        
+        if respondio: continue
+        
+        # Calcular horas sin respuesta
+        horas = (AHORA - ultimo_envio).total_seconds() / 3600
+        if horas < horas_espera: continue
+        
+        sin_resp.append({
+            "tel":          tel,
+            "nombre":       ultimo_nombre,
+            "tipo":         ultimo_tipo,
+            "fecha_envio":  ultimo_envio.strftime("%d/%m %H:%M") if ultimo_envio else "",
+            "horas":        round(horas, 1),
+        })
+    
+    # Ordenar por más tiempo sin respuesta primero
+    sin_resp.sort(key=lambda x: -x["horas"])
+    log.info(f"Sin respuesta detectados: {len(sin_resp)} (espera > {horas_espera}h)")
+    return sin_resp
+
+def run_reenvio(horas_espera=48, limite=None):
+    """
+    Lee el Sheet, detecta sin respuesta, reenvía plantilla.
+    Solo reenvía si han pasado > horas_espera horas.
+    """
+    global _estado_worker
+    if _estado_worker["corriendo"]:
+        return {"error": "Ya hay un proceso en curso"}
+    
+    _estado_worker.update({
+        "corriendo": True, "inicio": ahora().isoformat(),
+        "ok": 0, "err": 0, "total": 0,
+        "ultimo": "Leyendo Sheet...", "log": []
+    })
+    
+    def _run():
+        try:
+            add_log("Leyendo Sheet para detectar sin respuesta...")
+            sin_resp = detectar_sin_respuesta(horas_espera=horas_espera)
+            
+            if not sin_resp:
+                add_log(f"Sin candidatos (espera > {horas_espera}h)")
+                return
+            
+            if limite:
+                sin_resp = sin_resp[:limite]
+            
+            _estado_worker["total"] = len(sin_resp)
+            add_log(f"Candidatos a reenvío: {len(sin_resp)}")
+            
+            # Cargar CSV para obtener nombre pila
+            imos_map = cargar_imos()
+            px_list  = {p["tel"]:p for p in cargar_px()}
+            
+            for i, c in enumerate(sin_resp, 1):
+                tel  = c["tel"]
+                tipo = c["tipo"]
+                _estado_worker["ultimo"] = f"Reenviando {i}/{len(sin_resp)}: {c['nombre'][:25]}"
+                
+                # Obtener nombre pila del CSV
+                if tipo == "IMO" and tel in imos_map:
+                    pxs  = imos_map[tel]
+                    pila = np_(pxs[0].get("IMO",""))
+                elif tel in px_list:
+                    pila = px_list[tel]["pila"]
+                else:
+                    pila = np_(c["nombre"])
+                
+                exito, res = wa_template(tel, pila,
+                    TEMPLATE_IMO if tipo=="IMO" else TEMPLATE_PX)
+                hora_s = ahora().strftime("%d/%m/%Y %H:%M:%S")
+                
+                if exito:
+                    _estado_worker["ok"] += 1
+                    add_log(f"✅ Reenvío {tipo} {c['nombre'][:30]} ({c['horas']}h sin resp)")
+                    sheets_append([
+                        hora_s,"OUT",tel,c["nombre"],"",tipo,
+                        "","plantilla_enviada",
+                        f"REENVIO_{tipo}_{int(c['horas'])}h","","",res
+                    ])
+                else:
+                    _estado_worker["err"] += 1
+                    add_log(f"❌ {c['nombre'][:25]} — {res[:50]}", "ERROR")
+                
+                time.sleep(PAUSA)
+            
+            add_log(f"✅ Reenvío completado — {_estado_worker['ok']} OK / {_estado_worker['err']} errores")
+        except Exception as e:
+            add_log(f"ERROR: {e}", "ERROR")
+            log.error(f"run_reenvio {e}", exc_info=True)
+        finally:
+            _estado_worker["corriendo"] = False
+            _estado_worker["ultimo"] = "Completado"
+    
+    threading.Thread(target=_run, daemon=False, name="worker-reenvio").start()
+    return {"iniciado": True, "modo": "reenvio", "horas_espera": horas_espera}
+
 if __name__ == "__main__":
     from flask import Flask, jsonify, request as freq
     app2 = Flask(__name__)
