@@ -105,8 +105,12 @@ def _get_rows():
 def _d(s): return re.sub(r'\D','',str(s or ''))
 def n9(t):  return _d(t)[-9:]
 def np(s):  # primer nombre
+    """CSV de IMOs tiene formato APELLIDO1 APELLIDO2 NOMBRE → tomar 3er token."""
     p = [x for x in str(s or '').strip().split() if len(x)>2]
-    return p[0].title() if p else str(s).strip().title()
+    if not p: return str(s).strip().title()
+    if len(p) >= 3: return p[2].title()   # APELLIDO1 APELLIDO2 NOMBRE → NOMBRE
+    if len(p) == 2: return p[1].title()   # APELLIDO NOMBRE → NOMBRE
+    return p[0].title()
 
 # ── PERFIL CRM ────────────────────────────────────────────────
 def perfil_crm(tel):
