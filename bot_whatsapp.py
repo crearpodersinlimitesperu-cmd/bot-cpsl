@@ -329,6 +329,9 @@ def reg(tel, nom, tipo, msg, evento, estado="", dir_="IN", staff=""):
 def wa(tel, txt, log="BOT"):
     if str(tel).startswith("SIM_"):
         add_hist(tel, log, txt, "out"); return True
+    if not Cfg.TOKEN:
+        logger.critical("wa(): WA_TOKEN vacío — renovar en Render")
+        return False
     try:
         r = req_lib.post(
             f"https://graph.facebook.com/v19.0/{Cfg.PHONE_ID}/messages",
@@ -337,12 +340,23 @@ def wa(tel, txt, log="BOT"):
             headers={"Authorization":f"Bearer {Cfg.TOKEN}","Content-Type":"application/json"},
             timeout=10
         )
-        add_hist(tel, log, txt, "out")
-        reg(tel, log, "", txt, "BOT_OUT", dir_="OUT")
-        if r.status_code!=200: logger.error(f"wa {r.status_code}: {r.text[:100]}")
-        return r.status_code==200
+        if r.status_code == 200:
+            add_hist(tel, log, txt, "out")
+            reg(tel, log, "", txt, "BOT_OUT", dir_="OUT")
+            return True
+        else:
+            err  = r.json().get("error", {})
+            code_err = err.get("code", 0)
+            msg_err  = err.get("message","?")[:120]
+            logger.error(f"wa() FALLO tel={tel} status={r.status_code} code={code_err}: {msg_err}")
+            if code_err == 190:
+                logger.critical("⚠️  WA_TOKEN EXPIRADO — ve a Render > Environment > WA_TOKEN y renuévalo")
+            elif code_err == 100:
+                logger.error(f"⚠️  PHONE_ID incorrecto: {Cfg.PHONE_ID}")
+            return False
     except Exception as e:
-        logger.error(f"wa exc {e}"); return False
+        logger.error(f"wa() excepción tel={tel}: {e}")
+        return False
 
 def notif_cc(p, motivo, extra=""):
     """Notifica a la CC asignada con nombre completo y asunto claro."""
@@ -368,12 +382,12 @@ def notif_cc(p, motivo, extra=""):
     else:
         ctx = "*Nuevo contacto*"
 
-    logger.info(f"notif_cc → {nom_cc} ({tel_cc}) | {nom_px} | {motivo[:40]}")
+    logger.info(f"notif_cc INICIO → {nom_cc} tel={tel_cc} | px={nom_px} | {motivo[:40]}")
     if not tel_cc:
-        logger.error("notif_cc: tel_cc vacío — no se puede enviar")
+        logger.critical("notif_cc: tel_cc VACÍO — revisar STAFF y cc_por_equipo")
         return nom_cc
     if not Cfg.TOKEN:
-        logger.error("notif_cc: WA_TOKEN vacío — notificación no enviada")
+        logger.critical("notif_cc: WA_TOKEN VACÍO — derivación no enviada")
         return nom_cc
     exito = wa(tel_cc,
        f"🚨 *TORRE DE CONTROL — CPSL Lima*\n\n"
