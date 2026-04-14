@@ -836,6 +836,30 @@ body {
       </div>
     </div>
 
+    <!-- Worker Seguimiento -->
+    <div class="panel-section" id="segPanel">
+      <div class="panel-section-title">Seguimiento Autónomo</div>
+      <div id="segStatus" style="font-size:11px;color:var(--gris-txt);margin-bottom:8px">Cargando...</div>
+      <div style="margin-bottom:6px">
+        <div style="font-size:10px;color:var(--gris-txt);margin-bottom:3px">Modo:</div>
+        <select id="segModo" style="width:100%;font-size:11px;padding:4px;border:1px solid var(--gris-borde);border-radius:6px;font-family:inherit">
+          <option value="ambos">IMOs + PX</option>
+          <option value="imos">Solo IMOs</option>
+          <option value="px">Solo PX (E25/E26)</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:4px;margin-bottom:6px">
+        <button class="btn primary" style="flex:1;font-size:11px;padding:5px" onclick="iniciarSeguimiento()">▶ Iniciar</button>
+        <button class="btn" style="flex:1;font-size:11px;padding:5px" onclick="verLogSeg()">📋 Log</button>
+      </div>
+      <div id="segProgreso" style="display:none">
+        <div class="camp-bar" style="margin-bottom:4px">
+          <div class="camp-bar-fill" id="segBarFill" style="width:0%"></div>
+        </div>
+        <div id="segUltimo" style="font-size:10px;color:var(--gris-txt)"></div>
+      </div>
+    </div>
+
     <!-- Perfil activo -->
     <div class="panel-section" id="perfilPanel">
       <div class="panel-section-title">Perfil Activo</div>
@@ -1602,9 +1626,76 @@ async function enviarSim() {
 
 // ══ INIT ═══════════════════════════════════════════════════
 cargarCfg();
-// Limpiar conversaciones al iniciar para forzar recarga limpia
 convs = [];
 iniciarSync();
+// Sincronizar estado del worker cada 5s
+setInterval(sincronizarWorker, 5000);
+sincronizarWorker();
+
+// ══ WORKER SEGUIMIENTO ════════════════════════════════════════
+async function sincronizarWorker() {
+  try {
+    const r = await fetch(CFG.url + '/api/seguimiento/estado');
+    if(!r.ok) { document.getElementById('segStatus').textContent='Sin conexión'; return; }
+    const d = await r.json();
+    const corriendo = d.corriendo;
+    const ok=d.ok||0, err=d.err||0, total=d.total||0;
+    const pct = total>0 ? Math.round((ok+err)/total*100) : 0;
+
+    const stEl = document.getElementById('segStatus');
+    if(corriendo) {
+      stEl.innerHTML = `<span style="color:var(--verde)">● Corriendo</span> — ${ok}✅ ${err}❌ / ${total}`;
+    } else {
+      stEl.innerHTML = total>0
+        ? `<span style="color:#888">⬛ Completado</span> — ${ok} enviados, ${err} errores`
+        : `<span style="color:#888">⬛ Listo para iniciar</span>`;
+    }
+
+    const prog = document.getElementById('segProgreso');
+    const fill = document.getElementById('segBarFill');
+    const ult  = document.getElementById('segUltimo');
+    if(corriendo || total>0) {
+      prog.style.display='';
+      fill.style.width = pct+'%';
+      ult.textContent  = d.ultimo||'';
+    }
+  } catch(e) {
+    document.getElementById('segStatus').textContent = 'No disponible';
+  }
+}
+
+async function iniciarSeguimiento() {
+  if(!CFG.url) { toast('Configura la URL del bot primero','error'); return; }
+  const modo = document.getElementById('segModo').value;
+  const confirm_msg = {
+    'ambos': '¿Iniciar seguimiento para IMOs + PX sin respuesta?',
+    'imos':  '¿Iniciar seguimiento solo para IMOs?',
+    'px':    '¿Iniciar seguimiento solo para PX (E25/E26)?',
+  }[modo];
+  if(!window.confirm(confirm_msg)) return;
+  try {
+    const r = await fetch(CFG.url+'/api/seguimiento/iniciar', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({modo})
+    });
+    const d = await r.json();
+    if(d.error) { toast(d.error,'error'); return; }
+    toast(`Seguimiento iniciado — modo: ${modo}`,'ok');
+    setTimeout(sincronizarWorker, 1000);
+  } catch(e) { toast('Error: '+e.message,'error'); }
+}
+
+async function verLogSeg() {
+  try {
+    const r = await fetch(CFG.url+'/api/seguimiento/log');
+    const logs = await r.json();
+    const txt = logs.slice(-50).map(l => `[${l.hora}] ${l.nivel}: ${l.msg}`).join('
+');
+    const w = window.open('','_blank','width=700,height=500');
+    w.document.write(`<pre style="font-family:monospace;font-size:12px;padding:16px">${txt||'Sin log'}</pre>`);
+  } catch(e) { toast('Error leyendo log','error'); }
+}
 </script>
 </body>
 </html>
