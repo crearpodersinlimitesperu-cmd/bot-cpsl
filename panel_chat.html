@@ -1,1789 +1,670 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Torre de Control — CPSL Lima V108</title>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-
-:root {
-  --verde:      #1D9E75;
-  --verde-clar: #E1F5EE;
-  --verde-osc:  #0F6E56;
-  --gris-bg:    #F0EFEB;
-  --gris-panel: #FAFAF8;
-  --gris-borde: #D3D1C7;
-  --gris-txt:   #5F5E5A;
-  --negro:      #1A1A18;
-  --blanco:     #FFFFFF;
-  --rojo:       #A32D2D;
-  --naranja:    #BA7517;
-  --azul:       #185FA5;
-  --morado:     #534AB7;
-  --burbuja-in: #FFFFFF;
-  --burbuja-out:#DCF8C6;
-  --sombra:     0 1px 3px rgba(0,0,0,.08);
-  --sombra-md:  0 4px 16px rgba(0,0,0,.10);
-}
-
-* { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-  font-family: 'DM Sans', sans-serif;
-  background: var(--gris-bg);
-  color: var(--negro);
-  height: 100vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-/* ── TOPBAR ─────────────────────────────────────── */
-.topbar {
-  height: 48px;
-  background: var(--negro);
-  display: flex;
-  align-items: center;
-  padding: 0 16px;
-  gap: 10px;
-  flex-shrink: 0;
-  z-index: 100;
-}
-.topbar-logo {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--verde);
-  letter-spacing: .5px;
-}
-.topbar-sep { flex: 1; }
-.topbar-badge {
-  font-size: 10px;
-  background: var(--verde);
-  color: #fff;
-  padding: 2px 8px;
-  border-radius: 20px;
-  font-weight: 600;
-}
-.topbar-online {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10px;
-  color: #888;
-}
-.online-dot {
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  background: var(--verde);
-  animation: pulse 2s infinite;
-}
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-
-/* ── LAYOUT PRINCIPAL ───────────────────────────── */
-.app {
-  display: grid;
-  grid-template-columns: 320px 1fr 260px;
-  flex: 1;
-  overflow: hidden;
-}
-
-/* ── SIDEBAR IZQUIERDA ──────────────────────────── */
-.sidebar {
-  border-right: 1px solid var(--gris-borde);
-  display: flex;
-  flex-direction: column;
-  background: var(--blanco);
-  overflow: hidden;
-}
-
-.sb-header {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--gris-borde);
-  flex-shrink: 0;
-}
-
-.sb-search {
-  display: flex;
-  align-items: center;
-  background: var(--gris-bg);
-  border-radius: 8px;
-  padding: 6px 10px;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-.sb-search input {
-  flex: 1;
-  border: none;
-  background: transparent;
-  font-family: inherit;
-  font-size: 13px;
-  color: var(--negro);
-  outline: none;
-}
-.sb-search input::placeholder { color: #b4b2a9; }
-
-.sb-tabs {
-  display: flex;
-  gap: 4px;
-}
-.sb-tab {
-  flex: 1;
-  text-align: center;
-  font-size: 11px;
-  font-weight: 500;
-  padding: 4px 0;
-  border-radius: 6px;
-  cursor: pointer;
-  color: var(--gris-txt);
-  background: transparent;
-  border: none;
-  font-family: inherit;
-}
-.sb-tab.on {
-  background: var(--verde-clar);
-  color: var(--verde-osc);
-  font-weight: 600;
-}
-
-.sb-stats {
-  display: grid;
-  grid-template-columns: repeat(3,1fr);
-  border-top: 1px solid var(--gris-borde);
-  border-bottom: 1px solid var(--gris-borde);
-  flex-shrink: 0;
-}
-.sb-stat {
-  text-align: center;
-  padding: 6px 2px;
-  border-right: 1px solid var(--gris-borde);
-}
-.sb-stat:last-child { border-right: none; }
-.sb-stat-n { font-size: 16px; font-weight: 700; }
-.sb-stat-l { font-size: 9px; color: var(--gris-txt); }
-
-.conv-list {
-  flex: 1;
-  overflow-y: auto;
-}
-.conv-list::-webkit-scrollbar { width: 4px; }
-.conv-list::-webkit-scrollbar-thumb { background: var(--gris-borde); border-radius: 2px; }
-
-.conv-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-bottom: 1px solid #f0efeb;
-  cursor: pointer;
-  transition: background .1s;
-}
-.conv-item:hover { background: #f8f8f5; }
-.conv-item.active {
-  background: var(--verde-clar);
-  border-left: 3px solid var(--verde);
-}
-
-.conv-avatar {
-  width: 38px; height: 38px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-.av-imo    { background: #FFF3E0; color: #E65100; }
-.av-px     { background: var(--verde-clar); color: var(--verde-osc); }
-.av-nuevo  { background: #EDE7F6; color: #4527A0; }
-.av-ext    { background: #E3F2FD; color: #0D47A1; }
-
-.conv-body { flex: 1; min-width: 0; }
-.conv-name {
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.conv-prev {
-  font-size: 12px;
-  color: var(--gris-txt);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-top: 1px;
-}
-.conv-meta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
-  flex-shrink: 0;
-}
-.conv-time { font-size: 10px; color: var(--gris-txt); }
-.conv-badge {
-  width: 17px; height: 17px;
-  border-radius: 50%;
-  background: var(--verde);
-  color: #fff;
-  font-size: 9px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.tipo-badge {
-  font-size: 9px;
-  padding: 1px 5px;
-  border-radius: 10px;
-  font-weight: 600;
-}
-.tb-imo    { background:#FFF3E0; color:#E65100; }
-.tb-px     { background:var(--verde-clar); color:var(--verde-osc); }
-.tb-nuevo  { background:#EDE7F6; color:#4527A0; }
-.tb-derivado { background:#FFEBEE; color:#C62828; }
-.tb-ext    { background:#E3F2FD; color:#0D47A1; }
-
-.new-chat-btn {
-  margin: 10px 12px;
-  padding: 8px;
-  border: 1.5px dashed var(--gris-borde);
-  border-radius: 8px;
-  background: transparent;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 12px;
-  color: var(--gris-txt);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  transition: all .15s;
-  flex-shrink: 0;
-}
-.new-chat-btn:hover {
-  border-color: var(--verde);
-  color: var(--verde);
-  background: var(--verde-clar);
-}
-
-/* ── CHAT CENTRAL ───────────────────────────────── */
-.chat-area {
-  display: flex;
-  flex-direction: column;
-  background: #EAE7DC url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 40L40 0H30L0 30M40 40V30L10 40' fill='%23d5d2c8' opacity='.3'/%3E%3C/svg%3E");
-  overflow: hidden;
-}
-
-.chat-header {
-  background: #F0EFEB;
-  border-bottom: 1px solid var(--gris-borde);
-  padding: 8px 14px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-  box-shadow: var(--sombra);
-}
-.chat-header-info { flex: 1; min-width: 0; }
-.chat-header-name {
-  font-size: 14px;
-  font-weight: 600;
-}
-.chat-header-sub {
-  font-size: 11px;
-  color: var(--gris-txt);
-  margin-top: 1px;
-}
-.chat-header-actions {
-  display: flex;
-  gap: 4px;
-}
-.ch-btn {
-  padding: 4px 8px;
-  border: 1px solid var(--gris-borde);
-  border-radius: 6px;
-  background: transparent;
-  font-family: inherit;
-  font-size: 10px;
-  color: var(--gris-txt);
-  cursor: pointer;
-  white-space: nowrap;
-}
-.ch-btn:hover { background: var(--blanco); }
-.ch-btn.primary {
-  background: var(--verde);
-  color: #fff;
-  border-color: var(--verde);
-}
-.ch-btn.primary:hover { background: var(--verde-osc); }
-
-.chat-empty {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  color: var(--gris-txt);
-}
-.chat-empty-icon {
-  width: 64px; height: 64px;
-  border-radius: 50%;
-  background: rgba(255,255,255,.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
-}
-
-.messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.messages::-webkit-scrollbar { width: 4px; }
-.messages::-webkit-scrollbar-thumb { background: rgba(0,0,0,.15); border-radius: 2px; }
-
-.msg {
-  display: flex;
-  flex-direction: column;
-  max-width: 72%;
-}
-.msg.in  { align-self: flex-start; }
-.msg.out { align-self: flex-end; }
-.msg.system { align-self: center; max-width: 80%; }
-
-.bubble {
-  padding: 7px 10px;
-  border-radius: 8px;
-  font-size: 13px;
-  line-height: 1.45;
-  word-break: break-word;
-  position: relative;
-  box-shadow: 0 1px 2px rgba(0,0,0,.12);
-}
-.msg.in  .bubble {
-  background: var(--burbuja-in);
-  border-radius: 0 8px 8px 8px;
-}
-.msg.out .bubble {
-  background: var(--burbuja-out);
-  border-radius: 8px 0 8px 8px;
-}
-.msg.system .bubble {
-  background: rgba(255,255,255,.7);
-  border-radius: 8px;
-  font-size: 11px;
-  color: var(--gris-txt);
-  text-align: center;
-}
-
-.msg-meta {
-  font-size: 10px;
-  color: var(--gris-txt);
-  margin-top: 2px;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
-.msg.out .msg-meta { justify-content: flex-end; }
-.check-double { color: var(--azul); }
-
-.date-sep {
-  text-align: center;
-  font-size: 10px;
-  color: var(--gris-txt);
-  padding: 8px 0 4px;
-  flex-shrink: 0;
-}
-
-/* ── INPUT ──────────────────────────────────────── */
-.chat-input-area {
-  background: #F0EFEB;
-  border-top: 1px solid var(--gris-borde);
-  padding: 8px 12px 10px;
-  flex-shrink: 0;
-}
-
-.quick-replies {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-  margin-bottom: 7px;
-}
-.qr-chip {
-  font-size: 11px;
-  padding: 3px 9px;
-  border-radius: 20px;
-  border: 1px solid var(--gris-borde);
-  background: var(--blanco);
-  cursor: pointer;
-  font-family: inherit;
-  color: var(--gris-txt);
-  white-space: nowrap;
-}
-.qr-chip:hover { background: var(--verde-clar); border-color: var(--verde); color: var(--verde); }
-
-.input-row {
-  display: flex;
-  gap: 8px;
-  align-items: flex-end;
-}
-.msg-input {
-  flex: 1;
-  padding: 8px 12px;
-  border-radius: 22px;
-  border: none;
-  background: var(--blanco);
-  font-family: inherit;
-  font-size: 13px;
-  resize: none;
-  outline: none;
-  min-height: 36px;
-  max-height: 100px;
-  line-height: 1.4;
-  box-shadow: var(--sombra);
-}
-.send-btn {
-  width: 36px; height: 36px;
-  border-radius: 50%;
-  border: none;
-  background: var(--verde);
-  color: #fff;
-  font-size: 16px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: background .15s;
-}
-.send-btn:hover { background: var(--verde-osc); }
-.send-btn:disabled { background: #9FE1CB; cursor: not-allowed; }
-
-/* ── SIDEBAR DERECHA ────────────────────────────── */
-.sidebar-right {
-  border-left: 1px solid var(--gris-borde);
-  display: flex;
-  flex-direction: column;
-  background: var(--blanco);
-  overflow-y: auto;
-  font-size: 12px;
-}
-.sidebar-right::-webkit-scrollbar { width: 3px; }
-.sidebar-right::-webkit-scrollbar-thumb { background: var(--gris-borde); }
-
-.panel-section {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--gris-borde);
-}
-.panel-section-title {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .5px;
-  color: var(--gris-txt);
-  margin-bottom: 8px;
-}
-
-/* Coordinadoras */
-.cc-card {
-  padding: 7px 0;
-  border-bottom: 1px solid #f0efeb;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.cc-card:last-child { border-bottom: none; }
-.cc-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.cc-info { flex: 1; min-width: 0; }
-.cc-name {
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.cc-casos {
-  font-size: 10px;
-  color: var(--gris-txt);
-}
-.cc-num {
-  font-size: 15px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-/* Campañas */
-.camp-item {
-  padding: 6px 0;
-  border-bottom: 1px solid #f0efeb;
-}
-.camp-item:last-child { border-bottom: none; }
-.camp-name { font-size: 11px; font-weight: 600; }
-.camp-sub  { font-size: 10px; color: var(--gris-txt); }
-.camp-bar  {
-  height: 4px;
-  background: var(--gris-borde);
-  border-radius: 2px;
-  margin-top: 4px;
-  overflow: hidden;
-}
-.camp-bar-fill {
-  height: 100%;
-  background: var(--verde);
-  border-radius: 2px;
-  transition: width .5s;
-}
-
-/* Perfil del contacto activo */
-.perfil-field {
-  margin-bottom: 6px;
-}
-.perfil-label {
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: .4px;
-  color: var(--gris-txt);
-  margin-bottom: 1px;
-}
-.perfil-val {
-  font-size: 11px;
-  font-weight: 500;
-  word-break: break-word;
-}
-
-/* ── MODALES ─────────────────────────────────────── */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 500;
-}
-.modal {
-  background: var(--blanco);
-  border-radius: 12px;
-  padding: 22px 24px;
-  width: 420px;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: var(--sombra-md);
-}
-.modal h3 { font-size: 15px; margin-bottom: 4px; }
-.modal .sub { font-size: 11px; color: var(--gris-txt); margin-bottom: 16px; }
-.field { margin-bottom: 12px; }
-.field label {
-  display: block;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .4px;
-  color: var(--gris-txt);
-  margin-bottom: 3px;
-}
-.field input, .field select {
-  width: 100%;
-  padding: 7px 10px;
-  border: 1px solid var(--gris-borde);
-  border-radius: 7px;
-  font-family: inherit;
-  font-size: 13px;
-  outline: none;
-  background: var(--gris-panel);
-}
-.field input:focus, .field select:focus {
-  border-color: var(--verde);
-  background: var(--blanco);
-}
-.modal-btns {
-  display: flex;
-  gap: 8px;
-  margin-top: 4px;
-}
-.btn {
-  flex: 1;
-  padding: 8px;
-  border-radius: 7px;
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid var(--gris-borde);
-  background: transparent;
-  color: var(--gris-txt);
-}
-.btn.primary {
-  background: var(--verde);
-  color: #fff;
-  border-color: var(--verde);
-}
-.btn.primary:hover { background: var(--verde-osc); }
-
-/* ── SIMULADOR ────────────────────────────────────── */
-.sim-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 600;
-}
-.sim-box {
-  background: var(--blanco);
-  border-radius: 14px;
-  width: 380px;
-  max-height: 85vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  box-shadow: var(--sombra-md);
-}
-.sim-header {
-  background: var(--verde);
-  padding: 12px 14px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #fff;
-  font-weight: 600;
-  font-size: 13px;
-  flex-shrink: 0;
-}
-.sim-messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 10px 12px;
-  background: #EAE7DC;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-height: 300px;
-}
-.sim-input-row {
-  display: flex;
-  gap: 6px;
-  padding: 8px 10px;
-  background: var(--blanco);
-  border-top: 1px solid var(--gris-borde);
-  flex-shrink: 0;
-}
-.sim-input {
-  flex: 1;
-  padding: 6px 10px;
-  border: 1px solid var(--gris-borde);
-  border-radius: 20px;
-  font-family: inherit;
-  font-size: 12px;
-  outline: none;
-}
-.sim-send {
-  padding: 6px 12px;
-  background: var(--verde);
-  color: #fff;
-  border: none;
-  border-radius: 20px;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-/* ── NOTIF TOAST ─────────────────────────────────── */
-.toast-container {
-  position: fixed;
-  bottom: 16px;
-  right: 16px;
-  z-index: 999;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.toast {
-  background: var(--negro);
-  color: #fff;
-  padding: 8px 14px;
-  border-radius: 8px;
-  font-size: 12px;
-  box-shadow: var(--sombra-md);
-  animation: slideIn .2s ease;
-  max-width: 280px;
-}
-.toast.ok    { border-left: 3px solid var(--verde); }
-.toast.error { border-left: 3px solid var(--rojo); }
-@keyframes slideIn { from{transform:translateX(20px);opacity:0} to{transform:none;opacity:1} }
-
-/* ── SPINNER ─────────────────────────────────────── */
-.spinner {
-  width: 20px; height: 20px;
-  border: 2px solid var(--gris-borde);
-  border-top-color: var(--verde);
-  border-radius: 50%;
-  animation: spin .7s linear infinite;
-  margin: auto;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-</style>
-</head>
-<body>
-
-<!-- TOPBAR -->
-<div class="topbar">
-  <span class="topbar-logo">⚡ TORRE DE CONTROL</span>
-  <span style="font-size:10px;color:#555;font-family:'DM Mono',monospace">CPSL LIMA — V108</span>
-  <span class="topbar-sep"></span>
-  <div class="topbar-online">
-    <div class="online-dot" id="onlineDot"></div>
-    <span id="onlineTxt">Conectando…</span>
-  </div>
-  <span class="topbar-badge" id="syncBadge">SYNC</span>
-  <button class="btn" style="padding:3px 8px;font-size:10px;margin-left:6px" onclick="abrirCfg()">⚙ Config</button>
-  <button class="btn primary" style="padding:3px 8px;font-size:10px" onclick="abrirSim()">🧪 Simular</button>
-</div>
-
-<!-- APP -->
-<div class="app" id="app">
-
-  <!-- SIDEBAR IZQUIERDA -->
-  <div class="sidebar">
-    <div class="sb-header">
-      <div class="sb-search">
-        <span style="font-size:13px">🔍</span>
-        <input type="text" id="searchInput" placeholder="Buscar nombre o teléfono…" oninput="renderConvList()">
-      </div>
-      <div class="sb-tabs">
-        <button class="sb-tab on" data-tab="todos" onclick="setTab(this)">Todos</button>
-        <button class="sb-tab" data-tab="imo" onclick="setTab(this)">IMO</button>
-        <button class="sb-tab" data-tab="px" onclick="setTab(this)">PX</button>
-        <button class="sb-tab" data-tab="derivado" onclick="setTab(this)">Derivados</button>
-        <button class="sb-tab" data-tab="nuevo" onclick="setTab(this)">Nuevos</button>
-      </div>
-    </div>
-
-    <div class="sb-stats">
-      <div class="sb-stat">
-        <div class="sb-stat-n" id="statTotal">0</div>
-        <div class="sb-stat-l">Total</div>
-      </div>
-      <div class="sb-stat">
-        <div class="sb-stat-n" id="statUnread" style="color:var(--verde)">0</div>
-        <div class="sb-stat-l">No leídos</div>
-      </div>
-      <div class="sb-stat">
-        <div class="sb-stat-n" id="statDerivados" style="color:var(--naranja)">0</div>
-        <div class="sb-stat-l">Derivados</div>
-      </div>
-    </div>
-
-    <div class="conv-list" id="convList"></div>
-
-    <button class="new-chat-btn" onclick="abrirNuevoChat()">
-      ✏️ Nuevo Chat
-    </button>
-  </div>
-
-  <!-- CHAT CENTRAL -->
-  <div class="chat-area" id="chatArea">
-    <div class="chat-empty" id="chatEmpty">
-      <div class="chat-empty-icon">💬</div>
-      <span style="font-size:13px;font-weight:500">Selecciona una conversación</span>
-      <span style="font-size:11px;color:#b4b2a9">Torre de Control activa — sincronización en tiempo real</span>
-    </div>
-  </div>
-
-  <!-- SIDEBAR DERECHA -->
-  <div class="sidebar-right">
-
-    <!-- Coordinadoras -->
-    <div class="panel-section">
-      <div class="panel-section-title">Coordinadoras</div>
-      <div id="ccCards">
-        <div class="spinner"></div>
-      </div>
-    </div>
-
-    <!-- Campañas activas -->
-    <div class="panel-section">
-      <div class="panel-section-title">Campañas Activas</div>
-      <div class="camp-item">
-        <div class="camp-name">🚀 PX Rezagados C1 E27</div>
-        <div class="camp-sub" id="campPxSub">259 enviados · E25+E26</div>
-        <div class="camp-bar"><div class="camp-bar-fill" id="campPxBar" style="width:36%"></div></div>
-      </div>
-      <div class="camp-item">
-        <div class="camp-name">👑 IMOs C1 E27</div>
-        <div class="camp-sub" id="campImoSub">279 IMOs · pendiente</div>
-        <div class="camp-bar"><div class="camp-bar-fill" id="campImoBar" style="width:0%;background:var(--naranja)"></div></div>
-      </div>
-      <div class="camp-item">
-        <div class="camp-name">📣 Campaña inicial IMOs</div>
-        <div class="camp-sub">282 enviados · completada</div>
-        <div class="camp-bar"><div class="camp-bar-fill" style="width:100%;background:var(--azul)"></div></div>
-      </div>
-    </div>
-
-    <!-- Worker Seguimiento -->
-    <div class="panel-section" id="segPanel">
-      <div class="panel-section-title">Seguimiento Autónomo</div>
-      <div id="segStatus" style="font-size:11px;color:var(--gris-txt);margin-bottom:8px">Cargando...</div>
-      <div style="margin-bottom:6px">
-        <div style="font-size:10px;color:var(--gris-txt);margin-bottom:3px">Modo:</div>
-        <select id="segModo" style="width:100%;font-size:11px;padding:4px;border:1px solid var(--gris-borde);border-radius:6px;font-family:inherit">
-          <option value="ambos">IMOs + PX</option>
-          <option value="imos">Solo IMOs</option>
-          <option value="px">Solo PX (E25/E26)</option>
-        </select>
-      </div>
-      <div style="display:flex;gap:4px;margin-bottom:4px">
-        <button class="btn primary" style="flex:1;font-size:11px;padding:5px" onclick="iniciarSeguimiento()">▶ Iniciar</button>
-        <button class="btn" style="flex:1;font-size:11px;padding:5px" onclick="verLogSeg()">📋 Log</button>
-      </div>
-      <div style="display:flex;gap:4px;margin-bottom:6px">
-        <button class="btn" style="flex:1;font-size:11px;padding:5px;color:var(--naranja)" onclick="detectarSinRespuesta()">👁 Sin resp.</button>
-        <button class="btn" style="flex:1;font-size:11px;padding:5px;color:var(--verde)" onclick="iniciarReenvio()">🔄 Reenviar</button>
-      </div>
-      <div id="segProgreso" style="display:none">
-        <div class="camp-bar" style="margin-bottom:4px">
-          <div class="camp-bar-fill" id="segBarFill" style="width:0%"></div>
-        </div>
-        <div id="segUltimo" style="font-size:10px;color:var(--gris-txt)"></div>
-      </div>
-    </div>
-
-    <!-- Perfil activo -->
-    <div class="panel-section" id="perfilPanel">
-      <div class="panel-section-title">Perfil Activo</div>
-      <div style="color:var(--gris-txt);font-size:11px">Selecciona una conversación</div>
-    </div>
-
-  </div>
-</div>
-
-<!-- MODAL CONFIG -->
-<div class="modal-overlay" id="cfgOverlay" style="display:none">
-  <div class="modal">
-    <h3>Configuración de Conexión</h3>
-    <p class="sub">Los datos se guardan solo en tu navegador.</p>
-    <div class="field">
-      <label>URL del Bot (Render)</label>
-      <input id="cfgUrl" placeholder="https://bot-cpsl.onrender.com" value="https://bot-cpsl.onrender.com">
-    </div>
-    <div class="field">
-      <label>WA Token</label>
-      <input id="cfgToken" type="password" placeholder="EAAxxxxxxx">
-    </div>
-    <div class="field">
-      <label>WA Phone Number ID</label>
-      <input id="cfgPhoneId" placeholder="1085205258006361" value="1085205258006361">
-    </div>
-    <div class="modal-btns">
-      <button class="btn" onclick="cerrarCfg()">Cancelar</button>
-      <button class="btn primary" onclick="guardarCfg()">Guardar y Conectar</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL NUEVO CHAT -->
-<div class="modal-overlay" id="nuevoOverlay" style="display:none">
-  <div class="modal" style="width:360px">
-    <h3>Nuevo Chat</h3>
-    <p class="sub">Inicia una conversación outbound directa.</p>
-    <div class="field">
-      <label>Teléfono (con código de país)</label>
-      <input id="nuevoTel" type="tel" placeholder="51987654321">
-    </div>
-    <div class="field">
-      <label>Nombre (opcional)</label>
-      <input id="nuevoNombre" placeholder="Nombre del contacto">
-    </div>
-    <div class="field">
-      <label>Primer mensaje</label>
-      <input id="nuevoMsg" placeholder="Escribe el mensaje inicial…">
-    </div>
-    <div class="modal-btns">
-      <button class="btn" onclick="cerrarNuevo()">Cancelar</button>
-      <button class="btn primary" onclick="iniciarNuevoChat()">Iniciar Chat</button>
-    </div>
-  </div>
-</div>
-
-<!-- SIMULADOR -->
-<div class="sim-overlay" id="simOverlay" style="display:none">
-  <div class="sim-box" style="width:420px">
-
-    <!-- Header -->
-    <div class="sim-header" style="flex-direction:column;align-items:stretch;gap:8px;padding:12px 14px">
-      <div style="display:flex;align-items:center;gap:8px">
-        <span>🧪 Simulador de Bot</span>
-        <span style="flex:1"></span>
-        <div id="simStatusDot" style="width:7px;height:7px;border-radius:50%;background:#9FE1CB;flex-shrink:0"></div>
-        <span id="simStatusTxt" style="font-size:10px;opacity:.8">Listo</span>
-        <button onclick="cerrarSim()" style="background:transparent;border:none;color:#fff;cursor:pointer;font-size:16px;margin-left:6px">✕</button>
-      </div>
-
-      <!-- Selector de modo -->
-      <div style="display:flex;gap:4px">
-        <button class="sim-mode-btn on" data-mode="rol" onclick="setSimMode(this)">Por Rol</button>
-        <button class="sim-mode-btn" data-mode="tel" onclick="setSimMode(this)">Número Real</button>
-        <button class="sim-mode-btn" data-mode="custom" onclick="setSimMode(this)">Personalizado</button>
-      </div>
-
-      <!-- Panel: Por Rol -->
-      <div id="simPanelRol" class="sim-panel">
-        <div style="font-size:10px;opacity:.8;margin-bottom:4px">Ver el bot como lo vería cada perfil:</div>
-        <div style="display:flex;gap:4px;flex-wrap:wrap">
-          <button class="sim-rol-btn on" data-tel="SIM_IMO_001" data-label="IMO 👑" onclick="setSimRol(this)">IMO 👑</button>
-          <button class="sim-rol-btn" data-tel="SIM_GRAD_001" data-label="Graduado MJ 🎓" onclick="setSimRol(this)">Graduado MJ 🎓</button>
-          <button class="sim-rol-btn" data-tel="SIM_PX_001" data-label="PX Rezagado 🚀" onclick="setSimRol(this)">PX 🚀</button>
-          <button class="sim-rol-btn" data-tel="SIM_NEW_001" data-label="Nuevo 🌟" onclick="setSimRol(this)">Nuevo 🌟</button>
-        </div>
-        <div id="simRolInfo" style="font-size:10px;opacity:.7;margin-top:4px">
-          Simulando: <strong>IMO 👑</strong> — Tel ficticio SIM_IMO_001
-        </div>
-      </div>
-
-      <!-- Panel: Número Real -->
-      <div id="simPanelTel" class="sim-panel" style="display:none">
-        <div style="font-size:10px;opacity:.8;margin-bottom:4px">Ve exactamente lo que ve esta persona:</div>
-        <div style="display:flex;gap:6px">
-          <input id="simTelReal" class="sim-input" style="flex:1;font-family:monospace;font-size:12px"
-            placeholder="51987654321 o elige de la lista →"
-            oninput="buscarConvPorTel(this.value)">
-          <select id="simTelSelect" class="sim-input" style="width:130px;font-size:11px" onchange="document.getElementById('simTelReal').value=this.value;cargarSimTel(this.value)">
-            <option value="">— Conversaciones —</option>
-          </select>
-        </div>
-        <div id="simTelInfo" style="font-size:10px;opacity:.7;margin-top:4px">Ingresa un número para cargar su historial</div>
-      </div>
-
-      <!-- Panel: Personalizado -->
-      <div id="simPanelCustom" class="sim-panel" style="display:none">
-        <div style="font-size:10px;opacity:.8;margin-bottom:4px">Crea un perfil personalizado para la prueba:</div>
-        <div style="display:flex;gap:6px;margin-bottom:4px">
-          <input id="simCustomTel" class="sim-input" style="flex:1;font-size:12px" placeholder="Tel (ej: SIM_12345)">
-          <select id="simCustomRol" class="sim-input" style="width:110px;font-size:11px">
-            <option value="SIM_IMO">IMO</option>
-            <option value="SIM_PX">PX</option>
-            <option value="SIM_NEW">Nuevo</option>
-          </select>
-        </div>
-        <button class="sim-send" style="width:100%;border-radius:6px" onclick="aplicarSimCustom()">Aplicar Perfil</button>
-      </div>
-    </div>
-
-    <!-- Mensajes -->
-    <div id="simMsg" class="sim-messages" style="min-height:280px;max-height:360px"></div>
-
-    <!-- Botones rápidos de prueba -->
-    <div id="simQuickBtns" style="padding:6px 10px;background:#f0efeb;border-top:1px solid #d3d1c7;display:flex;gap:4px;flex-wrap:wrap">
-      <button class="sim-send" style="font-size:10px;padding:3px 8px;background:#f0efeb;color:#5f5e5a;border:1px solid #d3d1c7;border-radius:12px" onclick="enviarSimRapido('HOLA')">HOLA</button>
-      <button class="sim-send" style="font-size:10px;padding:3px 8px;background:#f0efeb;color:#5f5e5a;border:1px solid #d3d1c7;border-radius:12px" onclick="enviarSimRapido('1')">1️⃣</button>
-      <button class="sim-send" style="font-size:10px;padding:3px 8px;background:#f0efeb;color:#5f5e5a;border:1px solid #d3d1c7;border-radius:12px" onclick="enviarSimRapido('2')">2️⃣</button>
-      <button class="sim-send" style="font-size:10px;padding:3px 8px;background:#f0efeb;color:#5f5e5a;border:1px solid #d3d1c7;border-radius:12px" onclick="enviarSimRapido('3')">3️⃣</button>
-      <button class="sim-send" style="font-size:10px;padding:3px 8px;background:#f0efeb;color:#5f5e5a;border:1px solid #d3d1c7;border-radius:12px" onclick="enviarSimRapido('STOP')">STOP</button>
-      <button class="sim-send" style="font-size:10px;padding:3px 8px;background:#534AB7;color:#fff;border:none;border-radius:12px;margin-left:auto" onclick="limpiarSim()">🗑 Limpiar</button>
-    </div>
-
-    <!-- Input -->
-    <div class="sim-input-row">
-      <input class="sim-input" id="simInput" placeholder="Escribe un mensaje al bot…"
-        onkeydown="if(event.key==='Enter')enviarSim()">
-      <button class="sim-send" onclick="enviarSim()">Enviar</button>
-    </div>
-
-  </div>
-</div>
-
-<style>
-.sim-mode-btn {
-  flex:1; padding:4px 6px; border-radius:6px; border:1px solid rgba(255,255,255,.3);
-  background:transparent; color:rgba(255,255,255,.7); cursor:pointer;
-  font-family:inherit; font-size:10px; font-weight:500;
-  transition:all .15s;
-}
-.sim-mode-btn.on {
-  background:rgba(255,255,255,.2); color:#fff; border-color:rgba(255,255,255,.6);
-  font-weight:700;
-}
-.sim-rol-btn {
-  padding:3px 8px; border-radius:12px; border:1px solid rgba(255,255,255,.3);
-  background:transparent; color:rgba(255,255,255,.8); cursor:pointer;
-  font-family:inherit; font-size:10px; transition:all .15s;
-}
-.sim-rol-btn.on {
-  background:rgba(255,255,255,.25); color:#fff; border-color:#fff; font-weight:700;
-}
-.sim-panel { animation: fadeIn .15s ease; }
-@keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
-</style>
-
-<!-- TOASTS -->
-<div class="toast-container" id="toasts"></div>
-
-<script>
-// ══ ESTADO GLOBAL ══════════════════════════════════════════
-const CFG_KEY = 'tc_v108_cfg';
-let CFG = {};
-let convs = [];         // {tel, nombre, tipo, msgs[], unread, estado, ts}
-let activeTel = null;
-let tabActivo = 'todos';
-let syncTimer  = null;
-let simTel = null;
-
-// Respuestas rápidas
-const QR_CHIPS = [
-  {l:'Confirmado ✅', t:'Confirmación registrada. Te esperamos el Viernes 1 de Mayo a las 9:00am en el Hotel José Antonio Deluxe, Miraflores. ¡Hasta pronto!'},
-  {l:'No puede 📅',  t:'Recibido. Tu inscripción sigue activa para el próximo equipo. Escríbenos cuando estés listo.'},
-  {l:'Info C1',      t:'El Capítulo 1 es un entrenamiento vivencial de 3 días: Vie 1, Sáb 2 y Dom 3 de Mayo. Hotel José Antonio Deluxe, Miraflores. Registro obligatorio: 9:00am del viernes.'},
-  {l:'Derivar',      t:''},
-];
-
-// ══ CONFIG ═════════════════════════════════════════════════
-function cargarCfg() {
-  try { CFG = JSON.parse(localStorage.getItem(CFG_KEY) || '{}'); } catch(e){ CFG={}; }
-  // Auto-detectar URL: si el panel se sirve desde el bot, usar el mismo origen
-  if(!CFG.url) {
-    const origin = window.location.origin;
-    CFG.url = origin.includes('localhost') ? 'https://bot-cpsl.onrender.com' : origin;
-  }
-  if(!CFG.phoneId) CFG.phoneId = '1085205258006361';
-  if(CFG.url) document.getElementById('cfgUrl').value = CFG.url;
-  if(CFG.token) document.getElementById('cfgToken').value = CFG.token;
-  if(CFG.phoneId) document.getElementById('cfgPhoneId').value = CFG.phoneId;
-}
-function guardarCfg() {
-  CFG.url     = document.getElementById('cfgUrl').value.trim().replace(/\/$/, '');
-  CFG.token   = document.getElementById('cfgToken').value.trim();
-  CFG.phoneId = document.getElementById('cfgPhoneId').value.trim();
-  localStorage.setItem(CFG_KEY, JSON.stringify(CFG));
-  cerrarCfg();
-  toast('Configuración guardada', 'ok');
-  iniciarSync();
-}
-function abrirCfg() { document.getElementById('cfgOverlay').style.display='flex'; }
-function cerrarCfg(){ document.getElementById('cfgOverlay').style.display='none'; }
-
-// ══ UTILIDADES ═════════════════════════════════════════════
-function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function nl2br(s){ return esc(s).replace(/\n/g,'<br>'); }
-function ini(n){
-  const p = (n||'').trim().split(' ');
-  return ((p[0]||'')[0]||'').toUpperCase() + ((p[1]||'')[0]||'').toUpperCase();
-}
-function ahora() {
-  return new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',timeZone:'America/Lima'});
-}
-function toast(msg, tipo='ok') {
-  const c = document.getElementById('toasts');
-  const d = document.createElement('div');
-  d.className = `toast ${tipo}`;
-  d.textContent = msg;
-  c.appendChild(d);
-  setTimeout(()=> d.remove(), 3500);
-}
-
-// Tipo → clase avatar/badge
-function tipoAv(t) {
-  if(t==='IMO'||t==='IMO_GRADUADO') return 'av-imo';
-  if(t==='PX') return 'av-px';
-  if(t==='NUEVO') return 'av-nuevo';
-  return 'av-ext';
-}
-function tipoBadge(t, estado) {
-  if(estado==='DERIVADO') return {cls:'tb-derivado', lbl:'derivado'};
-  if(t==='IMO'||t==='IMO_GRADUADO') return {cls:'tb-imo', lbl:t==='IMO_GRADUADO'?'graduado':'imo'};
-  if(t==='PX') return {cls:'tb-px', lbl:'px'};
-  if(t==='NUEVO') return {cls:'tb-nuevo', lbl:'nuevo'};
-  return {cls:'tb-ext', lbl:'externo'};
-}
-
-// ══ SINCRONIZACIÓN ═════════════════════════════════════════
-async function sincronizarHistorial() {
-  try {
-    if(!CFG.url) { setOnline(false, 'Sin URL configurada'); return; }
-    // Timeout de 30s — Render free tier puede tardar al arrancar
-    const ctrl = new AbortController();
-    const tId  = setTimeout(() => ctrl.abort(), 30000);
-    const r = await fetch(CFG.url + '/api/historial?limit=2000',
-                          { signal: ctrl.signal });
-    clearTimeout(tId);
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const data = await r.json();
-    let cambios = false;
-
-    for(const m of data) {
-      const tel = String(m.telefono || '');
-      if(!tel) continue;
-      let c = convs.find(x => x.tel===tel);
-      if(!c) {
-        c = {tel, nombre: m.nombre||'+'+tel, tipo:'?', estado:'',
-              msgs:[], unread:0, ts:''};
-        convs.push(c);
-        cambios = true;
-      }
-      // Deducir tipo del nombre — robusto para V109 y versiones anteriores
-      if(c.tipo==='?' && m.nombre) {
-        const nm = m.nombre.toUpperCase();
-        if(nm.includes('IMO'))                           c.tipo='IMO';
-        else if(nm.includes('PX') || nm.includes('(PX'))c.tipo='PX';
-        else if(nm.includes('NUEVO')||nm.includes('SIMULACI')||nm.includes('SIM'))
-                                                          c.tipo='NUEVO';
-        else if(nm.includes('(') && nm.includes(')'))    {
-          // formato "(TIPO) Nombre" del V109
-          const m2 = nm.match(/\(([^)]+)\)/);
-          if(m2) {
-            const t = m2[1];
-            if(t==='IMO'||t==='IMO_GRADUADO') c.tipo='IMO';
-            else if(t==='PX')                 c.tipo='PX';
-            else if(t==='NUEVO')              c.tipo='NUEVO';
-            else                              c.tipo='EXT';
-          }
-        }
-        else c.tipo='EXT';
-      }
-      // Extraer nombre limpio si es formato "(TIPO) Nombre"
-      if(c.nombre==='+'+tel || c.nombre===tel) {
-        const m3 = (m.nombre||'').match(/^\([^)]+\)\s*(.+)$/);
-        if(m3 && m3[1] && m3[1].length>2) c.nombre = m3[1];
-      }
-      // Agregar mensaje si no existe
-      const yaExiste = c.msgs.some(x => x.texto===m.texto && x.hora===m.hora && x.tipo===m.tipo);
-      if(!yaExiste) {
-        c.msgs.push({texto:m.texto, hora:m.hora, tipo:m.tipo});
-        c.ts = m.hora;
-        if(m.tipo==='in' && tel!==activeTel) {
-          c.unread++;
-          document.title = `🔴 Nuevo — Torre Control`;
-        }
-        cambios = true;
-      }
-    }
-    if(cambios) { renderConvList(); if(activeTel) renderMessages(); }
-    setOnline(true);
-  } catch(e) {
-    setOnline(false, 'Error conectando');
-  }
-}
-
-async function sincronizarCC() {
-  try {
-    const r = await fetch(CFG.url + '/api/carga_coordinadoras');
-    if(!r.ok) return;
-    const data = await r.json();
-    renderCC(data);
-  } catch(e) {}
-}
-
-function setOnline(ok, msg) {
-  document.getElementById('onlineDot').style.background = ok ? '#1D9E75' : '#A32D2D';
-  document.getElementById('onlineTxt').textContent = ok ? 'En línea' : (msg||'Sin conexión');
-  if(!ok) console.warn('Panel offline:', msg);
-  document.getElementById('syncBadge').textContent = ok ? '● LIVE' : '○ OFFLINE';
-  document.getElementById('syncBadge').style.background = ok ? '#1D9E75' : '#A32D2D';
-}
-
-function iniciarSync() {
-  if(syncTimer) clearInterval(syncTimer);
-  sincronizarHistorial();
-  sincronizarCC();
-  syncTimer = setInterval(() => {
-    sincronizarHistorial();
-  }, 8000);   // cada 8s — reduce carga en Render free tier
-  setInterval(sincronizarCC, 30000);
-}
-
-// ══ RENDER LISTA DE CONVERSACIONES ═════════════════════════
-function setTab(el) {
-  document.querySelectorAll('.sb-tab').forEach(t => t.classList.remove('on'));
-  el.classList.add('on');
-  tabActivo = el.dataset.tab;
-  renderConvList();
-}
-
-function renderConvList() {
-  const q = (document.getElementById('searchInput').value||'').toLowerCase();
-  let lista = convs.filter(c => {
-    const mq = !q || c.nombre.toLowerCase().includes(q) || c.tel.includes(q);
-    const mt = tabActivo==='todos' ||
-               (tabActivo==='imo' && (c.tipo==='IMO'||c.tipo==='IMO_GRADUADO')) ||
-               (tabActivo==='px'  && c.tipo==='PX') ||
-               (tabActivo==='derivado' && c.estado==='DERIVADO') ||
-               (tabActivo==='nuevo'    && (c.tipo==='NUEVO'||c.tipo==='EXT'||c.tipo==='?'));
-    return mq && mt;
-  });
-  lista.sort((a,b) => (b.unread-a.unread) || (b.ts>a.ts?1:-1));
-
-  // Stats
-  document.getElementById('statTotal').textContent    = convs.length;
-  document.getElementById('statUnread').textContent   = convs.filter(c=>c.unread>0).length;
-  document.getElementById('statDerivados').textContent= convs.filter(c=>c.estado==='DERIVADO').length;
-
-  const el = document.getElementById('convList');
-  if(!lista.length) {
-    el.innerHTML = '<div style="padding:20px;text-align:center;font-size:11px;color:#b4b2a9">Sin resultados</div>';
-    return;
-  }
-
-  el.innerHTML = lista.map(c => {
-    const lastMsg = c.msgs[c.msgs.length-1];
-    const prev    = lastMsg ? lastMsg.texto.slice(0,42)+(lastMsg.texto.length>42?'…':'') : '—';
-    const {cls,lbl} = tipoBadge(c.tipo, c.estado);
-    const avCls = tipoAv(c.tipo);
-    const iniciales = ini(c.nombre);
-    return `<div class="conv-item${activeTel===c.tel?' active':''}" onclick="selConv('${c.tel}')">
-      <div class="conv-avatar ${avCls}">${esc(iniciales)}</div>
-      <div class="conv-body">
-        <div class="conv-name">${esc(c.nombre.split(' ').slice(0,3).join(' '))}</div>
-        <div class="conv-prev">${esc(prev)}</div>
-        <div style="margin-top:2px">
-          <span class="tipo-badge ${cls}">${lbl}</span>
-          <span style="font-size:9px;color:#b4b2a9;margin-left:4px">+${esc(c.tel)}</span>
-        </div>
-      </div>
-      <div class="conv-meta">
-        <span class="conv-time">${esc(lastMsg?.hora||'')}</span>
-        ${c.unread>0 ? `<div class="conv-badge">${c.unread}</div>` : ''}
-      </div>
-    </div>`;
-  }).join('');
-}
-
-// ══ CHAT ═══════════════════════════════════════════════════
-function selConv(tel) {
-  activeTel = tel;
-  const c = convs.find(x=>x.tel===tel);
-  if(c) { c.unread=0; document.title='Torre de Control — CPSL Lima'; }
-  renderConvList();
-  renderChatPanel(c);
-  renderPerfil(c);
-}
-
-function renderChatPanel(c) {
-  if(!c) return;
-  const {cls, lbl} = tipoBadge(c.tipo, c.estado);
-  document.getElementById('chatArea').innerHTML = `
-    <div class="chat-header">
-      <div class="conv-avatar ${tipoAv(c.tipo)}" style="width:34px;height:34px;font-size:12px">${esc(ini(c.nombre))}</div>
-      <div class="chat-header-info">
-        <div class="chat-header-name">${esc(c.nombre.split(' ').slice(0,3).join(' '))}</div>
-        <div class="chat-header-sub">+${esc(c.tel)} &nbsp;·&nbsp; <span class="tipo-badge ${cls}">${lbl}</span></div>
-      </div>
-      <div class="chat-header-actions">
-        <button class="ch-btn" onclick="marcarEstado('${c.tel}','DERIVADO')">🔀 Derivar</button>
-        <button class="ch-btn" onclick="abrirSimConTel('${c.tel}')">🧪 Simular</button>
-        <button class="ch-btn primary" onclick="enfocarInput()">✏️ Escribir</button>
-      </div>
-    </div>
-    <div id="messages" class="messages"></div>
-    <div class="chat-input-area">
-      <div class="quick-replies">${QR_CHIPS.map((q,i)=>`<button class="qr-chip" onclick="usarQR(${i})">${esc(q.l)}</button>`).join('')}</div>
-      <div class="input-row">
-        <textarea class="msg-input" id="msgInput" placeholder="Escribe tu mensaje…" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
-        <button class="send-btn" id="sendBtn" onclick="enviarManual()">➤</button>
-      </div>
-    </div>`;
-  renderMessages();
-  setTimeout(scrollFin, 50);
-}
-
-function renderMessages() {
-  const el = document.getElementById('messages');
-  if(!el) return;
-  const c = convs.find(x=>x.tel===activeTel);
-  if(!c) return;
-  const atBottom = (el.scrollHeight - el.scrollTop - el.clientHeight) < 60;
-  const html = c.msgs.map(m => {
-    const dir = m.tipo==='in'?'in':'out';
-    const who = dir==='in' ? esc(c.nombre.split(' ')[0]) : 'Tú';
-    return `<div class="msg ${dir}">
-      <div class="bubble">${nl2br(m.texto)}</div>
-      <div class="msg-meta">
-        ${dir==='out'?`<span class="check-double">✓✓</span>`:''}
-        ${esc(m.hora)}
-      </div>
-    </div>`;
-  }).join('');
-  el.innerHTML = html || '<div style="text-align:center;padding:20px;font-size:11px;color:#b4b2a9">Sin mensajes aún</div>';
-  if(atBottom) scrollFin();
-}
-
-function scrollFin() {
-  const el = document.getElementById('messages');
-  if(el) el.scrollTop = el.scrollHeight;
-}
-function enfocarInput() { const el=document.getElementById('msgInput'); if(el) el.focus(); }
-function autoResize(el) {
-  el.style.height='auto';
-  el.style.height=Math.min(el.scrollHeight,100)+'px';
-}
-function handleKey(e) {
-  if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); enviarManual(); }
-}
-function usarQR(i) {
-  const el = document.getElementById('msgInput');
-  if(!el) return;
-  el.value = QR_CHIPS[i].t;
-  el.focus();
-}
-function marcarEstado(tel, estado) {
-  const c = convs.find(x=>x.tel===tel);
-  if(c){ c.estado=estado; renderConvList(); if(activeTel===tel) renderChatPanel(c); }
-}
-
-async function enviarManual() {
-  const el   = document.getElementById('msgInput');
-  const btn  = document.getElementById('sendBtn');
-  const texto= (el?.value||'').trim();
-  if(!texto || !activeTel) return;
-  btn.disabled=true;
-  el.value=''; el.style.height='auto';
-
-  // Agregar burbuja local optimista
-  const c = convs.find(x=>x.tel===activeTel);
-  if(c) {
-    c.msgs.push({texto, hora:ahora(), tipo:'out'});
-    renderMessages(); scrollFin();
-  }
-
-  // Enviar al bot
-  try {
-    if(!CFG.token || !CFG.phoneId) throw new Error('Sin credenciales WA');
-    const r = await fetch(`https://graph.facebook.com/v19.0/${CFG.phoneId}/messages`, {
-      method:'POST',
-      headers:{'Authorization':`Bearer ${CFG.token}`,'Content-Type':'application/json'},
-      body: JSON.stringify({messaging_product:'whatsapp',to:activeTel,type:'text',text:{body:texto}})
-    });
-    if(r.ok) toast('Enviado ✓','ok');
-    else {
-      const d = await r.json();
-      toast('Error WA: '+(d.error?.message||r.status),'error');
-    }
-  } catch(e) {
-    toast('Error: '+e.message, 'error');
-  }
-  btn.disabled=false;
-}
-
-// ══ PERFIL PANEL DERECHO ═══════════════════════════════════
-function renderPerfil(c) {
-  if(!c) return;
-  const el = document.getElementById('perfilPanel');
-  const {lbl} = tipoBadge(c.tipo, c.estado);
-  el.innerHTML = `
-    <div class="panel-section-title">Perfil Activo</div>
-    <div class="perfil-field">
-      <div class="perfil-label">Tipo</div>
-      <div class="perfil-val"><span class="tipo-badge ${tipoBadge(c.tipo,c.estado).cls}">${lbl}</span></div>
-    </div>
-    <div class="perfil-field">
-      <div class="perfil-label">Nombre</div>
-      <div class="perfil-val">${esc(c.nombre)}</div>
-    </div>
-    <div class="perfil-field">
-      <div class="perfil-label">Teléfono</div>
-      <div class="perfil-val" style="font-family:'DM Mono',monospace">+${esc(c.tel)}</div>
-    </div>
-    <div class="perfil-field">
-      <div class="perfil-label">Mensajes</div>
-      <div class="perfil-val">${c.msgs.length} (${c.msgs.filter(m=>m.tipo==='in').length} recibidos)</div>
-    </div>
-    <div class="perfil-field">
-      <div class="perfil-label">Estado</div>
-      <div class="perfil-val">${esc(c.estado||'activo')}</div>
-    </div>
-    <div style="margin-top:8px">
-      <button class="btn" style="width:100%;font-size:11px;margin-bottom:4px" onclick="abrirSimConTel('${c.tel}')">🧪 Simular</button>
-      <button class="btn primary" style="width:100%;font-size:11px" onclick="enfocarInput()">✏️ Responder</button>
-    </div>`;
-}
-
-// ══ COORDINADORAS ══════════════════════════════════════════
-function renderCC(data) {
-  const el = document.getElementById('ccCards');
-  const colors = {
-    dmoscoso:'#1D9E75', jmarin:'#185FA5',
-    lpasquel:'#BA7517', zurteaga:'#534AB7', lvalencia:'#A32D2D'
-  };
-  el.innerHTML = Object.entries(data).map(([key, cc]) => {
-    const color = colors[key]||'#888';
-    const carga = cc.casos_activos||0;
-    return `<div class="cc-card">
-      <div class="cc-dot" style="background:${color}"></div>
-      <div class="cc-info">
-        <div class="cc-name">${esc(cc.nombre)}</div>
-        <div class="cc-casos">${carga} caso${carga!==1?'s':''} activo${carga!==1?'s':''}</div>
-      </div>
-      <div class="cc-num" style="color:${carga>5?'#A32D2D':carga>2?'#BA7517':'#1D9E75'}">${carga}</div>
-    </div>`;
-  }).join('') || '<div style="font-size:11px;color:#b4b2a9">Sin datos</div>';
-}
-
-// ══ NUEVO CHAT ═════════════════════════════════════════════
-function abrirNuevoChat() { document.getElementById('nuevoOverlay').style.display='flex'; }
-function cerrarNuevo()     { document.getElementById('nuevoOverlay').style.display='none'; }
-
-async function iniciarNuevoChat() {
-  const tel    = (document.getElementById('nuevoTel').value||'').trim().replace(/\D/g,'');
-  const nombre = (document.getElementById('nuevoNombre').value||'').trim() || '+'+tel;
-  const msg    = (document.getElementById('nuevoMsg').value||'').trim();
-  if(!tel){ toast('Teléfono requerido','error'); return; }
-
-  // Crear o buscar conversación
-  let c = convs.find(x=>x.tel===tel);
-  if(!c){ c={tel,nombre,tipo:'EXT',estado:'',msgs:[],unread:0,ts:''}; convs.push(c); }
-
-  cerrarNuevo();
-  selConv(tel);
-
-  // Enviar mensaje si hay
-  if(msg && CFG.token && CFG.phoneId) {
-    try {
-      await fetch(`https://graph.facebook.com/v19.0/${CFG.phoneId}/messages`,{
-        method:'POST',
-        headers:{'Authorization':`Bearer ${CFG.token}`,'Content-Type':'application/json'},
-        body: JSON.stringify({messaging_product:'whatsapp',to:tel,type:'text',text:{body:msg}})
-      });
-      c.msgs.push({texto:msg,hora:ahora(),tipo:'out'});
-      toast('Chat iniciado ✓','ok');
-    } catch(e){ toast('Error al enviar: '+e.message,'error'); }
-  }
-  renderConvList(); renderMessages();
-  document.getElementById('nuevoTel').value='';
-  document.getElementById('nuevoNombre').value='';
-  document.getElementById('nuevoMsg').value='';
-}
-
-// ══ SIMULADOR ══════════════════════════════════════════════
-let simMode = 'rol';   // 'rol' | 'tel' | 'custom'
-simTel = 'SIM_IMO_001';
-
-function setSimMode(el) {
-  document.querySelectorAll('.sim-mode-btn').forEach(b=>b.classList.remove('on'));
-  el.classList.add('on');
-  simMode = el.dataset.mode;
-  document.getElementById('simPanelRol').style.display    = simMode==='rol'    ? '' : 'none';
-  document.getElementById('simPanelTel').style.display    = simMode==='tel'    ? '' : 'none';
-  document.getElementById('simPanelCustom').style.display = simMode==='custom' ? '' : 'none';
-  limpiarSim();
-}
-
-function setSimRol(el) {
-  document.querySelectorAll('.sim-rol-btn').forEach(b=>b.classList.remove('on'));
-  el.classList.add('on');
-  simTel = el.dataset.tel;
-  document.getElementById('simRolInfo').innerHTML =
-    `Simulando: <strong>${el.dataset.label}</strong> — Tel ficticio <code>${simTel}</code>`;
-  limpiarSim();
-}
-
-function cargarSimTel(tel) {
-  if(!tel) return;
-  simTel = tel;
-  const c = convs.find(x=>x.tel===tel);
-  const info = document.getElementById('simTelInfo');
-  if(c) {
-    info.innerHTML = `Cargando historial de <strong>${c.nombre}</strong> — ${c.msgs.length} mensajes`;
-    renderSimHistorial(c);
-  } else {
-    info.textContent = `Tel ${tel} — sin historial previo. El bot lo identificará al enviar.`;
-    document.getElementById('simMsg').innerHTML='';
-  }
-}
-
-function buscarConvPorTel(val) {
-  const clean = val.replace(/\D/g,'');
-  if(clean.length >= 9) {
-    const c = convs.find(x=>x.tel.includes(clean));
-    if(c) cargarSimTel(c.tel);
-    else   simTel = clean.startsWith('51') ? clean : '51'+clean;
-  }
-}
-
-function renderSimHistorial(c) {
-  const el = document.getElementById('simMsg');
-  el.innerHTML = c.msgs.map(m=>`
-    <div class="msg ${m.tipo==='in'?'in':'out'}">
-      <div class="bubble" style="font-size:12px">${nl2br(m.texto)}</div>
-      <div class="msg-meta" style="font-size:9px">${esc(m.hora)}</div>
-    </div>`).join('');
-  setTimeout(()=>{ el.scrollTop=el.scrollHeight; }, 50);
-}
-
-function aplicarSimCustom() {
-  const tel = (document.getElementById('simCustomTel').value||'').trim();
-  const rol = document.getElementById('simCustomRol').value;
-  simTel = tel || (rol + '_' + Date.now());
-  document.getElementById('simCustomTel').value = simTel;
-  toast(`Simulando como ${simTel}`, 'ok');
-  limpiarSim();
-}
-
-function limpiarSim() {
-  document.getElementById('simMsg').innerHTML =
-    `<div style="text-align:center;padding:20px;font-size:11px;color:#a0a0a0">
-      Simulando: <strong>${simTel}</strong><br>
-      Escribe HOLA o usa los botones rápidos para iniciar.
-    </div>`;
-}
-
-function abrirSim() {
-  // Poblar select con conversaciones activas
-  const sel = document.getElementById('simTelSelect');
-  sel.innerHTML = '<option value="">— Conversaciones —</option>' +
-    convs.slice(0,100).map(c=>`<option value="${c.tel}">${c.nombre.slice(0,25)} (+${c.tel.slice(-9)})</option>`).join('');
-  document.getElementById('simOverlay').style.display='flex';
-  setSimMode(document.querySelector('[data-mode="rol"]'));
-  setTimeout(()=>{ document.getElementById('simInput').focus(); }, 100);
-}
-
-function abrirSimConTel(tel) {
-  const sel = document.getElementById('simTelSelect');
-  sel.innerHTML = '<option value="">— Conversaciones —</option>' +
-    convs.slice(0,100).map(c=>`<option value="${c.tel}"${c.tel===tel?' selected':''}>${c.nombre.slice(0,25)} (+${c.tel.slice(-9)})</option>`).join('');
-  document.getElementById('simOverlay').style.display='flex';
-  // Activar modo número real
-  const btnTel = document.querySelector('[data-mode="tel"]');
-  setSimMode(btnTel);
-  document.getElementById('simTelReal').value = tel;
-  cargarSimTel(tel);
-  setTimeout(()=>{ document.getElementById('simInput').focus(); }, 100);
-}
-
-function cerrarSim() {
-  document.getElementById('simOverlay').style.display='none';
-}
-
-function setSimStatus(ok, txt) {
-  document.getElementById('simStatusDot').style.background = ok ? '#1D9E75' : '#BA7517';
-  document.getElementById('simStatusTxt').textContent = txt;
-}
-
-function enviarSimRapido(txt) {
-  document.getElementById('simInput').value = txt;
-  enviarSim();
-}
-
-async function enviarSim() {
-  const inp = document.getElementById('simInput');
-  const txt = (inp.value||'').trim();
-  if(!txt || !simTel) return;
-  inp.value='';
-
-  // Agregar burbuja saliente
-  const simEl = document.getElementById('simMsg');
-  // Limpiar mensaje de bienvenida si existe
-  if(simEl.querySelector('div[style*="padding:20px"]')) simEl.innerHTML='';
-
-  simEl.innerHTML += `<div class="msg out">
-    <div class="bubble" style="font-size:12px">${nl2br(txt)}</div>
-    <div class="msg-meta" style="font-size:9px">${ahora()}</div>
-  </div>`;
-  simEl.scrollTop = simEl.scrollHeight;
-  setSimStatus(false, 'Enviando…');
-
-  try {
-    const r = await fetch(CFG.url+'/api/mensaje_simulador',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({telefono:simTel, texto:txt})
-    });
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    setSimStatus(true, 'Esperando bot…');
-
-    // Polling: esperar respuesta del bot (hasta 3 intentos)
-    let intentos = 0;
-    const poll = setInterval(async()=>{
-      intentos++;
-      try {
-        const rh = await fetch(`${CFG.url}/api/historial/${simTel}`);
-        if(!rh.ok) return;
-        const hist = await rh.json();
-        const botMsgs = hist.filter(m=>m.tipo==='out');
-
-        // Contar cuántos ya mostramos
-        const yaShown = simEl.querySelectorAll('.msg.in').length;
-        const nuevos  = botMsgs.slice(yaShown);
-
-        if(nuevos.length > 0) {
-          clearInterval(poll);
-          for(const m of nuevos) {
-            simEl.innerHTML += `<div class="msg in">
-              <div class="bubble" style="font-size:12px">${nl2br(m.texto)}</div>
-              <div class="msg-meta" style="font-size:9px">${esc(m.hora)}</div>
-            </div>`;
-          }
-          simEl.scrollTop = simEl.scrollHeight;
-          setSimStatus(true, 'Listo');
-        }
-        if(intentos >= 5) { clearInterval(poll); setSimStatus(true, 'Sin respuesta'); }
-      } catch(e){ clearInterval(poll); }
-    }, 1200);
-
-  } catch(e) {
-    setSimStatus(false, 'Error');
-    toast('Error simulador: '+e.message,'error');
-  }
-}
-
-// ══ INIT ═══════════════════════════════════════════════════
-cargarCfg();
-convs = [];
-document.getElementById('onlineTxt').textContent = 'Conectando...';
-iniciarSync();
-// Sincronizar estado del worker cada 10s
-setInterval(sincronizarWorker, 10000);
-sincronizarWorker();
-
-// ══ REENVÍO DESDE SHEET ══════════════════════════════════════
-async function verSinRespuesta() {
-  if(!CFG.url) { toast('Sin URL configurada','error'); return; }
-  try {
-    toast('Consultando Sheet...','ok');
-    const r = await fetch(CFG.url+'/api/seguimiento/sin_respuesta?horas=48');
-    const data = await r.json();
-    const w = window.open('','_blank','width=700,height=500');
-    if(!data.length) { w.document.write('<p style="padding:20px;font-family:monospace">Sin candidatos (todos respondieron o enviados hace <48h)</p>'); return; }
-    const html2 = `<html><body style="font-family:monospace;font-size:12px;padding:16px">
-      <h3 style="margin:0 0 12px">Sin respuesta (>48h) — ${data.length} contactos</h3>
-      <table border="1" cellpadding="6" style="border-collapse:collapse;width:100%">
-        <tr style="background:#eee"><th>Tel</th><th>Nombre</th><th>Tipo</th><th>Enviado</th><th>Horas</th></tr>
-        ${data.map(d=>`<tr><td>${d.tel}</td><td>${d.nombre}</td><td>${d.tipo}</td><td>${d.fecha_envio}</td><td>${d.horas}h</td></tr>`).join('')}
-      </table></body></html>`;
-    w.document.write(html2);
-  } catch(e) { toast('Error: '+e.message,'error'); }
-}
-
-async function iniciarReenvio() {
-  if(!CFG.url) { toast('Sin URL configurada','error'); return; }
-  const horas = prompt('Reenviar a quienes no respondieron en más de X horas:', '48');
-  if(!horas) return;
-  if(!window.confirm(`¿Reenviar plantilla a contactos sin respuesta en más de ${horas}h?`)) return;
-  try {
-    const r = await fetch(CFG.url+'/api/seguimiento/reenviar',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({horas_espera: parseInt(horas)})
-    });
-    const d = await r.json();
-    if(d.error) { toast(d.error,'error'); return; }
-    toast(`Reenvío iniciado (>${horas}h sin resp)`,'ok');
-    setTimeout(sincronizarWorker, 2000);
-  } catch(e) { toast('Error: '+e.message,'error'); }
-}
-
-// ══ WORKER SEGUIMIENTO ════════════════════════════════════════
-async function sincronizarWorker() {
-  try {
-    const r = await fetch(CFG.url + '/api/seguimiento/estado');
-    if(!r.ok) { document.getElementById('segStatus').textContent='Sin conexión'; return; }
-    const d = await r.json();
-    const corriendo = d.corriendo;
-    const ok=d.ok||0, err=d.err||0, total=d.total||0;
-    const pct = total>0 ? Math.round((ok+err)/total*100) : 0;
-
-    const stEl = document.getElementById('segStatus');
-    if(corriendo) {
-      stEl.innerHTML = `<span style="color:var(--verde)">● Corriendo</span> — ${ok}✅ ${err}❌ / ${total}`;
-    } else {
-      stEl.innerHTML = total>0
-        ? `<span style="color:#888">⬛ Completado</span> — ${ok} enviados, ${err} errores`
-        : `<span style="color:#888">⬛ Listo para iniciar</span>`;
-    }
-
-    const prog = document.getElementById('segProgreso');
-    const fill = document.getElementById('segBarFill');
-    const ult  = document.getElementById('segUltimo');
-    if(corriendo || total>0) {
-      prog.style.display='';
-      fill.style.width = pct+'%';
-      ult.textContent  = d.ultimo||'';
-    }
-  } catch(e) {
-    document.getElementById('segStatus').textContent = 'No disponible';
-  }
-}
-
-async function iniciarSeguimiento() {
-  if(!CFG.url) { toast('Configura la URL del bot primero','error'); return; }
-  const modo = document.getElementById('segModo').value;
-  const confirm_msg = {
-    'ambos': '¿Iniciar seguimiento para IMOs + PX sin respuesta?',
-    'imos':  '¿Iniciar seguimiento solo para IMOs?',
-    'px':    '¿Iniciar seguimiento solo para PX (E25/E26)?',
-  }[modo];
-  if(!window.confirm(confirm_msg)) return;
-  try {
-    const r = await fetch(CFG.url+'/api/seguimiento/iniciar', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({modo})
-    });
-    const d = await r.json();
-    if(d.error) { toast(d.error,'error'); return; }
-    toast(`Seguimiento iniciado — modo: ${modo}`,'ok');
-    setTimeout(sincronizarWorker, 1000);
-  } catch(e) { toast('Error: '+e.message,'error'); }
-}
-
-async function detectarSinRespuesta() {
-  if(!CFG.url) { toast('Configura URL primero','error'); return; }
-  try {
-    const horas = prompt('¿Cuántas horas sin respuesta para considerar pendiente?','48');
-    if(!horas) return;
-    toast('Consultando Sheet...','ok');
-    const r = await fetch(`${CFG.url}/api/seguimiento/detectar?horas=${horas}`);
-    const d = await r.json();
-    if(d.error){ toast(d.error,'error'); return; }
-    const w = window.open('','_blank','width=700,height=500');
-    const rows = (d.contactos||[]).map(c =>
-      `${c.tipo} | ${c.nombre} | +${c.tel} | ${Math.round(c.horas)}h sin resp`
-    ).join('\n');
-    w.document.write(`<pre style="font:13px monospace;padding:16px">`+
-      `Total sin respuesta: ${d.total}\n\n${rows||'Ninguno'}</pre>`);
-  } catch(e) { toast('Error: '+e.message,'error'); }
-}
-
-async function iniciarReenvio() {
-  if(!CFG.url) { toast('Configura URL primero','error'); return; }
-  const horas = prompt('Reenviar a quienes lleven más de N horas sin responder:','48');
-  if(!horas) return;
-  if(!window.confirm(`¿Reenviar mensajes a contactos con más de ${horas}h sin respuesta?`)) return;
-  try {
-    const r = await fetch(CFG.url+'/api/seguimiento/reenvio',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({horas_espera: parseInt(horas)})
-    });
-    const d = await r.json();
-    if(d.error){ toast(d.error,'error'); return; }
-    toast('Reenvío iniciado — revisa el Log','ok');
-    setTimeout(sincronizarWorker, 1000);
-  } catch(e) { toast('Error: '+e.message,'error'); }
-}
-
-async function verLogSeg() {
-  try {
-    const r = await fetch(CFG.url+'/api/seguimiento/log');
-    const logs = await r.json();
-    const txt = logs.slice(-50).map(l => `[${l.hora}] ${l.nivel}: ${l.msg}`).join('\n');
-    const w = window.open('','_blank','width=700,height=500');
-    w.document.write(`<pre style="font-family:monospace;font-size:12px;padding:16px">${txt||'Sin log'}</pre>`);
-  } catch(e) { toast('Error leyendo log','error'); }
-}
-</script>
-</body>
-</html>
+"""
+SEGUIMIENTO AUTÓNOMO — CPSL Lima
+=================================
+Corre como Background Worker en Render (mismo repo que el bot).
+Contacta IMOs y PX sin respuesta, actualiza Google Sheets,
+notifica coordinadoras con nombre completo + asunto.
+
+ACTIVACIÓN:
+  - Endpoint POST /api/seguimiento/iniciar  (desde el panel)
+  - Variable SEGUIMIENTO_AUTO=true + SEGUIMIENTO_HORA=09:00 (schedule)
+  - Manual: python seguimiento_autonomo.py
+
+ENV VARS RENDER:
+  WA_TOKEN, WA_PHONE_ID, SHEET_ID, GOOGLE_CREDENTIALS,
+  SEGUIMIENTO_AUTO (true/false), SEGUIMIENTO_HORA (HH:MM)
+"""
+
+import os, csv, re, json, time, base64, logging, threading, queue
+from datetime import datetime, timedelta, timezone
+from collections import defaultdict
+import requests as req
+
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s %(levelname)s %(message)s")
+log = logging.getLogger("Seguimiento")
+
+TZ_LIMA = timezone(timedelta(hours=-5))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = "/data" if os.path.exists("/data") else BASE_DIR
+
+def ahora(): return datetime.now(TZ_LIMA)
+
+# ── CONFIG ────────────────────────────────────────────────────
+WA_TOKEN   = os.environ.get("WA_TOKEN","")
+PHONE_ID   = os.environ.get("WA_PHONE_ID","")
+SHEET_ID   = os.environ.get("SHEET_ID","")
+CREDS_JSON = os.environ.get("GOOGLE_CREDENTIALS","")
+SHEET_TAB  = os.environ.get("SHEET_TAB","Hoja 1")
+AUTO       = os.environ.get("SEGUIMIENTO_AUTO","false").lower()=="true"
+HORA_AUTO  = os.environ.get("SEGUIMIENTO_HORA","09:00")
+
+TEMPLATE_IMO = "invitacion_c1_px"   # {{1}}=nombre {{2}}=fecha
+TEMPLATE_PX  = "invitacion_c1_px"   # misma plantilla para PX
+LANG_CODE    = "es_PE"
+FECHA_C1     = "Viernes 01 de Mayo"
+PAUSA        = 1.5
+
+CSV_PX    = os.path.join(BASE_DIR, "Prospectos_Pendientes_C1_Depurado_Campana.csv")
+PROG_FILE = os.path.join(DATA_DIR, "progreso_seguimiento.json")
+LOG_FILE  = os.path.join(DATA_DIR, "log_seguimiento.json")
+
+STAFF = {
+    "dmoscoso": {"nombre":"Diana Moscoso",  "tel":"51912379744"},
+    "jmarin":   {"nombre":"Joyce Marín",    "tel":"51933599903"},
+    "lpasquel": {"nombre":"Leyla Pasquel",  "tel":"51919502385"},
+    "zurteaga": {"nombre":"Zuley Urteaga",  "tel":"51933599864"},
+}
+_carga = {k:0 for k in STAFF}
+def cc_libre(): return min(_carga, key=_carga.get)
+
+# Estado del worker en memoria — expuesto al panel
+_estado_worker = {
+    "corriendo": False,
+    "inicio": None,
+    "ok": 0, "err": 0, "total": 0,
+    "ultimo": "", "log": []
+}
+
+# ── GOOGLE SHEETS JWT ─────────────────────────────────────────
+_stok, _stok_exp = None, 0
+_stok_lk = threading.Lock()
+
+def sheets_tok():
+    global _stok, _stok_exp
+    with _stok_lk:
+        if _stok and time.time() < _stok_exp-60: return _stok
+        if not CREDS_JSON: return None
+        try:
+            from cryptography.hazmat.primitives import hashes, serialization
+            from cryptography.hazmat.primitives.asymmetric import padding as cp
+            now   = int(time.time())
+            creds = json.loads(CREDS_JSON)
+            pem   = creds["private_key"].replace("\\n","\n")
+            hdr   = base64.urlsafe_b64encode(json.dumps({"alg":"RS256","typ":"JWT"}).encode()).rstrip(b"=")
+            pld   = base64.urlsafe_b64encode(json.dumps({
+                "iss":creds["client_email"],
+                "scope":"https://www.googleapis.com/auth/spreadsheets",
+                "aud":"https://oauth2.googleapis.com/token",
+                "iat":now,"exp":now+3600
+            }).encode()).rstrip(b"=")
+            msg_b = hdr+b"."+pld
+            pk    = serialization.load_pem_private_key(pem.encode(),password=None)
+            sig   = pk.sign(msg_b,cp.PKCS1v15(),hashes.SHA256())
+            jwt   = (msg_b+b"."+base64.urlsafe_b64encode(sig).rstrip(b"=")).decode()
+            r = req.post("https://oauth2.googleapis.com/token",
+                data={"grant_type":"urn:ietf:params:oauth:grant-type:jwt-bearer",
+                      "assertion":jwt},timeout=10)
+            if r.status_code==200:
+                d=r.json(); _stok=d["access_token"]
+                _stok_exp=now+d.get("expires_in",3600); return _stok
+        except Exception as e: log.error(f"tok err {e}")
+    return None
+
+def sheets_append(fila):
+    """Agrega fila al Google Sheet."""
+    if not SHEET_ID: return
+    try:
+        tok = sheets_tok()
+        if not tok: return
+        tab = SHEET_TAB.replace(" ","%20")
+        req.post(
+            f"https://sheets.googleapis.com/v4/spreadsheets/{SHEET_ID}/values/{tab}!A:L:append",
+            params={"valueInputOption":"RAW","insertDataOption":"INSERT_ROWS"},
+            json={"values":[fila]},
+            headers={"Authorization":f"Bearer {tok}","Content-Type":"application/json"},
+            timeout=10
+        )
+    except Exception as e: log.error(f"sheets {e}")
+
+# ── ENVÍO WA ──────────────────────────────────────────────────
+def wa_text(tel, txt):
+    try:
+        req.post(
+            f"https://graph.facebook.com/v19.0/{PHONE_ID}/messages",
+            json={"messaging_product":"whatsapp","to":tel,
+                  "type":"text","text":{"body":txt}},
+            headers={"Authorization":f"Bearer {WA_TOKEN}",
+                     "Content-Type":"application/json"},timeout=10)
+    except Exception as e: log.error(f"wa_text {e}")
+
+def wa_template(tel, nombre_pila, template=TEMPLATE_IMO):
+    try:
+        r = req.post(
+            f"https://graph.facebook.com/v19.0/{PHONE_ID}/messages",
+            json={"messaging_product":"whatsapp","to":tel,"type":"template",
+                  "template":{"name":template,"language":{"code":LANG_CODE},
+                  "components":[{"type":"body","parameters":[
+                      {"type":"text","text":nombre_pila},
+                      {"type":"text","text":FECHA_C1},
+                  ]}]}},
+            headers={"Authorization":f"Bearer {WA_TOKEN}",
+                     "Content-Type":"application/json"},timeout=15)
+        if r.status_code==200:
+            return True, r.json().get("messages",[{}])[0].get("id","")
+        return False, r.json().get("error",{}).get("message",r.text[:100])
+    except Exception as e:
+        return False, str(e)
+
+# ── UTILIDADES ────────────────────────────────────────────────
+def norm(t):
+    t = re.sub(r'\D','',str(t or ''))
+    if t.startswith("51") and len(t)==11: return t
+    if len(t)==9 and t.startswith("9"): return "51"+t
+    return t
+
+def nc(s):   # nombre completo legible
+    p = str(s or '').strip().split()
+    return ' '.join(x.title() for x in p[:4]) if p else ''
+
+def np_(s):  # primer nombre
+    p = [x for x in str(s or '').strip().split() if len(x)>2]
+    return p[0].title() if p else str(s).strip().title()
+
+def eq_max(pxs):
+    nums = [int(m.group()) for r in pxs
+            for m in [re.search(r'\d+',str(r.get("Equipo","")))] if m]
+    return max(nums) if nums else 0
+
+def cargar_prog():
+    if os.path.exists(PROG_FILE):
+        with open(PROG_FILE,encoding="utf-8") as f: return json.load(f)
+    return {"env_imos":[],"env_px":[],"notif":[]}
+
+def guardar_prog(p):
+    with open(PROG_FILE,"w",encoding="utf-8") as f:
+        json.dump(p,f,ensure_ascii=False,indent=2)
+
+def add_log(msg, nivel="INFO"):
+    _estado_worker["log"].append({
+        "hora": ahora().strftime("%H:%M:%S"),
+        "nivel": nivel, "msg": msg
+    })
+    if len(_estado_worker["log"]) > 500:
+        _estado_worker["log"] = _estado_worker["log"][-500:]
+    if nivel=="ERROR": log.error(msg)
+    else:              log.info(msg)
+
+def notif_cc(tel, nom, motivo, n_px, px_lst=None, tipo="IMO"):
+    k = cc_libre(); c = STAFF[k]; _carga[k]+=1
+    px_txt = ""
+    if px_lst:
+        px_txt = "\n*Enrolados pendientes:*\n"+"\n".join(f"• {p}" for p in px_lst[:10])
+    icono = "👑" if tipo=="IMO" else "🚀"
+    wa_text(c["tel"],
+        f"{icono} *SEGUIMIENTO {tipo} — CPSL Lima*\n\n"
+        f"*{'IMO' if tipo=='IMO' else 'Prospecto'}:* {nom}\n"
+        f"*Tel:* wa.me/{tel}\n"
+        f"*PX pendientes:* {n_px}\n"
+        f"*Asunto:* {motivo}{px_txt}"
+    )
+    return c["nombre"]
+
+# ── CARGA DE DATOS ────────────────────────────────────────────
+def cargar_imos():
+    """Agrupa PX por IMO. Retorna dict tel_imo → {nom, pxs}"""
+    if not os.path.exists(CSV_PX): return {}
+    imos = defaultdict(list)
+    with open(CSV_PX,encoding="utf-8-sig") as f:
+        for r in csv.DictReader(f):
+            raw = re.sub(r'\D','',str(r.get("Tel. IMO","") or ''))
+            if raw.startswith("51") and len(raw)==11: t=raw
+            elif len(raw)==9 and raw.startswith("9"):  t="51"+raw
+            else: continue
+            imos[t].append(r)
+    return imos
+
+def cargar_px():
+    """Retorna lista de PX con teléfono válido."""
+    if not os.path.exists(CSV_PX): return []
+    pxs = []
+    with open(CSV_PX,encoding="utf-8-sig") as f:
+        for r in csv.DictReader(f):
+            raw = re.sub(r'\D','',str(r.get("Teléfono","") or ''))
+            if raw.startswith("51") and len(raw)==11: t=raw
+            elif len(raw)==9 and raw.startswith("9"):  t="51"+raw
+            else: continue
+            pxs.append({
+                "tel":      t,
+                "nombre":   nc(r.get("Nombre","")),
+                "apellido": nc(r.get("Apellido","")),
+                "pila":     np_(r.get("Nombre","")),
+                "equipo":   r.get("Equipo",""),
+                "imo":      r.get("IMO","").strip(),
+                "tel_imo":  norm(re.sub(r'\D','',str(r.get("Tel. IMO","") or ''))[-9:]),
+                "eq_num":   int(m.group()) if (m:=re.search(r'\d+',r.get("Equipo",""))) else 0,
+            })
+    return pxs
+
+# ══════════════════════════════════════════════════════════════
+# WORKER PRINCIPAL
+# ══════════════════════════════════════════════════════════════
+def run_seguimiento(modo="ambos", limite_imos=None, limite_px=None):
+    """
+    modo: 'imos' | 'px' | 'ambos'
+    Corre seguimiento de IMOs y/o PX sin respuesta.
+    """
+    global _estado_worker
+    if _estado_worker["corriendo"]:
+        return {"error": "Ya hay un seguimiento en curso"}
+
+    _estado_worker.update({
+        "corriendo": True, "inicio": ahora().isoformat(),
+        "ok": 0, "err": 0, "total": 0,
+        "ultimo": "Iniciando...", "log": []
+    })
+
+    def _run():
+        try:
+            prog = cargar_prog()
+            ya_env_imos = set(prog.get("env_imos",[]))
+            ya_env_px   = set(prog.get("env_px",[]))
+            ya_notif    = set(prog.get("notif",[]))
+            imos_map    = cargar_imos()
+            px_list     = cargar_px()
+
+            add_log(f"CSV cargado: {len(imos_map)} IMOs, {len(px_list)} PX")
+
+            # ── Leer Sheet para saber quién ya respondió ──────
+            # Esto evita contactar a alguien que ya respondió aunque
+            # no esté en el archivo de progreso local
+            respondieron = set()
+            try:
+                filas_sheet = leer_sheet_completo()
+                RESP_POSITIVAS = {"CONFIRMA","MSG_IN","CONFIRMA_C1E27",
+                                  "SOLICITUD_ALIADO","IMO_CONFIRMA_ENROLADO"}
+                for fila in filas_sheet:
+                    # fila: [fecha, dir, tel, nombre, dni, tipo, staff, msg, evento, estado, n_px, wa_id]
+                    if len(fila) >= 9:
+                        dir_f   = str(fila[1]).strip().upper()
+                        tel_f   = str(fila[2]).strip()
+                        evento_f= str(fila[8]).strip().upper()
+                        # Si hay un MSG_IN de este tel → ya respondió
+                        if dir_f == "IN" and tel_f:
+                            respondieron.add(tel_f)
+                        # Si hay confirmación directa
+                        if evento_f in RESP_POSITIVAS and tel_f:
+                            respondieron.add(tel_f)
+                add_log(f"Sheet leído: {len(filas_sheet)} filas, {len(respondieron)} ya respondieron")
+            except Exception as e:
+                add_log(f"Sheet no disponible: {e} — usando solo progreso local", "WARN")
+
+            total_env = 0
+
+            # ── PASO 1: IMOs ──────────────────────────────────
+            if modo in ("imos","ambos"):
+                cands_imo = []
+                for tel, pxs in imos_map.items():
+                    if tel in ya_env_imos: continue
+                    if tel in respondieron: continue  # ya respondió según Sheet
+                    nom  = nc(pxs[0].get("IMO",""))
+                    pila = np_(pxs[0].get("IMO",""))
+                    px_lst = [f"{r.get('Nombre','').strip().title()} {r.get('Apellido','').strip().title()} ({r.get('Equipo','')})"
+                              for r in pxs]
+                    cands_imo.append({
+                        "tel":tel,"nom":nom,"pila":pila,
+                        "n_px":len(pxs),"eq_max":eq_max(pxs),
+                        "px":px_lst
+                    })
+                cands_imo.sort(key=lambda x:(-x["eq_max"],-x["n_px"]))
+                if limite_imos: cands_imo=cands_imo[:limite_imos]
+
+                add_log(f"IMOs a contactar: {len(cands_imo)}")
+                _estado_worker["total"] += len(cands_imo)
+
+                for i, c in enumerate(cands_imo, 1):
+                    _estado_worker["ultimo"] = f"IMO {i}/{len(cands_imo)}: {c['nom'][:30]}"
+                    exito, res = wa_template(c["tel"], c["pila"], TEMPLATE_IMO)
+                    hora_s = ahora().strftime("%d/%m/%Y %H:%M:%S")
+
+                    if exito:
+                        _estado_worker["ok"] += 1
+                        ya_env_imos.add(c["tel"])
+                        prog["env_imos"] = list(ya_env_imos)
+                        guardar_prog(prog)
+                        add_log(f"✅ IMO {c['nom'][:35]} ({c['n_px']} PX)")
+                        sheets_append([
+                            hora_s,"OUT",c["tel"],c["nom"],"","IMO",
+                            "","plantilla_enviada","SEGUIMIENTO_IMO","",c["n_px"],res
+                        ])
+                        total_env += 1
+                    else:
+                        _estado_worker["err"] += 1
+                        add_log(f"❌ IMO {c['pila']} — {res[:60]}", "ERROR")
+
+                    time.sleep(PAUSA)
+
+            # ── PASO 2: PX ────────────────────────────────────
+            if modo in ("px","ambos"):
+                # Solo PX de E26 y E25 (los más urgentes)
+                cands_px = [p for p in px_list
+                            if p["tel"] not in ya_env_px
+                            and p["tel"] not in respondieron  # ya respondió según Sheet
+                            and p["eq_num"]>=25]
+                cands_px.sort(key=lambda x:(-x["eq_num"]))
+                if limite_px: cands_px=cands_px[:limite_px]
+
+                add_log(f"PX E25/E26 a contactar: {len(cands_px)}")
+                _estado_worker["total"] += len(cands_px)
+
+                for i, p in enumerate(cands_px, 1):
+                    nom_full = f"{p['nombre']} {p['apellido']}".strip()
+                    _estado_worker["ultimo"] = f"PX {i}/{len(cands_px)}: {nom_full[:30]}"
+                    exito, res = wa_template(p["tel"], p["pila"], TEMPLATE_PX)
+                    hora_s = ahora().strftime("%d/%m/%Y %H:%M:%S")
+
+                    if exito:
+                        _estado_worker["ok"] += 1
+                        ya_env_px.add(p["tel"])
+                        prog["env_px"] = list(ya_env_px)
+                        guardar_prog(prog)
+                        add_log(f"✅ PX {nom_full[:35]} ({p['equipo']})")
+                        sheets_append([
+                            hora_s,"OUT",p["tel"],nom_full,"","PX",
+                            p["imo"],"plantilla_enviada","SEGUIMIENTO_PX",p["equipo"],"",res
+                        ])
+                        total_env += 1
+                    else:
+                        _estado_worker["err"] += 1
+                        add_log(f"❌ PX {p['pila']} — {res[:60]}", "ERROR")
+
+                    time.sleep(PAUSA)
+
+            # ── PASO 3: Notificar no-quieren ──────────────────
+            # Leer historial del Sheet para detectar NO ASISTE/STOP
+            # (el bot ya registra cada respuesta en Sheets)
+            # Aquí revisamos sesiones del bot en /data/sesiones.json
+            ses_path = os.path.join(DATA_DIR,"sesiones.json")
+            if os.path.exists(ses_path):
+                with open(ses_path,encoding="utf-8") as f:
+                    sesiones = json.load(f)
+                for tel, s in sesiones.items():
+                    p = s.get("p",{})
+                    st = s.get("st","")
+                    if tel in ya_notif: continue
+                    # Detectar textos de no-quieren en el historial del bot
+                    # (el bot actualiza el estado en sesion cuando detecta NO ASISTE)
+                    if st in ("NO_ASISTE","STOP","DEVOLUCION"):
+                        nom = p.get("nombre_full") or p.get("nombre","")
+                        tipo = p.get("tipo","PX")
+                        n_px = len(p.get("pendientes",[]))
+                        nom_coord = notif_cc(tel, nom,
+                            "Declina participación — gestionar devolución si aplica",
+                            n_px, p.get("pendientes",[]), tipo)
+                        ya_notif.add(tel)
+                        prog["notif"] = list(ya_notif)
+                        guardar_prog(prog)
+                        add_log(f"📢 Notificado {nom} → {nom_coord}")
+                        sheets_append([
+                            ahora().strftime("%d/%m/%Y %H:%M:%S"),
+                            "SYS",tel,nom,"",tipo,"",
+                            f"NO_QUIERE:{st}",f"NOTIF→{nom_coord}","","",""
+                        ])
+                        time.sleep(1.0)
+
+            add_log(f"✅ COMPLETADO — {_estado_worker['ok']} enviados, {_estado_worker['err']} errores")
+
+        except Exception as e:
+            add_log(f"ERROR CRÍTICO: {e}", "ERROR")
+        finally:
+            _estado_worker["corriendo"] = False
+            _estado_worker["ultimo"] = "Completado"
+
+    threading.Thread(target=_run, daemon=False, name="worker-seguimiento").start()
+    return {"iniciado": True, "total_estimado": _estado_worker["total"]}
+
+# ── SCHEDULER ────────────────────────────────────────────────
+def _scheduler():
+    """Dispara seguimiento automático a la hora configurada."""
+    while True:
+        try:
+            ahora_h = ahora().strftime("%H:%M")
+            if AUTO and ahora_h == HORA_AUTO and not _estado_worker["corriendo"]:
+                log.info(f"Scheduler: lanzando seguimiento automático ({HORA_AUTO})")
+                run_seguimiento(modo="ambos")
+        except Exception as e:
+            log.error(f"scheduler err {e}")
+        time.sleep(60)  # revisar cada minuto
+
+if AUTO:
+    threading.Thread(target=_scheduler, daemon=True, name="scheduler").start()
+    log.info(f"Scheduler activado — seguimiento diario a {HORA_AUTO}")
+
+# ── FLASK ENDPOINTS (integrado al bot principal vía import) ──
+# Si se importa desde bot_whatsapp.py, estos endpoints quedan disponibles
+# Si se corre directo, levanta servidor propio
+
+# ══════════════════════════════════════════════════════════════
+# LEER SHEET Y DETECTAR SIN RESPUESTA
+# ══════════════════════════════════════════════════════════════
+def leer_sheet_completo():
+    """Lee todas las filas del Sheet. Retorna lista de dicts."""
+    if not SHEET_ID: return []
+    try:
+        tok = sheets_tok()
+        if not tok: return []
+        tab = SHEET_TAB.replace(" ","%20")
+        r = req.get(
+            f"https://sheets.googleapis.com/v4/spreadsheets/{SHEET_ID}/values/{tab}!A:K",
+            headers={"Authorization":f"Bearer {tok}"},
+            timeout=15
+        )
+        if r.status_code != 200:
+            log.error(f"Sheet read {r.status_code}: {r.text[:100]}")
+            return []
+        vals = r.json().get("values",[])
+        if len(vals) < 2: return []
+        headers = vals[0]
+        rows = []
+        for row in vals[1:]:
+            # Completar celdas faltantes
+            while len(row) < len(headers): row.append("")
+            rows.append(dict(zip(headers, row)))
+        return rows
+    except Exception as e:
+        log.error(f"leer_sheet {e}")
+        return []
+
+def detectar_sin_respuesta(horas_espera=48):
+    """
+    Cruza el Sheet para encontrar contactos que:
+    1. Recibieron un mensaje de seguimiento (SEGUIMIENTO_IMO / SEGUIMIENTO_PX)
+    2. NO han respondido (sin MSG_IN posterior)
+    3. Han pasado > horas_espera desde el envío
+    
+    Retorna lista de dicts {tel, nombre, tipo, fecha_envio, horas_sin_resp}
+    """
+    from datetime import datetime, timedelta, timezone
+    TZ = timezone(timedelta(hours=-5))
+    AHORA = datetime.now(TZ)
+    
+    filas = leer_sheet_completo()
+    if not filas:
+        log.warning("Sheet vacío o sin acceso")
+        return []
+    
+    # Columna headers que usa el bot:
+    # A=Fecha/Hora, B=IN/OUT, C=Tel, D=Nombre, E=Tipo, F=Staff,
+    # G=Mensaje, H=Evento, I=Estado, J=Equipo, K=N_PX o WA_ID
+    
+    # Agrupar por teléfono
+    from collections import defaultdict
+    por_tel = defaultdict(list)
+    for f in filas:
+        tel = f.get("C","").strip() or f.get("Teléfono","").strip() or f.get("telefono","").strip()
+        # Detectar columna correcta (headers pueden variar)
+        for k in f:
+            v = f[k].strip()
+            if v.startswith("51") and len(v)==11:
+                tel = v; break
+        if tel: por_tel[tel].append(f)
+    
+    # Detectar col de fecha y evento (buscar por contenido)
+    def get_fecha(fila):
+        for k,v in fila.items():
+            if v and "/" in v and ":" in v and len(v)>10:
+                try:
+                    return datetime.strptime(v[:16], "%d/%m/%Y %H:%M").replace(tzinfo=TZ)
+                except: pass
+        return None
+    
+    def get_evento(fila):
+        for k,v in fila.items():
+            if v in ("SEGUIMIENTO_IMO","SEGUIMIENTO_PX","MSG_IN","BOT_OUT",
+                     "CONFIRMA","STOP","NO_ASISTE"):
+                return v
+        # Buscar en col H (índice 7)
+        vals = list(fila.values())
+        if len(vals) > 7: return vals[7]
+        return ""
+    
+    def get_nombre(fila):
+        for k,v in fila.items():
+            if v and len(v)>3 and not v.startswith("51") and "/" not in v:
+                return v
+        return ""
+    
+    sin_resp = []
+    EVENTOS_ENVIO = {"SEGUIMIENTO_IMO","SEGUIMIENTO_PX","BOT_OUT","plantilla_enviada"}
+    EVENTOS_RESP  = {"MSG_IN","CONFIRMA","STOP","NO_ASISTE","DERIVADO"}
+    
+    for tel, filas_tel in por_tel.items():
+        # Ordenar por fecha
+        filas_con_fecha = [(get_fecha(f), get_evento(f), get_nombre(f), f)
+                           for f in filas_tel]
+        filas_con_fecha.sort(key=lambda x: x[0] or AHORA)
+        
+        # Buscar último envío de seguimiento
+        ultimo_envio = None
+        ultimo_nombre = ""
+        ultimo_tipo = ""
+        
+        for fecha, evento, nombre, fila in filas_con_fecha:
+            if evento in EVENTOS_ENVIO:
+                ultimo_envio = fecha
+                ultimo_nombre = nombre or ultimo_nombre
+                ultimo_tipo = "IMO" if "IMO" in evento else "PX"
+        
+        if not ultimo_envio: continue
+        
+        # Ver si respondió después del último envío
+        respondio = any(
+            fecha and fecha > ultimo_envio and evento in EVENTOS_RESP
+            for fecha, evento, _, _ in filas_con_fecha
+        )
+        
+        if respondio: continue
+        
+        # Calcular horas sin respuesta
+        horas = (AHORA - ultimo_envio).total_seconds() / 3600
+        if horas < horas_espera: continue
+        
+        sin_resp.append({
+            "tel":          tel,
+            "nombre":       ultimo_nombre,
+            "tipo":         ultimo_tipo,
+            "fecha_envio":  ultimo_envio.strftime("%d/%m %H:%M") if ultimo_envio else "",
+            "horas":        round(horas, 1),
+        })
+    
+    # Ordenar por más tiempo sin respuesta primero
+    sin_resp.sort(key=lambda x: -x["horas"])
+    log.info(f"Sin respuesta detectados: {len(sin_resp)} (espera > {horas_espera}h)")
+    return sin_resp
+
+def run_reenvio(horas_espera=48, limite=None):
+    """
+    Lee el Sheet, detecta sin respuesta, reenvía plantilla.
+    Solo reenvía si han pasado > horas_espera horas.
+    """
+    global _estado_worker
+    if _estado_worker["corriendo"]:
+        return {"error": "Ya hay un proceso en curso"}
+    
+    _estado_worker.update({
+        "corriendo": True, "inicio": ahora().isoformat(),
+        "ok": 0, "err": 0, "total": 0,
+        "ultimo": "Leyendo Sheet...", "log": []
+    })
+    
+    def _run():
+        try:
+            add_log("Leyendo Sheet para detectar sin respuesta...")
+            sin_resp = detectar_sin_respuesta(horas_espera=horas_espera)
+            
+            if not sin_resp:
+                add_log(f"Sin candidatos (espera > {horas_espera}h)")
+                return
+            
+            if limite:
+                sin_resp = sin_resp[:limite]
+            
+            _estado_worker["total"] = len(sin_resp)
+            add_log(f"Candidatos a reenvío: {len(sin_resp)}")
+            
+            # Cargar CSV para obtener nombre pila
+            imos_map = cargar_imos()
+            px_list  = {p["tel"]:p for p in cargar_px()}
+            
+            for i, c in enumerate(sin_resp, 1):
+                tel  = c["tel"]
+                tipo = c["tipo"]
+                _estado_worker["ultimo"] = f"Reenviando {i}/{len(sin_resp)}: {c['nombre'][:25]}"
+                
+                # Obtener nombre pila del CSV
+                if tipo == "IMO" and tel in imos_map:
+                    pxs  = imos_map[tel]
+                    pila = np_(pxs[0].get("IMO",""))
+                elif tel in px_list:
+                    pila = px_list[tel]["pila"]
+                else:
+                    pila = np_(c["nombre"])
+                
+                exito, res = wa_template(tel, pila,
+                    TEMPLATE_IMO if tipo=="IMO" else TEMPLATE_PX)
+                hora_s = ahora().strftime("%d/%m/%Y %H:%M:%S")
+                
+                if exito:
+                    _estado_worker["ok"] += 1
+                    add_log(f"✅ Reenvío {tipo} {c['nombre'][:30]} ({c['horas']}h sin resp)")
+                    sheets_append([
+                        hora_s,"OUT",tel,c["nombre"],"",tipo,
+                        "","plantilla_enviada",
+                        f"REENVIO_{tipo}_{int(c['horas'])}h","","",res
+                    ])
+                else:
+                    _estado_worker["err"] += 1
+                    add_log(f"❌ {c['nombre'][:25]} — {res[:50]}", "ERROR")
+                
+                time.sleep(PAUSA)
+            
+            add_log(f"✅ Reenvío completado — {_estado_worker['ok']} OK / {_estado_worker['err']} errores")
+        except Exception as e:
+            add_log(f"ERROR: {e}", "ERROR")
+            log.error(f"run_reenvio {e}", exc_info=True)
+        finally:
+            _estado_worker["corriendo"] = False
+            _estado_worker["ultimo"] = "Completado"
+    
+    threading.Thread(target=_run, daemon=False, name="worker-reenvio").start()
+    return {"iniciado": True, "modo": "reenvio", "horas_espera": horas_espera}
+
+if __name__ == "__main__":
+    from flask import Flask, jsonify, request as freq
+    app2 = Flask(__name__)
+
+    @app2.route("/seguimiento/estado")
+    def seg_estado():
+        return jsonify(_estado_worker)
+
+    @app2.route("/seguimiento/iniciar", methods=["POST"])
+    def seg_iniciar():
+        d = freq.json or {}
+        res = run_seguimiento(
+            modo      = d.get("modo","ambos"),
+            limite_imos = d.get("limite_imos"),
+            limite_px   = d.get("limite_px"),
+        )
+        return jsonify(res)
+
+    app2.run(host="0.0.0.0", port=10001, debug=False)
