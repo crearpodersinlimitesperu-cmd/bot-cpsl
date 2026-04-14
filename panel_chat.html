@@ -1082,7 +1082,7 @@ function tipoBadge(t, estado) {
 // ══ SINCRONIZACIÓN ═════════════════════════════════════════
 async function sincronizarHistorial() {
   try {
-    const r = await fetch(CFG.url + '/api/historial');
+    const r = await fetch(CFG.url + '/api/historial?limit=2000');
     if(!r.ok) throw new Error(r.status);
     const data = await r.json();
     let cambios = false;
@@ -1505,7 +1505,7 @@ function abrirSim() {
   // Poblar select con conversaciones activas
   const sel = document.getElementById('simTelSelect');
   sel.innerHTML = '<option value="">— Conversaciones —</option>' +
-    convs.slice(0,30).map(c=>`<option value="${c.tel}">${c.nombre.slice(0,25)} (+${c.tel.slice(-9)})</option>`).join('');
+    convs.slice(0,100).map(c=>`<option value="${c.tel}">${c.nombre.slice(0,25)} (+${c.tel.slice(-9)})</option>`).join('');
   document.getElementById('simOverlay').style.display='flex';
   setSimMode(document.querySelector('[data-mode="rol"]'));
   setTimeout(()=>{ document.getElementById('simInput').focus(); }, 100);
@@ -1514,7 +1514,7 @@ function abrirSim() {
 function abrirSimConTel(tel) {
   const sel = document.getElementById('simTelSelect');
   sel.innerHTML = '<option value="">— Conversaciones —</option>' +
-    convs.slice(0,30).map(c=>`<option value="${c.tel}"${c.tel===tel?' selected':''}>${c.nombre.slice(0,25)} (+${c.tel.slice(-9)})</option>`).join('');
+    convs.slice(0,100).map(c=>`<option value="${c.tel}"${c.tel===tel?' selected':''}>${c.nombre.slice(0,25)} (+${c.tel.slice(-9)})</option>`).join('');
   document.getElementById('simOverlay').style.display='flex';
   // Activar modo número real
   const btnTel = document.querySelector('[data-mode="tel"]');
@@ -1602,6 +1602,8 @@ async function enviarSim() {
 
 // ══ INIT ═══════════════════════════════════════════════════
 cargarCfg();
+// Limpiar conversaciones al iniciar para forzar recarga limpia
+convs = [];
 iniciarSync();
 </script>
 </body>
