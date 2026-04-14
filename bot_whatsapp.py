@@ -58,7 +58,8 @@ class Cfg:
     # Rutas de persistencia
     S_REAL = os.path.join(DATA_DIR, "sesiones.json")
     S_SIM  = os.path.join(DATA_DIR, "sesiones_sim.json")
-    HIST   = os.path.join(DATA_DIR, "historial.json")
+    HIST      = os.path.join(DATA_DIR, "historial_chat.json")  # mismo nombre que versiones anteriores
+    HIST_ALT  = os.path.join(DATA_DIR, "historial.json")          # fallback versiones nuevas
 
     # Evento C1 E27
     FECHA   = "Viernes 1, Sábado 2 y Domingo 3 de mayo de 2026"
@@ -670,21 +671,38 @@ def wh_post():
 
 @app.route("/api/historial")
 def hist_all():
+    """Retorna historial fusionado de todos los archivos posibles."""
     try:
-        if os.path.exists(Cfg.HIST):
-            with open(Cfg.HIST,encoding="utf-8") as f: return jsonify(json.load(f)),200
-    except: pass
-    return jsonify([]),200
+        merged = {}  # key=tel+hora+texto para deduplicar
+        for path in [Cfg.HIST, Cfg.HIST_ALT]:
+            if os.path.exists(path):
+                with open(path, encoding="utf-8") as f:
+                    for m in json.load(f):
+                        k = f"{m.get('telefono','')}|{m.get('hora','')}|{m.get('texto','')[:30]}"
+                        merged[k] = m
+        resultado = sorted(merged.values(), key=lambda x: x.get("hora",""))
+        return jsonify(resultado), 200
+    except Exception as e:
+        logger.error(f"hist_all {e}")
+    return jsonify([]), 200
 
 @app.route("/api/historial/<tel>")
 def hist_tel(tel):
+    """Historial filtrado por teléfono — fusiona todos los archivos."""
     try:
-        if os.path.exists(Cfg.HIST):
-            with open(Cfg.HIST,encoding="utf-8") as f:
-                h=json.load(f)
-            return jsonify([m for m in h if str(m.get("telefono",""))==str(tel)]),200
-    except: pass
-    return jsonify([]),200
+        merged = {}
+        for path in [Cfg.HIST, Cfg.HIST_ALT]:
+            if os.path.exists(path):
+                with open(path, encoding="utf-8") as f:
+                    for m in json.load(f):
+                        if str(m.get("telefono",""))==str(tel):
+                            k = f"{m.get('hora','')}|{m.get('texto','')[:30]}"
+                            merged[k] = m
+        resultado = sorted(merged.values(), key=lambda x: x.get("hora",""))
+        return jsonify(resultado), 200
+    except Exception as e:
+        logger.error(f"hist_tel {e}")
+    return jsonify([]), 200
 
 @app.route("/api/carga_coordinadoras")
 def carga_cc():
