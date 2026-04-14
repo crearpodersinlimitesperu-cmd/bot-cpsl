@@ -1051,7 +1051,11 @@ const QR_CHIPS = [
 // ══ CONFIG ═════════════════════════════════════════════════
 function cargarCfg() {
   try { CFG = JSON.parse(localStorage.getItem(CFG_KEY) || '{}'); } catch(e){ CFG={}; }
-  if(!CFG.url) CFG.url = 'https://bot-cpsl.onrender.com';
+  // Auto-detectar URL: si el panel se sirve desde el bot, usar el mismo origen
+  if(!CFG.url) {
+    const origin = window.location.origin;
+    CFG.url = origin.includes('localhost') ? 'https://bot-cpsl.onrender.com' : origin;
+  }
   if(!CFG.phoneId) CFG.phoneId = '1085205258006361';
   if(CFG.url) document.getElementById('cfgUrl').value = CFG.url;
   if(CFG.token) document.getElementById('cfgToken').value = CFG.token;
@@ -1106,6 +1110,7 @@ function tipoBadge(t, estado) {
 // ══ SINCRONIZACIÓN ═════════════════════════════════════════
 async function sincronizarHistorial() {
   try {
+    if(!CFG.url) { setOnline(false, 'Sin URL configurada'); return; }
     const r = await fetch(CFG.url + '/api/historial?limit=2000');
     if(!r.ok) throw new Error(r.status);
     const data = await r.json();
@@ -1161,7 +1166,7 @@ async function sincronizarHistorial() {
     if(cambios) { renderConvList(); if(activeTel) renderMessages(); }
     setOnline(true);
   } catch(e) {
-    setOnline(false);
+    setOnline(false, 'Error conectando');
   }
 }
 
@@ -1174,9 +1179,9 @@ async function sincronizarCC() {
   } catch(e) {}
 }
 
-function setOnline(ok) {
+function setOnline(ok, msg) {
   document.getElementById('onlineDot').style.background = ok ? '#1D9E75' : '#A32D2D';
-  document.getElementById('onlineTxt').textContent = ok ? 'En línea' : 'Sin conexión';
+  document.getElementById('onlineTxt').textContent = ok ? 'En línea' : (msg||'Sin conexión');
   document.getElementById('syncBadge').textContent = ok ? '● LIVE' : '○ OFFLINE';
   document.getElementById('syncBadge').style.background = ok ? '#1D9E75' : '#A32D2D';
 }
