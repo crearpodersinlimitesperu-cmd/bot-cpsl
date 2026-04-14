@@ -1097,12 +1097,30 @@ async function sincronizarHistorial() {
         convs.push(c);
         cambios = true;
       }
-      // Deducir tipo del nombre
+      // Deducir tipo del nombre — robusto para V109 y versiones anteriores
       if(c.tipo==='?' && m.nombre) {
-        if(m.nombre.includes('IMO')) c.tipo='IMO';
-        else if(m.nombre.includes('PX')) c.tipo='PX';
-        else if(m.nombre.includes('NUEVO')||m.nombre.includes('SIMULACI')) c.tipo='NUEVO';
+        const nm = m.nombre.toUpperCase();
+        if(nm.includes('IMO'))                           c.tipo='IMO';
+        else if(nm.includes('PX') || nm.includes('(PX'))c.tipo='PX';
+        else if(nm.includes('NUEVO')||nm.includes('SIMULACI')||nm.includes('SIM'))
+                                                          c.tipo='NUEVO';
+        else if(nm.includes('(') && nm.includes(')'))    {
+          // formato "(TIPO) Nombre" del V109
+          const m2 = nm.match(/\(([^)]+)\)/);
+          if(m2) {
+            const t = m2[1];
+            if(t==='IMO'||t==='IMO_GRADUADO') c.tipo='IMO';
+            else if(t==='PX')                 c.tipo='PX';
+            else if(t==='NUEVO')              c.tipo='NUEVO';
+            else                              c.tipo='EXT';
+          }
+        }
         else c.tipo='EXT';
+      }
+      // Extraer nombre limpio si es formato "(TIPO) Nombre"
+      if(c.nombre==='+'+tel || c.nombre===tel) {
+        const m3 = (m.nombre||'').match(/^\([^)]+\)\s*(.+)$/);
+        if(m3 && m3[1] && m3[1].length>2) c.nombre = m3[1];
       }
       // Agregar mensaje si no existe
       const yaExiste = c.msgs.some(x => x.texto===m.texto && x.hora===m.hora && x.tipo===m.tipo);
