@@ -1111,8 +1111,13 @@ function tipoBadge(t, estado) {
 async function sincronizarHistorial() {
   try {
     if(!CFG.url) { setOnline(false, 'Sin URL configurada'); return; }
-    const r = await fetch(CFG.url + '/api/historial?limit=2000');
-    if(!r.ok) throw new Error(r.status);
+    // Timeout de 30s — Render free tier puede tardar al arrancar
+    const ctrl = new AbortController();
+    const tId  = setTimeout(() => ctrl.abort(), 30000);
+    const r = await fetch(CFG.url + '/api/historial?limit=2000',
+                          { signal: ctrl.signal });
+    clearTimeout(tId);
+    if(!r.ok) throw new Error('HTTP '+r.status);
     const data = await r.json();
     let cambios = false;
 
@@ -1182,6 +1187,7 @@ async function sincronizarCC() {
 function setOnline(ok, msg) {
   document.getElementById('onlineDot').style.background = ok ? '#1D9E75' : '#A32D2D';
   document.getElementById('onlineTxt').textContent = ok ? 'En línea' : (msg||'Sin conexión');
+  if(!ok) console.warn('Panel offline:', msg);
   document.getElementById('syncBadge').textContent = ok ? '● LIVE' : '○ OFFLINE';
   document.getElementById('syncBadge').style.background = ok ? '#1D9E75' : '#A32D2D';
 }
@@ -1632,8 +1638,9 @@ async function enviarSim() {
 // ══ INIT ═══════════════════════════════════════════════════
 cargarCfg();
 convs = [];
+document.getElementById('onlineTxt').textContent = 'Conectando...';
 iniciarSync();
-// Sincronizar estado del worker cada 5s
+// Sincronizar estado del worker cada 10s
 setInterval(sincronizarWorker, 10000);
 sincronizarWorker();
 
@@ -1695,8 +1702,7 @@ async function verLogSeg() {
   try {
     const r = await fetch(CFG.url+'/api/seguimiento/log');
     const logs = await r.json();
-    const txt = logs.slice(-50).map(l => `[${l.hora}] ${l.nivel}: ${l.msg}`).join('
-');
+    const txt = logs.slice(-50).map(l => `[${l.hora}] ${l.nivel}: ${l.msg}`).join('\n');
     const w = window.open('','_blank','width=700,height=500');
     w.document.write(`<pre style="font-family:monospace;font-size:12px;padding:16px">${txt||'Sin log'}</pre>`);
   } catch(e) { toast('Error leyendo log','error'); }
