@@ -42,6 +42,27 @@ def cc_add(k):
     with _carga_lk:
         if k in _carga: _carga[k] += 1
 
+# Mapa fijo equipo → coordinadora (basado en archivos de aliados reales)
+_CC_POR_EQUIPO = {
+    "EQUIPO 26": "dmoscoso",   # Diana Moscoso
+    "EQUIPO 25": "jmarin",     # Joyce Marín
+    "EQUIPO 24": "zurteaga",   # Zuley Urteaga
+    "EQUIPO 23": "zurteaga",
+    "EQUIPO 22": "lpasquel",   # Leyla Pasquel
+    "EQUIPO 21": "lpasquel",
+    "EQUIPO 20": "lpasquel",
+    "EQUIPO 19": "lvalencia",  # Linid Valencia
+    "EQUIPO 18": "lvalencia",
+    "EQUIPO 17": "lvalencia",
+    "EQUIPO 16": "lvalencia",
+    "EQUIPO 15": "lvalencia",
+    "EQUIPO 14": "lvalencia",
+}
+
+def cc_por_equipo(equipo):
+    """Retorna la key del staff asignado al equipo. Fallback: cc_libre()."""
+    return _CC_POR_EQUIPO.get(str(equipo).strip().upper(), cc_libre())
+
 # ── CONFIG ────────────────────────────────────────────────────
 class Cfg:
     TOKEN     = os.environ.get("WA_TOKEN","")
@@ -167,14 +188,24 @@ def perfil_crm(tel):
         p["imo_nombre"] = px_row.get("IMO","").strip()
         p["imo_tel"]    = _d(px_row.get("Tel. IMO",""))
 
-    # ── Asignar coordinadora (no tenemos Usuario Registro en este CSV)
-    # → reparto equitativo
-    if p["tipo"] != "NUEVO":
+    # ── Asignar coordinadora por equipo (mapa fijo)
+    # Para PX: usar su equipo directo
+    # Para IMO: usar el equipo más reciente de sus enrolados
+    if p["tipo"] == "PX":
+        k = cc_por_equipo(p.get("equipo",""))
+    elif p["tipo"] == "IMO":
+        # Tomar el equipo con número más alto de sus enrolados
+        equipos = [r.get("Equipo","") for r in imo_rows] if imo_rows else []
+        import re as _re2
+        nums = [int(m.group()) for eq in equipos for m in [_re2.search(r"\d+",eq)] if m]
+        eq_top = f"EQUIPO {max(nums)}" if nums else ""
+        k = cc_por_equipo(eq_top)
+    else:
         k = cc_libre()
-        p["staff_key"] = k
-        p["staff_tel"] = STAFF[k]["tel"]
-        p["staff_nom"] = STAFF[k]["nombre"]
-        cc_add(k)
+    p["staff_key"] = k
+    p["staff_tel"] = STAFF[k]["tel"]
+    p["staff_nom"] = STAFF[k]["nombre"]
+    cc_add(k)
 
     return p
 
@@ -847,8 +878,9 @@ def panel():
 # ── INTEGRACIÓN WORKER DE SEGUIMIENTO ────────────────────────
 try:
     from seguimiento_autonomo import (
-        run_seguimiento, _estado_worker,
-        _scheduler as _seg_scheduler, AUTO as SEG_AUTO, HORA_AUTO as SEG_HORA
+        run_seguimiento, run_reenvio, detectar_sin_respuesta,
+        _estado_worker, _scheduler as _seg_scheduler,
+        AUTO as SEG_AUTO, HORA_AUTO as SEG_HORA
     )
     _SEG_OK = True
     logger.info(f"✅ Worker seguimiento cargado (AUTO={SEG_AUTO}, HORA={SEG_HORA})")
@@ -875,6 +907,51 @@ def seg_iniciar():
 @app.route("/api/seguimiento/log")
 def seg_log():
     return jsonify(_estado_worker.get("log",[])), 200
+
+@app.route("/api/seguimiento/reenvio", methods=["POST"])
+def seg_reenvio():
+    """Reenvía a quienes no han respondido según el Sheet."""
+    if not _SEG_OK:
+        return jsonify({"error":"Worker no disponible"}), 503
+    from seguimiento_autonomo import run_reenvio
+    d   = request.json or {}
+    res = run_reenvio(
+        horas_espera = d.get("horas_espera", 48),
+        limite       = d.get("limite"),
+    )
+    return jsonify(res), 200
+
+@app.route("/api/seguimiento/detectar", methods=["GET"])
+def seg_detectar():
+    """Devuelve lista de contactos sin respuesta según el Sheet."""
+    if not _SEG_OK:
+        return jsonify({"error":"Worker no disponible"}), 503
+    from seguimiento_autonomo import detectar_sin_respuesta
+    horas = int(request.args.get("horas", 48))
+    try:
+        sin_resp = detectar_sin_respuesta(horas_espera=horas)
+        return jsonify({"total": len(sin_resp), "contactos": sin_resp[:50]}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/seguimiento/reenviar", methods=["POST"])
+def seg_reenviar():
+    d = request.json or {}
+    if not _SEG_OK:
+        return jsonify({"error":"Worker no disponible"}), 503
+    res = run_reenvio(
+        horas_espera = d.get("horas_espera", 48),
+        limite       = d.get("limite"),
+    )
+    return jsonify(res), 200
+
+@app.route("/api/seguimiento/sin_respuesta")
+def seg_sin_resp():
+    if not _SEG_OK:
+        return jsonify([]), 200
+    horas = int(request.args.get("horas", 48))
+    resultado = detectar_sin_respuesta(horas_espera=horas)
+    return jsonify(resultado), 200
 
 if __name__=="__main__":
     logger.info("🚀 CPSL Torre de Control V109")
