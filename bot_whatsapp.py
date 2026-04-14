@@ -840,6 +840,38 @@ def panel():
         with open(os.path.join(BASE_DIR,"panel_chat.html"),encoding="utf-8") as f: return f.read()
     except: return "<h2>Panel no disponible</h2>",200
 
+# ── INTEGRACIÓN WORKER DE SEGUIMIENTO ────────────────────────
+try:
+    from seguimiento_autonomo import (
+        run_seguimiento, _estado_worker,
+        _scheduler as _seg_scheduler, AUTO as SEG_AUTO, HORA_AUTO as SEG_HORA
+    )
+    _SEG_OK = True
+    logger.info(f"✅ Worker seguimiento cargado (AUTO={SEG_AUTO}, HORA={SEG_HORA})")
+except ImportError:
+    _SEG_OK = False
+    _estado_worker = {"corriendo":False,"ok":0,"err":0,"total":0,"ultimo":"No disponible","log":[]}
+    def run_seguimiento(**kw): return {"error":"seguimiento_autonomo.py no encontrado"}
+    logger.warning("⚠️ seguimiento_autonomo.py no encontrado — worker desactivado")
+
+@app.route("/api/seguimiento/estado")
+def seg_estado():
+    return jsonify(_estado_worker), 200
+
+@app.route("/api/seguimiento/iniciar", methods=["POST"])
+def seg_iniciar():
+    d   = request.json or {}
+    res = run_seguimiento(
+        modo        = d.get("modo","ambos"),
+        limite_imos = d.get("limite_imos"),
+        limite_px   = d.get("limite_px"),
+    )
+    return jsonify(res), 200
+
+@app.route("/api/seguimiento/log")
+def seg_log():
+    return jsonify(_estado_worker.get("log",[])), 200
+
 if __name__=="__main__":
     logger.info("🚀 CPSL Torre de Control V109")
     logger.info(f"   CSV: {Cfg.CSV}")
