@@ -368,7 +368,14 @@ def notif_cc(p, motivo, extra=""):
     else:
         ctx = "*Nuevo contacto*"
 
-    wa(tel_cc,
+    logger.info(f"notif_cc → {nom_cc} ({tel_cc}) | {nom_px} | {motivo[:40]}")
+    if not tel_cc:
+        logger.error("notif_cc: tel_cc vacío — no se puede enviar")
+        return nom_cc
+    if not Cfg.TOKEN:
+        logger.error("notif_cc: WA_TOKEN vacío — notificación no enviada")
+        return nom_cc
+    exito = wa(tel_cc,
        f"🚨 *TORRE DE CONTROL — CPSL Lima*\n\n"
        f"*Nombre:* {nom_px}\n"
        f"*Tel:* wa.me/{tel_px}\n"
@@ -377,6 +384,8 @@ def notif_cc(p, motivo, extra=""):
        + (f"\n*Detalle:* {extra}" if extra else ""),
        f"SIS→{nom_cc}"
     )
+    if not exito:
+        logger.error(f"notif_cc: wa() falló enviando a {tel_cc}")
     return nom_cc
 
 # ── FLUJO PRINCIPAL ───────────────────────────────────────────
@@ -856,6 +865,41 @@ def api_sim():
     threading.Thread(target=flujo, args=(tel, txt), daemon=True,
                      name=f"sim{tel[-4:]}").start()
     return jsonify({"status":"ok"}), 200
+
+@app.route("/api/test_notif", methods=["POST"])
+def test_notif():
+    """Prueba envío de notificación a una coordinadora. Uso: POST {cc:'dmoscoso', msg:'test'}"""
+    d    = request.json or {}
+    key  = d.get("cc","dmoscoso")
+    msg  = d.get("msg","Test de notificación desde Torre de Control")
+    tel  = STAFF.get(key,{}).get("tel","")
+    nom  = STAFF.get(key,{}).get("nombre","?")
+    if not tel:
+        return jsonify({"error":f"CC '{key}' no encontrada"}), 400
+    logger.info(f"TEST NOTIF → {nom} ({tel})")
+    exito = wa(tel,
+        f"🧪 *TEST Torre de Control*\n{msg}\n\nSi ves esto, las notificaciones funcionan ✅",
+        "TEST"
+    )
+    return jsonify({"enviado":exito,"cc":nom,"tel":tel}), 200
+
+@app.route("/api/token_status")
+def token_status():
+    """Verifica si el WA_TOKEN está configurado y prueba una llamada a Meta."""
+    token_ok = bool(Cfg.TOKEN) and len(Cfg.TOKEN) > 20
+    phone_ok = bool(Cfg.PHONE_ID)
+    result   = {"token_configurado":token_ok,"phone_id_configurado":phone_ok,
+                "token_len":len(Cfg.TOKEN) if Cfg.TOKEN else 0}
+    if token_ok and phone_ok:
+        try:
+            r = req_lib.get(
+                f"https://graph.facebook.com/v19.0/{Cfg.PHONE_ID}",
+                headers={"Authorization":f"Bearer {Cfg.TOKEN}"},timeout=8)
+            result["meta_ok"]  = r.status_code == 200
+            result["meta_resp"] = r.status_code
+        except Exception as e:
+            result["meta_ok"] = False; result["meta_err"] = str(e)
+    return jsonify(result), 200
 
 @app.route("/status")
 def status():
