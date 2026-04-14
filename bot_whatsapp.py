@@ -310,16 +310,35 @@ def wa(tel, txt, log="BOT"):
         logger.error(f"wa exc {e}"); return False
 
 def notif_cc(p, motivo, extra=""):
-    """Notifica a la CC asignada del perfil."""
-    tel_cc = p.get("staff_tel") or STAFF[cc_libre()]["tel"]
-    nom_cc = p.get("staff_nom") or "Coordinación"
-    nom_px = p.get("nombre_full") or p.get("nombre") or "Sin nombre"
-    tel_px = p.get("_tel","")
+    """Notifica a la CC asignada con nombre completo y asunto claro."""
+    tel_cc   = p.get("staff_tel") or STAFF[cc_libre()]["tel"]
+    nom_cc   = p.get("staff_nom") or "Coordinación"
+    # Siempre nombre completo
+    nom_full = p.get("nombre_full") or ""
+    nom_pila = p.get("nombre") or ""
+    nom_px   = nom_full if nom_full and len(nom_full.split())>1 else nom_pila or "Sin nombre"
+    tel_px   = p.get("_tel","")
+    tipo     = p.get("tipo","")
+    equipo   = p.get("equipo","")
+    pend_n   = len(p.get("pendientes",[]))
+
+    # Línea de contexto según tipo de perfil
+    if tipo == "IMO":
+        ctx = f"*IMO | {pend_n} enrolados pendientes C1*"
+        if equipo: ctx += f" | {equipo}"
+    elif tipo == "PX":
+        ctx = f"*Prospecto C1{(' | '+equipo) if equipo else ''}*"
+        imo_n = p.get("imo_nombre","")
+        if imo_n: ctx += f"\n*Su IMO:* {imo_n}"
+    else:
+        ctx = "*Nuevo contacto*"
+
     wa(tel_cc,
-       f"🚨 *TORRE DE CONTROL — CPSL Lima*\n"
-       f"*Contacto:* {nom_px}\n"
+       f"🚨 *TORRE DE CONTROL — CPSL Lima*\n\n"
+       f"*Nombre:* {nom_px}\n"
        f"*Tel:* wa.me/{tel_px}\n"
-       f"*Motivo:* {motivo}"
+       f"{ctx}\n\n"
+       f"*Asunto:* {motivo}"
        + (f"\n*Detalle:* {extra}" if extra else ""),
        f"SIS→{nom_cc}"
     )
@@ -366,7 +385,12 @@ def flujo(tel, texto):
             tel_cc = p.get("staff_tel") or STAFF[cc_libre()]["tel"]
             nom_cc = p.get("staff_nom","Coord")
             nom_px = p.get("nombre_full") or p.get("nombre","")
-            wa(tel_cc, f"💬 *{nom_px}* (wa.me/{tel}):\n\n{texto}", f"RELAY→{nom_cc}")
+            nom_full_der = p.get("nombre_full") or nom_px
+            wa(tel_cc,
+               f"💬 *Mensaje de {nom_full_der}*\n"
+               f"Tel: wa.me/{tel}\n\n"
+               f"{texto}",
+               f"RELAY→{nom_cc}")
             wa(tel,"✅ Mensaje entregado a tu coordinadora.\n_Escribe *0* para volver al menú._",p.get("nombre",""))
             return
 
@@ -653,9 +677,13 @@ def wh_post():
         tipo = msg.get("type","")
         if tipo=="text":
             txt = str(msg["text"]["body"])
-            s_wh = get_s(tel)
-            p_wh = s_wh.get("p") or perfil_crm(tel)
-            nom_h = f"({p_wh.get('tipo','?')}) {p_wh.get('nombre') or tel}"
+            s_wh  = get_s(tel)
+            p_wh  = s_wh.get("p") or perfil_crm(tel)
+            # Usar nombre completo siempre que esté disponible
+            nom_d = (p_wh.get("nombre_full") or
+                     p_wh.get("imo_nombre") or
+                     p_wh.get("nombre") or tel)
+            nom_h = f"({p_wh.get('tipo','?')}) {nom_d}"
             add_hist(tel, nom_h, txt, "in")
             reg(tel, p_wh.get("nombre",""), p_wh.get("tipo",""), txt, "MSG_IN",
                 staff=p_wh.get("staff_nom",""))
@@ -719,15 +747,80 @@ def api_enviar():
 
 @app.route("/api/mensaje_simulador",methods=["POST"])
 def api_sim():
-    d=request.json or {}
-    tel=d.get("telefono",""); txt=d.get("texto","")
-    if not tel or not txt: return jsonify({"error":"faltan datos"}),400
+    """Simulador: inyecta perfil según prefijo del tel ficticio.
+    SIM_IMO_*  → perfil IMO con pendientes de ejemplo
+    SIM_PX_*   → perfil PX con coordinadora asignada
+    SIM_GRAD_* → perfil IMO marcado como graduado MJ
+    SIM_NEW_*  → perfil NUEVO
+    SIM_<tel_real> → busca en CSV el perfil real del número
+    """
+    d   = request.json or {}
+    tel = d.get("telefono","")
+    txt = d.get("texto","")
+    if not tel or not txt: return jsonify({"error":"faltan datos"}), 400
+
+    # Construir perfil de simulación según el prefijo
     s_sim = get_s(tel)
-    p_sim = s_sim.get("p") or {"tipo":"SIM","nombre":"Simulación"}
-    nom_s = f"({p_sim.get('tipo','SIM')}) {p_sim.get('nombre') or tel}"
-    add_hist(tel, nom_s, txt, "in")
-    threading.Thread(target=flujo,args=(tel,txt),daemon=True,name=f"sim{tel[-4:]}").start()
-    return jsonify({"status":"ok"}),200
+    if not s_sim.get("p"):
+        tel_up = tel.upper()
+        if "SIM_IMO" in tel_up or "SIM_GRAD" in tel_up:
+            tipo_sim = "IMO"
+            p_iny = {
+                "tipo":       tipo_sim,
+                "nombre":     "Gareth",
+                "apellido":   "Ramos Pérez",
+                "nombre_full":"Gareth Said Ramos Pérez",
+                "equipo":     "EQUIPO 26",
+                "imo_nombre": "Gareth Said Ramos Pérez",
+                "imo_tel":    tel,
+                "staff_key":  "dmoscoso",
+                "staff_tel":  STAFF["dmoscoso"]["tel"],
+                "staff_nom":  STAFF["dmoscoso"]["nombre"],
+                "pendientes": [
+                    "• Juan Carlos Soto García (EQUIPO 26)",
+                    "• María Fernanda López Ruiz (EQUIPO 25)",
+                    "• Carlos Alberto Mendoza (EQUIPO 26)",
+                ],
+            }
+        elif "SIM_PX" in tel_up:
+            p_iny = {
+                "tipo":       "PX",
+                "nombre":     "Kely",
+                "apellido":   "Arcce Rojas",
+                "nombre_full":"Kely Arcce Rojas",
+                "equipo":     "EQUIPO 26",
+                "imo_nombre": "Gareth Said Ramos Pérez",
+                "imo_tel":    "",
+                "staff_key":  "jmarin",
+                "staff_tel":  STAFF["jmarin"]["tel"],
+                "staff_nom":  STAFF["jmarin"]["nombre"],
+                "pendientes": [],
+            }
+        else:  # NUEVO o SIM_NEW
+            p_iny = {
+                "tipo":       "NUEVO",
+                "nombre":     None,
+                "nombre_full":"",
+                "staff_key":  None,
+                "staff_tel":  None,
+                "staff_nom":  None,
+                "pendientes": [],
+            }
+        # Intentar buscar en CSV si parece un número real
+        if not any(x in tel_up for x in ["SIM_IMO","SIM_PX","SIM_GRAD","SIM_NEW"]):
+            p_real = perfil_crm(tel)
+            if p_real.get("tipo") != "NUEVO":
+                p_iny = p_real
+        s_sim["p"]  = p_iny
+        s_sim["st"] = "MAIN"
+        set_s(tel, s_sim)
+
+    p_log = s_sim.get("p") or {}
+    nom_h = f"({p_log.get('tipo','SIM')}) {p_log.get('nombre_full') or p_log.get('nombre') or tel}"
+    add_hist(tel, nom_h, txt, "in")
+    threading.Thread(target=flujo, args=(tel, txt), daemon=True,
+                     name=f"sim{tel[-4:]}").start()
+    return jsonify({"status":"ok"}), 200
 
 @app.route("/status")
 def status():
