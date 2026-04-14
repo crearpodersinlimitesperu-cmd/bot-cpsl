@@ -416,6 +416,15 @@ def flujo(tel, texto):
 
         p  = s.get("p", {})
         p["_tel"] = tel
+        # Si el perfil no tiene staff asignado (sesión vieja), recalcular
+        if p.get("tipo") != "NUEVO" and not p.get("staff_tel"):
+            equipo = p.get("equipo","")
+            k = cc_por_equipo(equipo) if equipo else cc_libre()
+            p["staff_key"] = k
+            p["staff_tel"] = STAFF[k]["tel"]
+            p["staff_nom"] = STAFF[k]["nombre"]
+            s["p"] = p
+            set_s(tel, s)
         st = s.get("st","MAIN")
         sb = s.get("sb")  # sub-estado
 
@@ -882,6 +891,18 @@ def test_notif():
         "TEST"
     )
     return jsonify({"enviado":exito,"cc":nom,"tel":tel}), 200
+
+@app.route("/api/clear_sessions", methods=["POST"])
+def clear_sessions():
+    """Borra todas las sesiones para forzar re-identificación con datos actualizados."""
+    import glob
+    borradas = 0
+    for path in [Cfg.S_REAL, Cfg.S_SIM]:
+        if os.path.exists(path):
+            with open(path,"w") as f: json.dump({},f)
+            borradas += 1
+    logger.info(f"Sesiones borradas ({borradas} archivos)")
+    return jsonify({"ok":True,"archivos_borrados":borradas}), 200
 
 @app.route("/api/token_status")
 def token_status():
