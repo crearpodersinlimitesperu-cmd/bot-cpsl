@@ -428,6 +428,26 @@ def _scheduler():
         except Exception as e: log.error(f"scheduler: {e}")
         time.sleep(60)
 
+# ── SOLICITUD AUTOMÁTICA DE REPORTES A CCs ───────────────────
+HORA_REPORTE = os.environ.get("REPORTE_HORA","12:30")  # default 12:30pm
+
+def _scheduler_reportes():
+    """Solicita reporte diario a coordinadoras a la hora configurada."""
+    import requests as req2
+    BOT_URL = os.environ.get("BOT_URL","https://bot-cpsl.onrender.com")
+    while True:
+        try:
+            hora_actual = datetime.now(TZ_LIMA).strftime("%H:%M")
+            if hora_actual == HORA_REPORTE:
+                log.info(f"Solicitando reportes a coordinadoras ({HORA_REPORTE})")
+                req2.post(f"{BOT_URL}/api/solicitar_reporte",
+                         json={"cc":"todas"}, timeout=10)
+        except Exception as e:
+            log.error(f"scheduler_reportes: {e}")
+        time.sleep(60)
+
 if AUTO:
     threading.Thread(target=_scheduler, daemon=True, name="scheduler").start()
     log.info(f"Scheduler activo — seguimiento diario a {HORA_AUTO}")
+    threading.Thread(target=_scheduler_reportes, daemon=True, name="scheduler-reportes").start()
+    log.info(f"Scheduler reportes activo — solicitará reportes a las {HORA_REPORTE}")
