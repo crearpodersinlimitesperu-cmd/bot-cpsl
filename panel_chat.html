@@ -149,7 +149,6 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 
 <div class="layout">
 
-  <!-- SIDEBAR -->
   <div class="sidebar">
     <div class="search-wrap">
       <input type="text" id="searchInput" placeholder="Buscar nombre o teléfono..." oninput="renderLista()">
@@ -170,7 +169,6 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     <button class="new-chat-btn" onclick="abrirNuevoChat()">✏ Nuevo Chat</button>
   </div>
 
-  <!-- CHAT -->
   <div class="chat-area">
     <div class="chat-header" id="chatHeader">
       <div class="chat-empty" style="width:100%;justify-content:center;flex-direction:row;gap:8px">
@@ -189,7 +187,6 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     </div>
   </div>
 
-  <!-- PANEL DERECHO -->
   <div class="right-panel">
     <div class="rp-section">
       <div class="rp-title">Coordinadoras</div>
@@ -261,6 +258,15 @@ let tabActivo = 'todos';
 let telActivo = null;
 let syncTimer = null;
 
+// ✨ CORRECCIÓN 1: Función de seguridad para evitar inyección de código (XSS)
+function escaparHTML(texto) {
+  return String(texto).replace(/&/g, "&amp;")
+                      .replace(/</g, "&lt;")
+                      .replace(/>/g, "&gt;")
+                      .replace(/"/g, "&quot;")
+                      .replace(/'/g, "&#039;");
+}
+
 // ══════════════════════════════════════════════════════════════
 // PROCESAMIENTO DEL HISTORIAL
 // ══════════════════════════════════════════════════════════════
@@ -279,20 +285,15 @@ function procesarHistorial(data) {
     const c = convs[tel];
 
     // ── NOMBRE COMPLETO ─────────────────────────────────────
-    // El historial tiene nombre en formato "(TIPO) Nombre Apellido"
-    // Queremos el nombre COMPLETO sin el prefijo (TIPO)
     if(m.nombre) {
       const nom_raw = String(m.nombre);
-      // Quitar prefijo (TIPO)
       const nom_limpio = nom_raw.replace(/^\([^)]+\)\s*/, '').trim();
-      // Tomar el nombre más largo y descriptivo que encontremos
       if(nom_limpio.length > 3 &&
          !nom_limpio.includes('BOT') &&
          !nom_limpio.includes('SIS') &&
          !nom_limpio.includes('PANEL') &&
          !nom_limpio.includes('TEST') &&
          nom_limpio !== tel) {
-        // Preferir nombres con al menos 2 palabras (nombre + apellido)
         const palabras = nom_limpio.split(' ').filter(x=>x.length>1);
         if(palabras.length >= 2 || (palabras.length === 1 && c.nombre.split(' ').length < 2)) {
           if(nom_limpio.length > c.nombre.length || c.nombre === '') {
@@ -311,7 +312,7 @@ function procesarHistorial(data) {
           else if(t.includes('PX') || t.includes('REZAG') ||
                   t.includes('PROSP') || t.includes('PART'))    c.tipo = 'PX';
           else if(t.includes('NUEVO') || t.includes('PROSP'))   c.tipo = 'NUEVO';
-          else                                                    c.tipo = 'EXT';
+          else                                                  c.tipo = 'EXT';
           cambios = true;
         }
       }
@@ -333,7 +334,6 @@ function procesarHistorial(data) {
          txt.includes('entregado a tu coordinadora') ||
          txt.includes('Coordinación')) {
         c.estado = 'DERIVADO';
-        // Detectar a qué CC fue derivado
         for(const [nom, key] of Object.entries(CCS_MAP)) {
           if(txt.includes(nom) && nom.length > 3) {
             c.cc = key;
@@ -342,7 +342,6 @@ function procesarHistorial(data) {
         }
         cambios = true;
       }
-      // CONFIRMADO resetea el estado
       if(txt.includes('¡Confirmado')) {
         c.estado = 'CONFIRMADO';
         cambios = true;
@@ -439,11 +438,12 @@ function renderLista() {
     const unread_el  = c.unread>0?`<span class="conv-unread">${c.unread}</span>`:'';
     const der_el     = es_der?'<span class="conv-der-badge">Derivado</span>':'';
 
+    // ✨ CORRECCIÓN: escapar el HTML en el preview de la lista
     return `<div class="conv-item${activo}" onclick="abrirConv('${c.tel}')">
       <div class="conv-avatar ${tipo_c}">${ini}${badge_tipo}${badge_der}</div>
       <div class="conv-body">
         <div class="conv-nombre">${c.nombre||'+'+c.tel}${cc_tag}</div>
-        <div class="conv-preview${es_der?' der':''}">${es_der?'↗ Derivado — ':''} ${preview}</div>
+        <div class="conv-preview${es_der?' der':''}">${es_der?'↗ Derivado — ':''} ${escaparHTML(preview)}</div>
       </div>
       <div class="conv-meta">
         <span class="conv-hora">${(c.ts||'').replace(/\d{2}\/\d{2}\s/,'')}</span>
@@ -493,9 +493,10 @@ function renderMsgs(tel) {
     return;
   }
 
+  // ✨ CORRECCIÓN: escaparHTML antes de procesar negritas (*texto*) y saltos de línea (\n)
   el.innerHTML = c.msgs.map(m => `
     <div class="msg-wrap ${m.tipo}">
-      <div class="msg-bubble ${m.tipo}">${(m.texto||'').replace(/\*([^*]+)\*/g,'<b>$1</b>').replace(/\n/g,'<br>')}</div>
+      <div class="msg-bubble ${m.tipo}">${escaparHTML(m.texto||'').replace(/\*([^*]+)\*/g,'<b>$1</b>').replace(/\n/g,'<br>')}</div>
       <div class="msg-hora">${m.hora||''}</div>
     </div>
   `).join('');
@@ -507,6 +508,7 @@ function renderMsgs(tel) {
 // ══════════════════════════════════════════════════════════════
 // SYNC
 // ══════════════════════════════════════════════════════════════
+// ✨ CORRECCIÓN 2: Uso de setTimeout en vez de setInterval para evitar bloqueos del navegador
 async function sync() {
   try {
     const ctrl = new AbortController();
@@ -520,6 +522,9 @@ async function sync() {
     setOnline(true);
   } catch(e) {
     setOnline(false, e.message?.includes('abort')?'Timeout':'Sin conexión');
+  } finally {
+    // Vuelve a llamarse a sí mismo 7 segundos DESPUÉS de que termina la carga
+    syncTimer = setTimeout(sync, 7000);
   }
 }
 
@@ -533,8 +538,8 @@ function setOnline(ok, msg) {
 }
 
 function iniciarSync() {
-  sync();
-  syncTimer = setInterval(sync, 7000);
+  sync(); // Esto inicia el ciclo recursivo con setTimeout
+  
   // Sync carga CC cada 30s
   setInterval(syncCC, 30000);
   // Sync estado seguimiento cada 10s
@@ -546,7 +551,6 @@ async function syncCC() {
     const r = await fetch(BOT+'/api/carga_coordinadoras');
     if(!r.ok) return;
     const d = await r.json();
-    // No sobreescribir el contador de derivados — solo mostrar si hay datos del bot
   } catch(e) {}
 }
 
