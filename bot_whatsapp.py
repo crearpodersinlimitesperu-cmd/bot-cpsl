@@ -402,6 +402,168 @@ def notif_cc(p, motivo, extra=""):
         logger.error(f"notif_cc: wa() falló enviando a {tel_cc}")
     return nom_cc
 
+
+# ══════════════════════════════════════════════════════════════
+# FLUJO COORDINADORAS — cuando Diana/Joyce/Zuley escriben al bot
+# ══════════════════════════════════════════════════════════════
+
+# Teléfonos de coordinadoras (identificación)
+_CC_TELS = {
+    "51912379744": {"key":"dmoscoso","nombre":"Diana",  "nombre_full":"Diana Moscoso"},
+    "51933599903": {"key":"jmarin",  "nombre":"Joyce",  "nombre_full":"Joyce Marín"},
+    "51933599864": {"key":"zurteaga","nombre":"Zuley",  "nombre_full":"Zuley Urteaga"},
+    "51919502385": {"key":"lpasquel","nombre":"Leyla",  "nombre_full":"Leyla Pasquel"},
+    "51912379686": {"key":"lvalencia","nombre":"Linid", "nombre_full":"Linid Valencia"},
+}
+
+def _menu_cc(tel_cc, nom):
+    """Menú principal para coordinadoras."""
+    wa(tel_cc,
+       f"👋 Hola {nom}! Soy el asistente de Torre de Control CPSL.\n\n"
+       f"1️⃣ Enviar reporte del día\n"
+       f"2️⃣ Registrar confirmación de PX\n"
+       f"3️⃣ Reportar devolución\n"
+       f"4️⃣ Ver mis derivados pendientes\n"
+       f"0️⃣ Salir\n\n"
+       f"_Escribe el número de tu opción._",
+       f"SIS→{nom}")
+
+def _flujo_cc(tel, up, texto, cc_info):
+    """Maneja el flujo completo para coordinadoras."""
+    nom      = cc_info["nombre"]
+    nom_full = cc_info["nombre_full"]
+    cc_key   = cc_info["key"]
+    s        = get_s(tel) or {}
+    st       = s.get("st_cc","MAIN")
+    JOSE_TEL = "51919563284"  # José recibe copia de reportes
+
+    # Reset
+    if not s or up in {"HOLA","MENU","0","INICIO"}:
+        s = {"modo":"CC","cc_key":cc_key,"st_cc":"MAIN"}
+        set_s(tel, s)
+        _menu_cc(tel, nom)
+        return
+
+    if st == "MAIN":
+        if up == "1":
+            wa(tel,
+               f"📋 *Reporte del día — {nom_full}*\n\n"
+               f"Escribe tu reporte en este formato:\n"
+               f"✅ Confirmados: N\n"
+               f"🔀 Gestionando: N\n"
+               f"🛑 Devoluciones: N\n"
+               f"💬 Notas: texto libre\n\n"
+               f"_O escribe libremente y lo registro tal cual._",
+               f"SIS→{nom}")
+            s["st_cc"] = "ESPERANDO_REPORTE"
+            set_s(tel, s)
+
+        elif up == "2":
+            wa(tel,
+               f"Escribe el nombre del PX que confirmó asistencia al C1 E27\n\n"
+               f"_Ejemplo: Juan Pérez — equipo 26_\n\n"
+               f"9️⃣ Volver",
+               f"SIS→{nom}")
+            s["st_cc"] = "ESPERANDO_CONFIRMACION"
+            set_s(tel, s)
+
+        elif up == "3":
+            wa(tel,
+               f"Escribe los datos del PX que solicita devolución:\n\n"
+               f"_Ejemplo: María García — +51999888777 — monto S/250_\n\n"
+               f"9️⃣ Volver",
+               f"SIS→{nom}")
+            s["st_cc"] = "ESPERANDO_DEVOLUCION"
+            set_s(tel, s)
+
+        elif up == "4":
+            # Ver derivados pendientes de esta CC desde el historial
+            h = []
+            hist_path = Cfg.HIST
+            if os.path.exists(hist_path):
+                with open(hist_path, encoding="utf-8") as f:
+                    h = json.load(f)
+            # Buscar mensajes enviados a esta CC con "TORRE DE CONTROL"
+            notifs = [m for m in h
+                      if m.get("telefono") == tel
+                      and "TORRE DE CONTROL" in m.get("texto","")
+                      and "DERIVACIONES" not in m.get("texto","")]
+            if notifs:
+                lista = "\n".join([
+                    f"• [{m['hora']}] {m['texto'][m['texto'].find('Nombre:')+8:m['texto'].find('Tel:')-1].strip()}"
+                    for m in notifs[-5:]
+                    if 'Nombre:' in m.get('texto','')
+                ])
+                wa(tel,
+                   f"📋 *Tus últimas derivaciones recibidas:*\n\n{lista}\n\n"
+                   f"_Para ver el historial completo revisa la Torre de Control._\n\n"
+                   f"9️⃣ Volver",
+                   f"SIS→{nom}")
+            else:
+                wa(tel, f"No tienes derivaciones pendientes registradas.\n\n9️⃣ Volver", f"SIS→{nom}")
+
+        elif up in {"9","VOLVER"}:
+            s["st_cc"] = "MAIN"
+            set_s(tel, s)
+            _menu_cc(tel, nom)
+
+        else:
+            _menu_cc(tel, nom)
+
+    elif st == "ESPERANDO_REPORTE":
+        if up in {"9","VOLVER"}:
+            s["st_cc"] = "MAIN"; set_s(tel, s)
+            _menu_cc(tel, nom); return
+        # Guardar reporte
+        hora_s = ahora().strftime("%d/%m/%Y %H:%M:%S")
+        reg(tel, nom_full, "", texto, "REPORTE_CC", dir_="IN", staff=nom_full)
+        add_hist(tel, f"CC/{nom}", texto, "in")
+        wa(tel,
+           f"✅ Reporte registrado.\n\n"
+           f"_{hora_s}_\n\n"
+           f"0️⃣ Salir | 9️⃣ Menú",
+           f"SIS→{nom}")
+        # Notificar a José
+        wa(JOSE_TEL,
+           f"📊 *REPORTE CC — {nom_full}*\n"
+           f"_{hora_s}_\n\n"
+           f"{texto}",
+           f"SIS→JOSE")
+        s["st_cc"] = "MAIN"; set_s(tel, s)
+
+    elif st == "ESPERANDO_CONFIRMACION":
+        if up in {"9","VOLVER"}:
+            s["st_cc"] = "MAIN"; set_s(tel, s)
+            _menu_cc(tel, nom); return
+        hora_s = ahora().strftime("%d/%m/%Y %H:%M:%S")
+        reg(tel, nom_full, "", texto, "CONFIRMA_CC", dir_="IN", staff=nom_full)
+        add_hist(tel, f"CC/{nom}", texto, "in")
+        wa(tel,
+           f"✅ Confirmación registrada:\n_{texto}_\n\n"
+           f"0️⃣ Salir | 9️⃣ Menú",
+           f"SIS→{nom}")
+        wa(JOSE_TEL,
+           f"✅ *CONFIRMACIÓN registrada por {nom_full}:*\n{texto}\n_{hora_s}_",
+           f"SIS→JOSE")
+        s["st_cc"] = "MAIN"; set_s(tel, s)
+
+    elif st == "ESPERANDO_DEVOLUCION":
+        if up in {"9","VOLVER"}:
+            s["st_cc"] = "MAIN"; set_s(tel, s)
+            _menu_cc(tel, nom); return
+        hora_s = ahora().strftime("%d/%m/%Y %H:%M:%S")
+        reg(tel, nom_full, "", texto, "DEVOLUCION_CC", dir_="IN", staff=nom_full)
+        add_hist(tel, f"CC/{nom}", texto, "in")
+        wa(tel,
+           f"⚠️ Devolución registrada:\n_{texto}_\n\n"
+           f"0️⃣ Salir | 9️⃣ Menú",
+           f"SIS→{nom}")
+        wa(JOSE_TEL,
+           f"⚠️ *DEVOLUCIÓN reportada por {nom_full}:*\n{texto}\n_{hora_s}_",
+           f"SIS→JOSE")
+        s["st_cc"] = "MAIN"; set_s(tel, s)
+
+
 # ── FLUJO PRINCIPAL ───────────────────────────────────────────
 STOP_W  = {"STOP","BAJA","DETENER","NO MAS"}
 RESET_W = {"HOLA","MENU","MENÚ","0","INICIO","START","HI"}
@@ -421,11 +583,22 @@ def flujo(tel, texto):
 
         # ── Reset / primera vez ───────────────────────────────
         if not s or up in RESET_W:
+            # Coordinadora sin sesión → menú CC
+            if tel in _CC_TELS:
+                s = {"modo":"CC","cc_key":_CC_TELS[tel]["key"],"st_cc":"MAIN"}
+                set_s(tel, s)
+                _menu_cc(tel, _CC_TELS[tel]["nombre"])
+                return
             p = perfil_crm(tel)
             p["_tel"] = tel
             s = {"p": p, "st": "MAIN"}
             set_s(tel, s)
             _menu_main(tel, p)
+            return
+
+        # ── Detectar si es una Coordinadora ──────────────
+        if tel in _CC_TELS:
+            _flujo_cc(tel, up, texto, _CC_TELS[tel])
             return
 
         p  = s.get("p", {})
@@ -905,6 +1078,43 @@ def test_notif():
         "TEST"
     )
     return jsonify({"enviado":exito,"cc":nom,"tel":tel}), 200
+
+@app.route("/api/solicitar_reporte", methods=["POST"])
+def solicitar_reporte():
+    """
+    Solicita reporte a una o todas las coordinadoras.
+    POST {cc: 'dmoscoso'|'jmarin'|'zurteaga'|'todas'}
+    """
+    d    = request.json or {}
+    dest = d.get("cc","todas")
+    hora_s = ahora().strftime("%H:%M")
+
+    targets = []
+    if dest == "todas":
+        targets = list(STAFF.items())
+    elif dest in STAFF:
+        targets = [(dest, STAFF[dest])]
+    else:
+        return jsonify({"error": f"CC '{dest}' no encontrada"}), 400
+
+    enviados = []
+    for key, cc in targets:
+        # Solo Diana, Joyce, Zuley — las activas
+        if key not in ("dmoscoso","jmarin","zurteaga"): continue
+        ok = wa(cc["tel"],
+            f"📊 *Torre de Control — CPSL Lima*\n\n"
+            f"Hola {cc['nombre'].split()[0]}, por favor envía tu reporte del día:\n\n"
+            f"✅ Confirmados hoy: ?\n"
+            f"🔀 En gestión: ?\n"
+            f"🛑 Devoluciones: ?\n"
+            f"💬 Notas:\n\n"
+            f"_Responde este mensaje con los datos o escribe *HOLA* para ver el menú._",
+            f"SIS→JOSE"
+        )
+        enviados.append({"cc": cc["nombre"], "tel": cc["tel"], "enviado": ok})
+        logger.info(f"Solicitud de reporte enviada a {cc['nombre']}")
+
+    return jsonify({"ok": True, "enviados": enviados}), 200
 
 @app.route("/api/clear_sessions", methods=["POST"])
 def clear_sessions():
