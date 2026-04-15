@@ -1139,8 +1139,21 @@ async function sincronizarHistorial() {
         cambios = true;
       }
       // Marcar como DERIVADO si el bot envió mensaje de derivación
-      if(m.tipo==='out' && m.texto && m.texto.includes('Te derivo con')) {
-        c.estado = 'DERIVADO';
+      if(m.tipo==='out' && m.texto) {
+        const txt = m.texto;
+        if(txt.includes('Te derivo') || txt.includes('Derivado a') || 
+           txt.includes('derivo con') || txt.includes('DERIVADO') ||
+           txt.includes('✅ Mensaje entregado') || txt.includes('entregado a tu coordinadora')) {
+          c.estado = 'DERIVADO';
+          // Detectar qué CC
+          if(!c.cc_asignada) {
+            if(txt.includes('Diana'))  c.cc_asignada='Diana';
+            else if(txt.includes('Joyce'))  c.cc_asignada='Joyce';
+            else if(txt.includes('Zuley'))  c.cc_asignada='Zuley';
+            else if(txt.includes('Leyla'))  c.cc_asignada='Leyla';
+            else if(txt.includes('Linid'))  c.cc_asignada='Linid';
+          }
+        }
       }
       // Marcar confirmados
       if(m.tipo==='out' && m.texto && m.texto.includes('¡Confirmado')) {
@@ -1254,7 +1267,7 @@ function renderConvList() {
   // Stats
   document.getElementById('statTotal').textContent    = convs.length;
   document.getElementById('statUnread').textContent   = convs.filter(c=>c.unread>0).length;
-  document.getElementById('statDerivados').textContent= convs.filter(c=>c.estado==='DERIVADO'||c.estado==='DER').length;
+  document.getElementById('statDerivados').textContent= convs.filter(c=>c.estado==='DERIVADO'||c.estado==='DER'||c.estado==='RELAY').length;
 
   const el = document.getElementById('convList');
   if(!lista.length) {
