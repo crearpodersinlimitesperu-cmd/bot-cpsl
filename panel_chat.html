@@ -149,6 +149,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 
 <div class="layout">
 
+  <!-- SIDEBAR -->
   <div class="sidebar">
     <div class="search-wrap">
       <input type="text" id="searchInput" placeholder="Buscar nombre o teléfono..." oninput="renderLista()">
@@ -169,6 +170,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     <button class="new-chat-btn" onclick="abrirNuevoChat()">✏ Nuevo Chat</button>
   </div>
 
+  <!-- CHAT -->
   <div class="chat-area">
     <div class="chat-header" id="chatHeader">
       <div class="chat-empty" style="width:100%;justify-content:center;flex-direction:row;gap:8px">
@@ -187,6 +189,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     </div>
   </div>
 
+  <!-- PANEL DERECHO -->
   <div class="right-panel">
     <div class="rp-section">
       <div class="rp-title">Coordinadoras</div>
@@ -240,7 +243,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 // ══════════════════════════════════════════════════════════════
 // CONFIGURACIÓN
 // ══════════════════════════════════════════════════════════════
-const BOT = window.location.origin; // siempre el mismo origen
+const BOT = window.location.origin;
 const CCS_TELS = new Set(['51912379744','51933599903','51933599864','51919502385','51912379686']);
 const CCS_MAP  = {
   'Diana':  'dmoscoso', 'diana':'dmoscoso',
@@ -253,19 +256,10 @@ const CCS_MAP  = {
 // ══════════════════════════════════════════════════════════════
 // ESTADO
 // ══════════════════════════════════════════════════════════════
-let convs = {};        // tel → {tel, nombre, tipo, estado, cc, msgs, unread, ts}
+let convs = {};
 let tabActivo = 'todos';
 let telActivo = null;
 let syncTimer = null;
-
-// ✨ CORRECCIÓN 1: Función de seguridad para evitar inyección de código (XSS)
-function escaparHTML(texto) {
-  return String(texto).replace(/&/g, "&amp;")
-                      .replace(/</g, "&lt;")
-                      .replace(/>/g, "&gt;")
-                      .replace(/"/g, "&quot;")
-                      .replace(/'/g, "&#039;");
-}
 
 // ══════════════════════════════════════════════════════════════
 // PROCESAMIENTO DEL HISTORIAL
@@ -277,14 +271,12 @@ function procesarHistorial(data) {
     const tel = String(m.telefono||'');
     if(!tel || tel.startsWith('SIM_') || CCS_TELS.has(tel)) continue;
 
-    // Crear conv si no existe
     if(!convs[tel]) {
       convs[tel] = {tel, nombre:'', tipo:'?', estado:'', cc:'', msgs:[], unread:0, ts:''};
       cambios = true;
     }
     const c = convs[tel];
 
-    // ── NOMBRE COMPLETO ─────────────────────────────────────
     if(m.nombre) {
       const nom_raw = String(m.nombre);
       const nom_limpio = nom_raw.replace(/^\([^)]+\)\s*/, '').trim();
@@ -303,7 +295,6 @@ function procesarHistorial(data) {
         }
       }
 
-      // ── TIPO desde el prefijo ──────────────────────────────
       if(c.tipo === '?') {
         const prefix = nom_raw.match(/^\(([^)]+)\)/);
         if(prefix) {
@@ -312,20 +303,18 @@ function procesarHistorial(data) {
           else if(t.includes('PX') || t.includes('REZAG') ||
                   t.includes('PROSP') || t.includes('PART'))    c.tipo = 'PX';
           else if(t.includes('NUEVO') || t.includes('PROSP'))   c.tipo = 'NUEVO';
-          else                                                  c.tipo = 'EXT';
+          else                                                    c.tipo = 'EXT';
           cambios = true;
         }
       }
     }
 
-    // Si sigue sin tipo, el nombre sin prefijo da pistas
     if(c.tipo === '?' && c.nombre) {
       const n = c.nombre.toUpperCase();
       if(n.includes('IMO'))      { c.tipo = 'IMO'; cambios=true; }
       else if(n.includes('PX')) { c.tipo = 'PX';  cambios=true; }
     }
 
-    // ── ESTADO: DERIVADO ────────────────────────────────────
     if(m.tipo === 'out' && m.texto) {
       const txt = m.texto;
       if(txt.includes('Te derivo')       ||
@@ -348,7 +337,6 @@ function procesarHistorial(data) {
       }
     }
 
-    // ── MENSAJES ────────────────────────────────────────────
     const key = `${m.hora}|${m.tipo}|${(m.texto||'').substring(0,30)}`;
     const existe = c.msgs.some(x => x._key === key);
     if(!existe) {
@@ -393,10 +381,8 @@ function renderLista() {
     return mq && mt;
   });
 
-  // Ordenar: unread primero, luego por hora
   lista.sort((a,b) => (b.unread - a.unread) || (b.ts > a.ts ? 1 : -1));
 
-  // Stats
   const total = Object.keys(convs).length;
   const unread = Object.values(convs).filter(c=>c.unread>0).length;
   const der    = Object.values(convs).filter(c=>c.estado==='DERIVADO').length;
@@ -404,7 +390,6 @@ function renderLista() {
   document.getElementById('sUnread').textContent = unread;
   document.getElementById('sDer').textContent    = der;
 
-  // Carga por CC
   const carga = {};
   Object.values(convs).filter(c=>c.estado==='DERIVADO').forEach(c=>{
     if(c.cc) carga[c.cc] = (carga[c.cc]||0)+1;
@@ -417,7 +402,6 @@ function renderLista() {
     el.className   = 'cc-count ' + (n===0?'zero':'');
   });
 
-  // Renderizar items
   const el = document.getElementById('convList');
   if(!lista.length) {
     el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--txt3)">Sin resultados</div>';
@@ -438,12 +422,11 @@ function renderLista() {
     const unread_el  = c.unread>0?`<span class="conv-unread">${c.unread}</span>`:'';
     const der_el     = es_der?'<span class="conv-der-badge">Derivado</span>':'';
 
-    // ✨ CORRECCIÓN: escapar el HTML en el preview de la lista
     return `<div class="conv-item${activo}" onclick="abrirConv('${c.tel}')">
       <div class="conv-avatar ${tipo_c}">${ini}${badge_tipo}${badge_der}</div>
       <div class="conv-body">
         <div class="conv-nombre">${c.nombre||'+'+c.tel}${cc_tag}</div>
-        <div class="conv-preview${es_der?' der':''}">${es_der?'↗ Derivado — ':''} ${escaparHTML(preview)}</div>
+        <div class="conv-preview${es_der?' der':''}">${es_der?'↗ Derivado — ':''} ${preview}</div>
       </div>
       <div class="conv-meta">
         <span class="conv-hora">${(c.ts||'').replace(/\d{2}\/\d{2}\s/,'')}</span>
@@ -462,7 +445,6 @@ function abrirConv(tel) {
   if(!c) return;
   c.unread = 0;
 
-  // Header
   const es_der = c.estado==='DERIVADO';
   const cc_str = c.cc ? ` → ${c.cc}` : '';
   const tipo_str = c.tipo==='IMO'?'IMO — Líder':c.tipo==='PX'?'Prospecto C1':c.tipo;
@@ -478,7 +460,6 @@ function abrirConv(tel) {
     <a href="https://wa.me/${tel}" target="_blank" style="font-size:10px;color:var(--green);text-decoration:none">Abrir WA ↗</a>
   `;
 
-  // Mensajes
   renderMsgs(tel);
   renderLista();
 }
@@ -493,22 +474,19 @@ function renderMsgs(tel) {
     return;
   }
 
-  // ✨ CORRECCIÓN: escaparHTML antes de procesar negritas (*texto*) y saltos de línea (\n)
   el.innerHTML = c.msgs.map(m => `
     <div class="msg-wrap ${m.tipo}">
-      <div class="msg-bubble ${m.tipo}">${escaparHTML(m.texto||'').replace(/\*([^*]+)\*/g,'<b>$1</b>').replace(/\n/g,'<br>')}</div>
+      <div class="msg-bubble ${m.tipo}">${(m.texto||'').replace(/\*([^*]+)\*/g,'<b>$1</b>').replace(/\n/g,'<br>')}</div>
       <div class="msg-hora">${m.hora||''}</div>
     </div>
   `).join('');
 
-  // Scroll al final
   el.scrollTop = el.scrollHeight;
 }
 
 // ══════════════════════════════════════════════════════════════
 // SYNC
 // ══════════════════════════════════════════════════════════════
-// ✨ CORRECCIÓN 2: Uso de setTimeout en vez de setInterval para evitar bloqueos del navegador
 async function sync() {
   try {
     const ctrl = new AbortController();
@@ -522,9 +500,6 @@ async function sync() {
     setOnline(true);
   } catch(e) {
     setOnline(false, e.message?.includes('abort')?'Timeout':'Sin conexión');
-  } finally {
-    // Vuelve a llamarse a sí mismo 7 segundos DESPUÉS de que termina la carga
-    syncTimer = setTimeout(sync, 7000);
   }
 }
 
@@ -538,11 +513,9 @@ function setOnline(ok, msg) {
 }
 
 function iniciarSync() {
-  sync(); // Esto inicia el ciclo recursivo con setTimeout
-  
-  // Sync carga CC cada 30s
+  sync();
+  syncTimer = setInterval(sync, 7000);
   setInterval(syncCC, 30000);
-  // Sync estado seguimiento cada 10s
   setInterval(syncSeg, 10000);
 }
 
