@@ -2,1859 +2,738 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Torre de Control — CPSL Lima V108</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Torre de Control — CPSL Lima</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+:root{
+  --bg:#0f0f11;--bg2:#18181c;--bg3:#222228;--bg4:#2a2a32;
+  --border:#2e2e38;--border2:#3a3a46;
+  --txt:#f0f0f4;--txt2:#9090a0;--txt3:#606070;
+  --green:#1db97a;--green2:#0f6e46;--green3:#0a3d27;
+  --red:#e24b4a;--red3:#3d1515;
+  --orange:#ef9f27;--orange3:#3d2a0a;
+  --blue:#378add;--blue3:#0c2a40;
+  --purple:#8b7cf8;
+  --r:8px;--r2:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--txt);height:100vh;display:flex;flex-direction:column;overflow:hidden;font-size:13px}
 
-:root {
-  --verde:      #1D9E75;
-  --verde-clar: #E1F5EE;
-  --verde-osc:  #0F6E56;
-  --gris-bg:    #F0EFEB;
-  --gris-panel: #FAFAF8;
-  --gris-borde: #D3D1C7;
-  --gris-txt:   #5F5E5A;
-  --negro:      #1A1A18;
-  --blanco:     #FFFFFF;
-  --rojo:       #A32D2D;
-  --naranja:    #BA7517;
-  --azul:       #185FA5;
-  --morado:     #534AB7;
-  --burbuja-in: #FFFFFF;
-  --burbuja-out:#DCF8C6;
-  --sombra:     0 1px 3px rgba(0,0,0,.08);
-  --sombra-md:  0 4px 16px rgba(0,0,0,.10);
-}
+/* TOP BAR */
+.topbar{display:flex;align-items:center;gap:12px;padding:0 16px;height:44px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+.topbar-brand{font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--green);text-transform:uppercase}
+.topbar-ver{font-size:10px;color:var(--txt3);margin-left:4px}
+.topbar-spacer{flex:1}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--txt3);flex-shrink:0}
+.status-dot.online{background:var(--green);box-shadow:0 0 6px var(--green)}
+.status-txt{font-size:11px;color:var(--txt2)}
+.badge-live{background:var(--green3);color:var(--green);font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;border:1px solid var(--green2);letter-spacing:.06em}
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+/* LAYOUT */
+.layout{display:flex;flex:1;overflow:hidden}
 
-body {
-  font-family: 'DM Sans', sans-serif;
-  background: var(--gris-bg);
-  color: var(--negro);
-  height: 100vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
+/* SIDEBAR IZQUIERDO */
+.sidebar{width:300px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid var(--border);background:var(--bg2)}
+.search-wrap{padding:10px 12px;border-bottom:1px solid var(--border)}
+.search-wrap input{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);padding:7px 10px;color:var(--txt);font-size:12px;outline:none}
+.search-wrap input:focus{border-color:var(--blue)}
+.tabs{display:flex;padding:6px 8px;gap:4px;border-bottom:1px solid var(--border)}
+.tab{flex:1;text-align:center;padding:5px 4px;border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;color:var(--txt3);letter-spacing:.04em;text-transform:uppercase;transition:all .15s}
+.tab:hover{background:var(--bg3);color:var(--txt2)}
+.tab.active{background:var(--bg4);color:var(--txt)}
+.tab.active.t-der{color:var(--orange)}
+.tab.active.t-imo{color:var(--purple)}
+.tab.active.t-px{color:var(--blue)}
+.stats-bar{display:flex;padding:8px 12px;gap:6px;border-bottom:1px solid var(--border)}
+.stat{flex:1;text-align:center;background:var(--bg3);border-radius:6px;padding:6px 4px}
+.stat-n{font-size:16px;font-weight:700;line-height:1}
+.stat-l{font-size:9px;color:var(--txt3);margin-top:2px;text-transform:uppercase;letter-spacing:.04em}
+.stat-n.unread{color:var(--orange)}
+.stat-n.derivados{color:var(--red)}
+.conv-list{flex:1;overflow-y:auto;padding:6px}
+.conv-list::-webkit-scrollbar{width:4px}
+.conv-list::-webkit-scrollbar-track{background:transparent}
+.conv-list::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
 
-/* ── TOPBAR ─────────────────────────────────────── */
-.topbar {
-  height: 48px;
-  background: var(--negro);
-  display: flex;
-  align-items: center;
-  padding: 0 16px;
-  gap: 10px;
-  flex-shrink: 0;
-  z-index: 100;
-}
-.topbar-logo {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--verde);
-  letter-spacing: .5px;
-}
-.topbar-sep { flex: 1; }
-.topbar-badge {
-  font-size: 10px;
-  background: var(--verde);
-  color: #fff;
-  padding: 2px 8px;
-  border-radius: 20px;
-  font-weight: 600;
-}
-.topbar-online {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10px;
-  color: #888;
-}
-.online-dot {
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  background: var(--verde);
-  animation: pulse 2s infinite;
-}
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+/* CONV ITEM */
+.conv-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r);cursor:pointer;margin-bottom:2px;transition:background .12s;position:relative}
+.conv-item:hover{background:var(--bg3)}
+.conv-item.active{background:var(--bg4)}
+.conv-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;position:relative}
+.conv-avatar.imo{background:#2a2350;color:var(--purple)}
+.conv-avatar.px{background:#0c2236;color:var(--blue)}
+.conv-avatar.nuevo{background:#1a2a1a;color:var(--green)}
+.conv-avatar.ext{background:var(--bg3);color:var(--txt3)}
+.conv-avatar.cc{background:#1a3020;color:var(--green)}
+.tipo-badge{position:absolute;bottom:-2px;right:-2px;font-size:7px;font-weight:800;padding:1px 3px;border-radius:3px;text-transform:uppercase;letter-spacing:.03em}
+.tipo-badge.imo{background:var(--purple);color:#fff}
+.tipo-badge.px{background:var(--blue);color:#fff}
+.tipo-badge.der{background:var(--orange);color:#000}
+.tipo-badge.ok{background:var(--green);color:#000}
+.conv-body{flex:1;min-width:0}
+.conv-nombre{font-size:12px;font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conv-nombre .cc-tag{font-size:9px;color:var(--orange);margin-left:4px;font-weight:700}
+.conv-preview{font-size:11px;color:var(--txt3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.conv-preview.der{color:var(--orange)}
+.conv-meta{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
+.conv-hora{font-size:10px;color:var(--txt3)}
+.conv-unread{background:var(--orange);color:#000;font-size:9px;font-weight:800;padding:1px 5px;border-radius:8px;min-width:16px;text-align:center}
+.conv-der-badge{background:var(--orange3);color:var(--orange);font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;border:1px solid var(--orange)}
 
-/* ── LAYOUT PRINCIPAL ───────────────────────────── */
-.app {
-  display: grid;
-  grid-template-columns: 320px 1fr 260px;
-  flex: 1;
-  overflow: hidden;
-}
+/* ÁREA CENTRAL */
+.chat-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.chat-header{padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg2);display:flex;align-items:center;gap:10px;flex-shrink:0;min-height:52px}
+.chat-header-name{font-size:14px;font-weight:700}
+.chat-header-info{font-size:11px;color:var(--txt3)}
+.chat-header-cc{font-size:11px;color:var(--orange);margin-left:6px;font-weight:600}
+.chat-tel{font-size:10px;color:var(--txt3);margin-top:1px}
+.chat-header-spacer{flex:1}
+.btn-der-badge{background:var(--orange3);color:var(--orange);border:1px solid var(--orange);padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer}
+.chat-msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px}
+.chat-msgs::-webkit-scrollbar{width:4px}
+.chat-msgs::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.msg-wrap{display:flex;flex-direction:column;max-width:70%}
+.msg-wrap.out{align-self:flex-end;align-items:flex-end}
+.msg-wrap.in{align-self:flex-start}
+.msg-bubble{padding:8px 12px;border-radius:10px;font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.msg-bubble.out{background:var(--green3);color:var(--txt);border-bottom-right-radius:2px}
+.msg-bubble.in{background:var(--bg3);color:var(--txt);border-bottom-left-radius:2px}
+.msg-hora{font-size:9px;color:var(--txt3);margin-top:2px;padding:0 2px}
+.chat-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--txt3);gap:8px}
+.chat-empty-icon{font-size:32px;opacity:.3}
+.chat-input-wrap{padding:10px 12px;border-top:1px solid var(--border);background:var(--bg2);display:flex;gap:8px}
+.chat-input{flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);padding:8px 12px;color:var(--txt);font-size:12px;outline:none;resize:none;max-height:80px}
+.chat-input:focus{border-color:var(--green)}
+.btn-send{background:var(--green2);color:var(--green);border:none;border-radius:var(--r);padding:8px 14px;cursor:pointer;font-size:12px;font-weight:700;transition:all .15s}
+.btn-send:hover{background:var(--green);color:#000}
 
-/* ── SIDEBAR IZQUIERDA ──────────────────────────── */
-.sidebar {
-  border-right: 1px solid var(--gris-borde);
-  display: flex;
-  flex-direction: column;
-  background: var(--blanco);
-  overflow: hidden;
-}
-
-.sb-header {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--gris-borde);
-  flex-shrink: 0;
-}
-
-.sb-search {
-  display: flex;
-  align-items: center;
-  background: var(--gris-bg);
-  border-radius: 8px;
-  padding: 6px 10px;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-.sb-search input {
-  flex: 1;
-  border: none;
-  background: transparent;
-  font-family: inherit;
-  font-size: 13px;
-  color: var(--negro);
-  outline: none;
-}
-.sb-search input::placeholder { color: #b4b2a9; }
-
-.sb-tabs {
-  display: flex;
-  gap: 4px;
-}
-.sb-tab {
-  flex: 1;
-  text-align: center;
-  font-size: 11px;
-  font-weight: 500;
-  padding: 4px 0;
-  border-radius: 6px;
-  cursor: pointer;
-  color: var(--gris-txt);
-  background: transparent;
-  border: none;
-  font-family: inherit;
-}
-.sb-tab.on {
-  background: var(--verde-clar);
-  color: var(--verde-osc);
-  font-weight: 600;
-}
-
-.sb-stats {
-  display: grid;
-  grid-template-columns: repeat(3,1fr);
-  border-top: 1px solid var(--gris-borde);
-  border-bottom: 1px solid var(--gris-borde);
-  flex-shrink: 0;
-}
-.sb-stat {
-  text-align: center;
-  padding: 6px 2px;
-  border-right: 1px solid var(--gris-borde);
-}
-.sb-stat:last-child { border-right: none; }
-.sb-stat-n { font-size: 16px; font-weight: 700; }
-.sb-stat-l { font-size: 9px; color: var(--gris-txt); }
-
-.conv-list {
-  flex: 1;
-  overflow-y: auto;
-}
-.conv-list::-webkit-scrollbar { width: 4px; }
-.conv-list::-webkit-scrollbar-thumb { background: var(--gris-borde); border-radius: 2px; }
-
-.conv-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-bottom: 1px solid #f0efeb;
-  cursor: pointer;
-  transition: background .1s;
-}
-.conv-item:hover { background: #f8f8f5; }
-.conv-item.active {
-  background: var(--verde-clar);
-  border-left: 3px solid var(--verde);
-}
-
-.conv-avatar {
-  width: 38px; height: 38px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-.av-imo    { background: #FFF3E0; color: #E65100; }
-.av-px     { background: var(--verde-clar); color: var(--verde-osc); }
-.av-nuevo  { background: #EDE7F6; color: #4527A0; }
-.av-ext    { background: #E3F2FD; color: #0D47A1; }
-
-.conv-body { flex: 1; min-width: 0; }
-.conv-name {
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.conv-prev {
-  font-size: 12px;
-  color: var(--gris-txt);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-top: 1px;
-}
-.conv-meta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
-  flex-shrink: 0;
-}
-.conv-time { font-size: 10px; color: var(--gris-txt); }
-.conv-badge {
-  width: 17px; height: 17px;
-  border-radius: 50%;
-  background: var(--verde);
-  color: #fff;
-  font-size: 9px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.tipo-badge {
-  font-size: 9px;
-  padding: 1px 5px;
-  border-radius: 10px;
-  font-weight: 600;
-}
-.tb-imo    { background:#FFF3E0; color:#E65100; }
-.tb-px     { background:var(--verde-clar); color:var(--verde-osc); }
-.tb-nuevo  { background:#EDE7F6; color:#4527A0; }
-.tb-derivado { background:#FFEBEE; color:#C62828; }
-.tb-ext    { background:#E3F2FD; color:#0D47A1; }
-
-.new-chat-btn {
-  margin: 10px 12px;
-  padding: 8px;
-  border: 1.5px dashed var(--gris-borde);
-  border-radius: 8px;
-  background: transparent;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 12px;
-  color: var(--gris-txt);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  transition: all .15s;
-  flex-shrink: 0;
-}
-.new-chat-btn:hover {
-  border-color: var(--verde);
-  color: var(--verde);
-  background: var(--verde-clar);
-}
-
-/* ── CHAT CENTRAL ───────────────────────────────── */
-.chat-area {
-  display: flex;
-  flex-direction: column;
-  background: #EAE7DC url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 40L40 0H30L0 30M40 40V30L10 40' fill='%23d5d2c8' opacity='.3'/%3E%3C/svg%3E");
-  overflow: hidden;
-}
-
-.chat-header {
-  background: #F0EFEB;
-  border-bottom: 1px solid var(--gris-borde);
-  padding: 8px 14px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-  box-shadow: var(--sombra);
-}
-.chat-header-info { flex: 1; min-width: 0; }
-.chat-header-name {
-  font-size: 14px;
-  font-weight: 600;
-}
-.chat-header-sub {
-  font-size: 11px;
-  color: var(--gris-txt);
-  margin-top: 1px;
-}
-.chat-header-actions {
-  display: flex;
-  gap: 4px;
-}
-.ch-btn {
-  padding: 4px 8px;
-  border: 1px solid var(--gris-borde);
-  border-radius: 6px;
-  background: transparent;
-  font-family: inherit;
-  font-size: 10px;
-  color: var(--gris-txt);
-  cursor: pointer;
-  white-space: nowrap;
-}
-.ch-btn:hover { background: var(--blanco); }
-.ch-btn.primary {
-  background: var(--verde);
-  color: #fff;
-  border-color: var(--verde);
-}
-.ch-btn.primary:hover { background: var(--verde-osc); }
-
-.chat-empty {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  color: var(--gris-txt);
-}
-.chat-empty-icon {
-  width: 64px; height: 64px;
-  border-radius: 50%;
-  background: rgba(255,255,255,.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
-}
-
-.messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.messages::-webkit-scrollbar { width: 4px; }
-.messages::-webkit-scrollbar-thumb { background: rgba(0,0,0,.15); border-radius: 2px; }
-
-.msg {
-  display: flex;
-  flex-direction: column;
-  max-width: 72%;
-}
-.msg.in  { align-self: flex-start; }
-.msg.out { align-self: flex-end; }
-.msg.system { align-self: center; max-width: 80%; }
-
-.bubble {
-  padding: 7px 10px;
-  border-radius: 8px;
-  font-size: 13px;
-  line-height: 1.45;
-  word-break: break-word;
-  position: relative;
-  box-shadow: 0 1px 2px rgba(0,0,0,.12);
-}
-.msg.in  .bubble {
-  background: var(--burbuja-in);
-  border-radius: 0 8px 8px 8px;
-}
-.msg.out .bubble {
-  background: var(--burbuja-out);
-  border-radius: 8px 0 8px 8px;
-}
-.msg.system .bubble {
-  background: rgba(255,255,255,.7);
-  border-radius: 8px;
-  font-size: 11px;
-  color: var(--gris-txt);
-  text-align: center;
-}
-
-.msg-meta {
-  font-size: 10px;
-  color: var(--gris-txt);
-  margin-top: 2px;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
-.msg.out .msg-meta { justify-content: flex-end; }
-.check-double { color: var(--azul); }
-
-.date-sep {
-  text-align: center;
-  font-size: 10px;
-  color: var(--gris-txt);
-  padding: 8px 0 4px;
-  flex-shrink: 0;
-}
-
-/* ── INPUT ──────────────────────────────────────── */
-.chat-input-area {
-  background: #F0EFEB;
-  border-top: 1px solid var(--gris-borde);
-  padding: 8px 12px 10px;
-  flex-shrink: 0;
-}
-
-.quick-replies {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-  margin-bottom: 7px;
-}
-.qr-chip {
-  font-size: 11px;
-  padding: 3px 9px;
-  border-radius: 20px;
-  border: 1px solid var(--gris-borde);
-  background: var(--blanco);
-  cursor: pointer;
-  font-family: inherit;
-  color: var(--gris-txt);
-  white-space: nowrap;
-}
-.qr-chip:hover { background: var(--verde-clar); border-color: var(--verde); color: var(--verde); }
-
-.input-row {
-  display: flex;
-  gap: 8px;
-  align-items: flex-end;
-}
-.msg-input {
-  flex: 1;
-  padding: 8px 12px;
-  border-radius: 22px;
-  border: none;
-  background: var(--blanco);
-  font-family: inherit;
-  font-size: 13px;
-  resize: none;
-  outline: none;
-  min-height: 36px;
-  max-height: 100px;
-  line-height: 1.4;
-  box-shadow: var(--sombra);
-}
-.send-btn {
-  width: 36px; height: 36px;
-  border-radius: 50%;
-  border: none;
-  background: var(--verde);
-  color: #fff;
-  font-size: 16px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: background .15s;
-}
-.send-btn:hover { background: var(--verde-osc); }
-.send-btn:disabled { background: #9FE1CB; cursor: not-allowed; }
-
-/* ── SIDEBAR DERECHA ────────────────────────────── */
-.sidebar-right {
-  border-left: 1px solid var(--gris-borde);
-  display: flex;
-  flex-direction: column;
-  background: var(--blanco);
-  overflow-y: auto;
-  font-size: 12px;
-}
-.sidebar-right::-webkit-scrollbar { width: 3px; }
-.sidebar-right::-webkit-scrollbar-thumb { background: var(--gris-borde); }
-
-.panel-section {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--gris-borde);
-}
-.panel-section-title {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .5px;
-  color: var(--gris-txt);
-  margin-bottom: 8px;
-}
-
-/* Coordinadoras */
-.cc-card {
-  padding: 7px 0;
-  border-bottom: 1px solid #f0efeb;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.cc-card:last-child { border-bottom: none; }
-.cc-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.cc-info { flex: 1; min-width: 0; }
-.cc-name {
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.cc-casos {
-  font-size: 10px;
-  color: var(--gris-txt);
-}
-.cc-num {
-  font-size: 15px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-/* Campañas */
-.camp-item {
-  padding: 6px 0;
-  border-bottom: 1px solid #f0efeb;
-}
-.camp-item:last-child { border-bottom: none; }
-.camp-name { font-size: 11px; font-weight: 600; }
-.camp-sub  { font-size: 10px; color: var(--gris-txt); }
-.camp-bar  {
-  height: 4px;
-  background: var(--gris-borde);
-  border-radius: 2px;
-  margin-top: 4px;
-  overflow: hidden;
-}
-.camp-bar-fill {
-  height: 100%;
-  background: var(--verde);
-  border-radius: 2px;
-  transition: width .5s;
-}
-
-/* Perfil del contacto activo */
-.perfil-field {
-  margin-bottom: 6px;
-}
-.perfil-label {
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: .4px;
-  color: var(--gris-txt);
-  margin-bottom: 1px;
-}
-.perfil-val {
-  font-size: 11px;
-  font-weight: 500;
-  word-break: break-word;
-}
-
-/* ── MODALES ─────────────────────────────────────── */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 500;
-}
-.modal {
-  background: var(--blanco);
-  border-radius: 12px;
-  padding: 22px 24px;
-  width: 420px;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: var(--sombra-md);
-}
-.modal h3 { font-size: 15px; margin-bottom: 4px; }
-.modal .sub { font-size: 11px; color: var(--gris-txt); margin-bottom: 16px; }
-.field { margin-bottom: 12px; }
-.field label {
-  display: block;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .4px;
-  color: var(--gris-txt);
-  margin-bottom: 3px;
-}
-.field input, .field select {
-  width: 100%;
-  padding: 7px 10px;
-  border: 1px solid var(--gris-borde);
-  border-radius: 7px;
-  font-family: inherit;
-  font-size: 13px;
-  outline: none;
-  background: var(--gris-panel);
-}
-.field input:focus, .field select:focus {
-  border-color: var(--verde);
-  background: var(--blanco);
-}
-.modal-btns {
-  display: flex;
-  gap: 8px;
-  margin-top: 4px;
-}
-.btn {
-  flex: 1;
-  padding: 8px;
-  border-radius: 7px;
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid var(--gris-borde);
-  background: transparent;
-  color: var(--gris-txt);
-}
-.btn.primary {
-  background: var(--verde);
-  color: #fff;
-  border-color: var(--verde);
-}
-.btn.primary:hover { background: var(--verde-osc); }
-
-/* ── SIMULADOR ────────────────────────────────────── */
-.sim-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 600;
-}
-.sim-box {
-  background: var(--blanco);
-  border-radius: 14px;
-  width: 380px;
-  max-height: 85vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  box-shadow: var(--sombra-md);
-}
-.sim-header {
-  background: var(--verde);
-  padding: 12px 14px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #fff;
-  font-weight: 600;
-  font-size: 13px;
-  flex-shrink: 0;
-}
-.sim-messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 10px 12px;
-  background: #EAE7DC;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-height: 300px;
-}
-.sim-input-row {
-  display: flex;
-  gap: 6px;
-  padding: 8px 10px;
-  background: var(--blanco);
-  border-top: 1px solid var(--gris-borde);
-  flex-shrink: 0;
-}
-.sim-input {
-  flex: 1;
-  padding: 6px 10px;
-  border: 1px solid var(--gris-borde);
-  border-radius: 20px;
-  font-family: inherit;
-  font-size: 12px;
-  outline: none;
-}
-.sim-send {
-  padding: 6px 12px;
-  background: var(--verde);
-  color: #fff;
-  border: none;
-  border-radius: 20px;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-/* ── NOTIF TOAST ─────────────────────────────────── */
-.toast-container {
-  position: fixed;
-  bottom: 16px;
-  right: 16px;
-  z-index: 999;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.toast {
-  background: var(--negro);
-  color: #fff;
-  padding: 8px 14px;
-  border-radius: 8px;
-  font-size: 12px;
-  box-shadow: var(--sombra-md);
-  animation: slideIn .2s ease;
-  max-width: 280px;
-}
-.toast.ok    { border-left: 3px solid var(--verde); }
-.toast.error { border-left: 3px solid var(--rojo); }
-@keyframes slideIn { from{transform:translateX(20px);opacity:0} to{transform:none;opacity:1} }
-
-/* ── SPINNER ─────────────────────────────────────── */
-.spinner {
-  width: 20px; height: 20px;
-  border: 2px solid var(--gris-borde);
-  border-top-color: var(--verde);
-  border-radius: 50%;
-  animation: spin .7s linear infinite;
-  margin: auto;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
+/* PANEL DERECHO */
+.right-panel{width:240px;flex-shrink:0;border-left:1px solid var(--border);background:var(--bg2);display:flex;flex-direction:column;overflow-y:auto;padding:12px}
+.right-panel::-webkit-scrollbar{width:4px}
+.right-panel::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.rp-section{margin-bottom:16px}
+.rp-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--txt3);margin-bottom:8px}
+.cc-item{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:var(--r);background:var(--bg3);margin-bottom:4px}
+.cc-dot{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0}
+.cc-nombre{font-size:11px;font-weight:600;flex:1}
+.cc-count{font-size:10px;font-weight:700;color:var(--orange);background:var(--orange3);padding:1px 6px;border-radius:10px}
+.cc-count.zero{color:var(--txt3);background:var(--bg4)}
+.seg-mode{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);padding:6px 8px;color:var(--txt);font-size:11px;margin-bottom:6px;outline:none}
+.btn-row{display:flex;gap:5px;margin-bottom:4px}
+.btn-seg{flex:1;padding:6px;border-radius:var(--r);font-size:10px;font-weight:700;cursor:pointer;border:1px solid var(--border2);background:var(--bg3);color:var(--txt2);transition:all .15s}
+.btn-seg:hover{background:var(--bg4);color:var(--txt)}
+.btn-seg.primary{background:var(--green2);color:var(--green);border-color:var(--green2)}
+.btn-seg.primary:hover{background:var(--green);color:#000}
+.btn-seg.warn{color:var(--orange)}
+.btn-seg.danger{color:var(--red)}
+.seg-status{font-size:10px;color:var(--txt3);padding:4px 0;min-height:16px}
+.seg-status.running{color:var(--green)}
+.new-chat-btn{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);padding:8px;color:var(--txt2);font-size:11px;cursor:pointer;text-align:left;transition:all .15s;margin-top:auto}
+.new-chat-btn:hover{background:var(--bg4);color:var(--txt)}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--bg4);border:1px solid var(--border2);color:var(--txt);padding:8px 16px;border-radius:var(--r);font-size:12px;z-index:999;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+.toast.ok{border-color:var(--green);color:var(--green)}
+.toast.err{border-color:var(--red);color:var(--red)}
 </style>
 </head>
 <body>
 
-<!-- TOPBAR -->
 <div class="topbar">
-  <span class="topbar-logo">⚡ TORRE DE CONTROL</span>
-  <span style="font-size:10px;color:#555;font-family:'DM Mono',monospace">CPSL LIMA — V108</span>
-  <span class="topbar-sep"></span>
-  <div class="topbar-online">
-    <div class="online-dot" id="onlineDot"></div>
-    <span id="onlineTxt">Conectando…</span>
-  </div>
-  <span class="topbar-badge" id="syncBadge">SYNC</span>
-  <button class="btn" style="padding:3px 8px;font-size:10px;margin-left:6px" onclick="abrirCfg()">⚙ Config</button>
-  <button class="btn primary" style="padding:3px 8px;font-size:10px" onclick="abrirSim()">🧪 Simular</button>
+  <span class="topbar-brand">⚡ Torre de Control</span>
+  <span class="topbar-ver">CPSL Lima — V110</span>
+  <div class="topbar-spacer"></div>
+  <div class="status-dot" id="statusDot"></div>
+  <span class="status-txt" id="statusTxt">Conectando...</span>
+  <span class="badge-live" id="liveBadge" style="display:none">LIVE</span>
 </div>
 
-<!-- APP -->
-<div class="app" id="app">
+<div class="layout">
 
-  <!-- SIDEBAR IZQUIERDA -->
+  <!-- SIDEBAR -->
   <div class="sidebar">
-    <div class="sb-header">
-      <div class="sb-search">
-        <span style="font-size:13px">🔍</span>
-        <input type="text" id="searchInput" placeholder="Buscar nombre o teléfono…" oninput="renderConvList()">
-      </div>
-      <div class="sb-tabs">
-        <button class="sb-tab on" data-tab="todos" onclick="setTab(this)">Todos</button>
-        <button class="sb-tab" data-tab="imo" onclick="setTab(this)">IMO</button>
-        <button class="sb-tab" data-tab="px" onclick="setTab(this)">PX</button>
-        <button class="sb-tab" data-tab="derivado" onclick="setTab(this)">Derivados</button>
-        <button class="sb-tab" data-tab="nuevo" onclick="setTab(this)">Nuevos</button>
-      </div>
+    <div class="search-wrap">
+      <input type="text" id="searchInput" placeholder="Buscar nombre o teléfono..." oninput="renderLista()">
     </div>
-
-    <div class="sb-stats">
-      <div class="sb-stat">
-        <div class="sb-stat-n" id="statTotal">0</div>
-        <div class="sb-stat-l">Total</div>
-      </div>
-      <div class="sb-stat">
-        <div class="sb-stat-n" id="statUnread" style="color:var(--verde)">0</div>
-        <div class="sb-stat-l">No leídos</div>
-      </div>
-      <div class="sb-stat">
-        <div class="sb-stat-n" id="statDerivados" style="color:var(--naranja)">0</div>
-        <div class="sb-stat-l">Derivados</div>
-      </div>
+    <div class="tabs">
+      <div class="tab active" data-tab="todos" onclick="setTab('todos',this)">Todos</div>
+      <div class="tab t-imo" data-tab="imo" onclick="setTab('imo',this)">IMO</div>
+      <div class="tab t-px" data-tab="px" onclick="setTab('px',this)">PX</div>
+      <div class="tab t-der" data-tab="der" onclick="setTab('der',this)">Derivados</div>
+      <div class="tab" data-tab="nuevo" onclick="setTab('nuevo',this)">Nuevos</div>
     </div>
-
+    <div class="stats-bar">
+      <div class="stat"><div class="stat-n" id="sTotal">0</div><div class="stat-l">Total</div></div>
+      <div class="stat"><div class="stat-n unread" id="sUnread">0</div><div class="stat-l">No leídos</div></div>
+      <div class="stat"><div class="stat-n derivados" id="sDer">0</div><div class="stat-l">Derivados</div></div>
+    </div>
     <div class="conv-list" id="convList"></div>
-
-    <button class="new-chat-btn" onclick="abrirNuevoChat()">
-      ✏️ Nuevo Chat
-    </button>
+    <button class="new-chat-btn" onclick="abrirNuevoChat()">✏ Nuevo Chat</button>
   </div>
 
-  <!-- CHAT CENTRAL -->
-  <div class="chat-area" id="chatArea">
-    <div class="chat-empty" id="chatEmpty">
-      <div class="chat-empty-icon">💬</div>
-      <span style="font-size:13px;font-weight:500">Selecciona una conversación</span>
-      <span style="font-size:11px;color:#b4b2a9">Torre de Control activa — sincronización en tiempo real</span>
+  <!-- CHAT -->
+  <div class="chat-area">
+    <div class="chat-header" id="chatHeader">
+      <div class="chat-empty" style="width:100%;justify-content:center;flex-direction:row;gap:8px">
+        <span style="color:var(--txt3);font-size:12px">Selecciona una conversación</span>
+      </div>
+    </div>
+    <div class="chat-msgs" id="chatMsgs">
+      <div class="chat-empty">
+        <div class="chat-empty-icon">💬</div>
+        <span style="font-size:12px">Torre de Control activa</span>
+      </div>
+    </div>
+    <div class="chat-input-wrap">
+      <textarea class="chat-input" id="chatInput" rows="1" placeholder="Escribe un mensaje..." onkeydown="keyEnter(event)"></textarea>
+      <button class="btn-send" onclick="enviarMsg()">Enviar</button>
     </div>
   </div>
 
-  <!-- SIDEBAR DERECHA -->
-  <div class="sidebar-right">
-
-    <!-- Coordinadoras -->
-    <div class="panel-section">
-      <div class="panel-section-title">Coordinadoras</div>
-      <div id="ccCards">
-        <div class="spinner"></div>
+  <!-- PANEL DERECHO -->
+  <div class="right-panel">
+    <div class="rp-section">
+      <div class="rp-title">Coordinadoras</div>
+      <div id="ccList">
+        <div class="cc-item"><div class="cc-dot"></div><span class="cc-nombre">Diana Moscoso</span><span class="cc-count zero" id="cc-dmoscoso">0</span></div>
+        <div class="cc-item"><div class="cc-dot"></div><span class="cc-nombre">Joyce Marín</span><span class="cc-count zero" id="cc-jmarin">0</span></div>
+        <div class="cc-item"><div class="cc-dot"></div><span class="cc-nombre">Zuley Urteaga</span><span class="cc-count zero" id="cc-zurteaga">0</span></div>
+        <div class="cc-item"><div class="cc-dot"></div><span class="cc-nombre">Leyla Pasquel</span><span class="cc-count zero" id="cc-lpasquel">0</span></div>
+        <div class="cc-item"><div class="cc-dot"></div><span class="cc-nombre">Linid Valencia</span><span class="cc-count zero" id="cc-lvalencia">0</span></div>
       </div>
     </div>
 
-    <!-- Campañas activas -->
-    <div class="panel-section">
-      <div class="panel-section-title">Campañas Activas</div>
-      <div class="camp-item">
-        <div class="camp-name">🚀 PX Rezagados C1 E27</div>
-        <div class="camp-sub" id="campPxSub">259 enviados · E25+E26</div>
-        <div class="camp-bar"><div class="camp-bar-fill" id="campPxBar" style="width:36%"></div></div>
+    <div class="rp-section">
+      <div class="rp-title">Seguimiento Autónomo</div>
+      <div class="seg-status" id="segStatus">Listo para iniciar</div>
+      <select class="seg-mode" id="segMode">
+        <option value="ambos">IMOs + PX</option>
+        <option value="imos">Solo IMOs</option>
+        <option value="px">Solo PX</option>
+      </select>
+      <div class="btn-row">
+        <button class="btn-seg primary" onclick="iniciarSeg()">▶ Iniciar</button>
+        <button class="btn-seg" onclick="verLog()">📋 Log</button>
       </div>
-      <div class="camp-item">
-        <div class="camp-name">👑 IMOs C1 E27</div>
-        <div class="camp-sub" id="campImoSub">279 IMOs · pendiente</div>
-        <div class="camp-bar"><div class="camp-bar-fill" id="campImoBar" style="width:0%;background:var(--naranja)"></div></div>
+      <div class="btn-row">
+        <button class="btn-seg warn" onclick="sinRespuesta()">🔍 Sin resp.</button>
+        <button class="btn-seg danger" onclick="reenviar()">↩ Reenviar</button>
       </div>
-      <div class="camp-item">
-        <div class="camp-name">📣 Campaña inicial IMOs</div>
-        <div class="camp-sub">282 enviados · completada</div>
-        <div class="camp-bar"><div class="camp-bar-fill" style="width:100%;background:var(--azul)"></div></div>
-      </div>
-    </div>
-
-    <!-- Worker Seguimiento -->
-    <div class="panel-section" id="segPanel">
-      <div class="panel-section-title">Seguimiento Autónomo</div>
-      <div id="segStatus" style="font-size:11px;color:var(--gris-txt);margin-bottom:8px">Cargando...</div>
-      <button class="btn" style="width:100%;font-size:10px;padding:3px;margin-bottom:6px;color:var(--azul)" onclick="testNotif()">🧪 Test notificación a CC</button>
-      <button class="btn" style="width:100%;font-size:10px;padding:3px;margin-bottom:6px" onclick="verTokenStatus()">🔑 Ver estado del token WA</button>
-      <div style="margin-bottom:6px">
-        <div style="font-size:10px;color:var(--gris-txt);margin-bottom:3px">Modo:</div>
-        <select id="segModo" style="width:100%;font-size:11px;padding:4px;border:1px solid var(--gris-borde);border-radius:6px;font-family:inherit">
-          <option value="ambos">IMOs + PX</option>
-          <option value="imos">Solo IMOs</option>
-          <option value="px">Solo PX (E25/E26)</option>
-        </select>
-      </div>
-      <div style="display:flex;gap:4px;margin-bottom:4px">
-        <button class="btn primary" style="flex:1;font-size:11px;padding:5px" onclick="iniciarSeguimiento()">▶ Iniciar</button>
-        <button class="btn" style="flex:1;font-size:11px;padding:5px" onclick="verLogSeg()">📋 Log</button>
-      </div>
-      <div style="display:flex;gap:4px;margin-bottom:6px">
-        <button class="btn" style="flex:1;font-size:11px;padding:5px;color:var(--naranja)" onclick="detectarSinRespuesta()">👁 Sin resp.</button>
-        <button class="btn" style="flex:1;font-size:11px;padding:5px;color:var(--verde)" onclick="iniciarReenvio()">🔄 Reenviar</button>
-      </div>
-      <div id="segProgreso" style="display:none">
-        <div class="camp-bar" style="margin-bottom:4px">
-          <div class="camp-bar-fill" id="segBarFill" style="width:0%"></div>
-        </div>
-        <div id="segUltimo" style="font-size:10px;color:var(--gris-txt)"></div>
+      <div class="btn-row" style="margin-top:4px">
+        <button class="btn-seg" style="color:var(--purple)" onclick="solicitarReportes()">📊 Pedir Reportes</button>
       </div>
     </div>
 
-    <!-- Perfil activo -->
-    <div class="panel-section" id="perfilPanel">
-      <div class="panel-section-title">Perfil Activo</div>
-      <div style="color:var(--gris-txt);font-size:11px">Selecciona una conversación</div>
+    <div class="rp-section">
+      <div class="rp-title">Diagnóstico</div>
+      <div class="btn-row">
+        <button class="btn-seg" onclick="testToken()">🔑 Token</button>
+        <button class="btn-seg warn" onclick="testNotif()">🧪 Test CC</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn-seg danger" onclick="limpiarSesiones()">🗑 Limpiar sesiones</button>
+      </div>
     </div>
-
   </div>
+
 </div>
 
-<!-- MODAL CONFIG -->
-<div class="modal-overlay" id="cfgOverlay" style="display:none">
-  <div class="modal">
-    <h3>Configuración de Conexión</h3>
-    <p class="sub">Los datos se guardan solo en tu navegador.</p>
-    <div class="field">
-      <label>URL del Bot (Render)</label>
-      <input id="cfgUrl" placeholder="https://bot-cpsl.onrender.com" value="https://bot-cpsl.onrender.com">
-    </div>
-    <div class="field">
-      <label>WA Token</label>
-      <input id="cfgToken" type="password" placeholder="EAAxxxxxxx">
-    </div>
-    <div class="field">
-      <label>WA Phone Number ID</label>
-      <input id="cfgPhoneId" placeholder="1085205258006361" value="1085205258006361">
-    </div>
-    <div class="modal-btns">
-      <button class="btn" onclick="cerrarCfg()">Cancelar</button>
-      <button class="btn primary" onclick="guardarCfg()">Guardar y Conectar</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL NUEVO CHAT -->
-<div class="modal-overlay" id="nuevoOverlay" style="display:none">
-  <div class="modal" style="width:360px">
-    <h3>Nuevo Chat</h3>
-    <p class="sub">Inicia una conversación outbound directa.</p>
-    <div class="field">
-      <label>Teléfono (con código de país)</label>
-      <input id="nuevoTel" type="tel" placeholder="51987654321">
-    </div>
-    <div class="field">
-      <label>Nombre (opcional)</label>
-      <input id="nuevoNombre" placeholder="Nombre del contacto">
-    </div>
-    <div class="field">
-      <label>Primer mensaje</label>
-      <input id="nuevoMsg" placeholder="Escribe el mensaje inicial…">
-    </div>
-    <div class="modal-btns">
-      <button class="btn" onclick="cerrarNuevo()">Cancelar</button>
-      <button class="btn primary" onclick="iniciarNuevoChat()">Iniciar Chat</button>
-    </div>
-  </div>
-</div>
-
-<!-- SIMULADOR -->
-<div class="sim-overlay" id="simOverlay" style="display:none">
-  <div class="sim-box" style="width:420px">
-
-    <!-- Header -->
-    <div class="sim-header" style="flex-direction:column;align-items:stretch;gap:8px;padding:12px 14px">
-      <div style="display:flex;align-items:center;gap:8px">
-        <span>🧪 Simulador de Bot</span>
-        <span style="flex:1"></span>
-        <div id="simStatusDot" style="width:7px;height:7px;border-radius:50%;background:#9FE1CB;flex-shrink:0"></div>
-        <span id="simStatusTxt" style="font-size:10px;opacity:.8">Listo</span>
-        <button onclick="cerrarSim()" style="background:transparent;border:none;color:#fff;cursor:pointer;font-size:16px;margin-left:6px">✕</button>
-      </div>
-
-      <!-- Selector de modo -->
-      <div style="display:flex;gap:4px">
-        <button class="sim-mode-btn on" data-mode="rol" onclick="setSimMode(this)">Por Rol</button>
-        <button class="sim-mode-btn" data-mode="tel" onclick="setSimMode(this)">Número Real</button>
-        <button class="sim-mode-btn" data-mode="custom" onclick="setSimMode(this)">Personalizado</button>
-      </div>
-
-      <!-- Panel: Por Rol -->
-      <div id="simPanelRol" class="sim-panel">
-        <div style="font-size:10px;opacity:.8;margin-bottom:4px">Ver el bot como lo vería cada perfil:</div>
-        <div style="display:flex;gap:4px;flex-wrap:wrap">
-          <button class="sim-rol-btn on" data-tel="SIM_IMO_001" data-label="IMO 👑" onclick="setSimRol(this)">IMO 👑</button>
-          <button class="sim-rol-btn" data-tel="SIM_GRAD_001" data-label="Graduado MJ 🎓" onclick="setSimRol(this)">Graduado MJ 🎓</button>
-          <button class="sim-rol-btn" data-tel="SIM_PX_001" data-label="PX Rezagado 🚀" onclick="setSimRol(this)">PX 🚀</button>
-          <button class="sim-rol-btn" data-tel="SIM_NEW_001" data-label="Nuevo 🌟" onclick="setSimRol(this)">Nuevo 🌟</button>
-        </div>
-        <div id="simRolInfo" style="font-size:10px;opacity:.7;margin-top:4px">
-          Simulando: <strong>IMO 👑</strong> — Tel ficticio SIM_IMO_001
-        </div>
-      </div>
-
-      <!-- Panel: Número Real -->
-      <div id="simPanelTel" class="sim-panel" style="display:none">
-        <div style="font-size:10px;opacity:.8;margin-bottom:4px">Ve exactamente lo que ve esta persona:</div>
-        <div style="display:flex;gap:6px">
-          <input id="simTelReal" class="sim-input" style="flex:1;font-family:monospace;font-size:12px"
-            placeholder="51987654321 o elige de la lista →"
-            oninput="buscarConvPorTel(this.value)">
-          <select id="simTelSelect" class="sim-input" style="width:130px;font-size:11px" onchange="document.getElementById('simTelReal').value=this.value;cargarSimTel(this.value)">
-            <option value="">— Conversaciones —</option>
-          </select>
-        </div>
-        <div id="simTelInfo" style="font-size:10px;opacity:.7;margin-top:4px">Ingresa un número para cargar su historial</div>
-      </div>
-
-      <!-- Panel: Personalizado -->
-      <div id="simPanelCustom" class="sim-panel" style="display:none">
-        <div style="font-size:10px;opacity:.8;margin-bottom:4px">Crea un perfil personalizado para la prueba:</div>
-        <div style="display:flex;gap:6px;margin-bottom:4px">
-          <input id="simCustomTel" class="sim-input" style="flex:1;font-size:12px" placeholder="Tel (ej: SIM_12345)">
-          <select id="simCustomRol" class="sim-input" style="width:110px;font-size:11px">
-            <option value="SIM_IMO">IMO</option>
-            <option value="SIM_PX">PX</option>
-            <option value="SIM_NEW">Nuevo</option>
-          </select>
-        </div>
-        <button class="sim-send" style="width:100%;border-radius:6px" onclick="aplicarSimCustom()">Aplicar Perfil</button>
-      </div>
-    </div>
-
-    <!-- Mensajes -->
-    <div id="simMsg" class="sim-messages" style="min-height:280px;max-height:360px"></div>
-
-    <!-- Botones rápidos de prueba -->
-    <div id="simQuickBtns" style="padding:6px 10px;background:#f0efeb;border-top:1px solid #d3d1c7;display:flex;gap:4px;flex-wrap:wrap">
-      <button class="sim-send" style="font-size:10px;padding:3px 8px;background:#f0efeb;color:#5f5e5a;border:1px solid #d3d1c7;border-radius:12px" onclick="enviarSimRapido('HOLA')">HOLA</button>
-      <button class="sim-send" style="font-size:10px;padding:3px 8px;background:#f0efeb;color:#5f5e5a;border:1px solid #d3d1c7;border-radius:12px" onclick="enviarSimRapido('1')">1️⃣</button>
-      <button class="sim-send" style="font-size:10px;padding:3px 8px;background:#f0efeb;color:#5f5e5a;border:1px solid #d3d1c7;border-radius:12px" onclick="enviarSimRapido('2')">2️⃣</button>
-      <button class="sim-send" style="font-size:10px;padding:3px 8px;background:#f0efeb;color:#5f5e5a;border:1px solid #d3d1c7;border-radius:12px" onclick="enviarSimRapido('3')">3️⃣</button>
-      <button class="sim-send" style="font-size:10px;padding:3px 8px;background:#f0efeb;color:#5f5e5a;border:1px solid #d3d1c7;border-radius:12px" onclick="enviarSimRapido('STOP')">STOP</button>
-      <button class="sim-send" style="font-size:10px;padding:3px 8px;background:#534AB7;color:#fff;border:none;border-radius:12px;margin-left:auto" onclick="limpiarSim()">🗑 Limpiar</button>
-    </div>
-
-    <!-- Input -->
-    <div class="sim-input-row">
-      <input class="sim-input" id="simInput" placeholder="Escribe un mensaje al bot…"
-        onkeydown="if(event.key==='Enter')enviarSim()">
-      <button class="sim-send" onclick="enviarSim()">Enviar</button>
-    </div>
-
-  </div>
-</div>
-
-<style>
-.sim-mode-btn {
-  flex:1; padding:4px 6px; border-radius:6px; border:1px solid rgba(255,255,255,.3);
-  background:transparent; color:rgba(255,255,255,.7); cursor:pointer;
-  font-family:inherit; font-size:10px; font-weight:500;
-  transition:all .15s;
-}
-.sim-mode-btn.on {
-  background:rgba(255,255,255,.2); color:#fff; border-color:rgba(255,255,255,.6);
-  font-weight:700;
-}
-.sim-rol-btn {
-  padding:3px 8px; border-radius:12px; border:1px solid rgba(255,255,255,.3);
-  background:transparent; color:rgba(255,255,255,.8); cursor:pointer;
-  font-family:inherit; font-size:10px; transition:all .15s;
-}
-.sim-rol-btn.on {
-  background:rgba(255,255,255,.25); color:#fff; border-color:#fff; font-weight:700;
-}
-.sim-panel { animation: fadeIn .15s ease; }
-@keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
-</style>
-
-<!-- TOASTS -->
-<div class="toast-container" id="toasts"></div>
+<div class="toast" id="toast"></div>
 
 <script>
-// ══ ESTADO GLOBAL ══════════════════════════════════════════
-const CFG_KEY = 'tc_v108_cfg';
-let CFG = {};
-let convs = [];         // {tel, nombre, tipo, msgs[], unread, estado, ts}
-let activeTel = null;
+// ══════════════════════════════════════════════════════════════
+// CONFIGURACIÓN
+// ══════════════════════════════════════════════════════════════
+const BOT = window.location.origin; // siempre el mismo origen
+const CCS_TELS = new Set(['51912379744','51933599903','51933599864','51919502385','51912379686']);
+const CCS_MAP  = {
+  'Diana':  'dmoscoso', 'diana':'dmoscoso',
+  'Joyce':  'jmarin',   'joyce':'jmarin',
+  'Zuley':  'zurteaga', 'zuley':'zurteaga',
+  'Leyla':  'lpasquel', 'leyla':'lpasquel',
+  'Linid':  'lvalencia','linid':'lvalencia',
+};
+
+// ══════════════════════════════════════════════════════════════
+// ESTADO
+// ══════════════════════════════════════════════════════════════
+let convs = {};        // tel → {tel, nombre, tipo, estado, cc, msgs, unread, ts}
 let tabActivo = 'todos';
-let syncTimer  = null;
-let simTel = null;
+let telActivo = null;
+let syncTimer = null;
 
-// Respuestas rápidas
-const QR_CHIPS = [
-  {l:'Confirmado ✅', t:'Confirmación registrada. Te esperamos el Viernes 1 de Mayo a las 9:00am en el Hotel José Antonio Deluxe, Miraflores. ¡Hasta pronto!'},
-  {l:'No puede 📅',  t:'Recibido. Tu inscripción sigue activa para el próximo equipo. Escríbenos cuando estés listo.'},
-  {l:'Info C1',      t:'El Capítulo 1 es un entrenamiento vivencial de 3 días: Vie 1, Sáb 2 y Dom 3 de Mayo. Hotel José Antonio Deluxe, Miraflores. Registro obligatorio: 9:00am del viernes.'},
-  {l:'Derivar',      t:''},
-];
+// ══════════════════════════════════════════════════════════════
+// PROCESAMIENTO DEL HISTORIAL
+// ══════════════════════════════════════════════════════════════
+function procesarHistorial(data) {
+  let cambios = false;
 
-// ══ CONFIG ═════════════════════════════════════════════════
-function cargarCfg() {
-  try { CFG = JSON.parse(localStorage.getItem(CFG_KEY) || '{}'); } catch(e){ CFG={}; }
-  // Auto-detectar URL: si el panel se sirve desde el bot, usar el mismo origen
-  if(!CFG.url) {
-    const origin = window.location.origin;
-    CFG.url = origin.includes('localhost') ? 'https://bot-cpsl.onrender.com' : origin;
-  }
-  if(!CFG.phoneId) CFG.phoneId = '1085205258006361';
-  if(CFG.url) document.getElementById('cfgUrl').value = CFG.url;
-  if(CFG.token) document.getElementById('cfgToken').value = CFG.token;
-  if(CFG.phoneId) document.getElementById('cfgPhoneId').value = CFG.phoneId;
-}
-function guardarCfg() {
-  CFG.url     = document.getElementById('cfgUrl').value.trim().replace(/\/$/, '');
-  CFG.token   = document.getElementById('cfgToken').value.trim();
-  CFG.phoneId = document.getElementById('cfgPhoneId').value.trim();
-  localStorage.setItem(CFG_KEY, JSON.stringify(CFG));
-  cerrarCfg();
-  toast('Configuración guardada', 'ok');
-  iniciarSync();
-}
-function abrirCfg() { document.getElementById('cfgOverlay').style.display='flex'; }
-function cerrarCfg(){ document.getElementById('cfgOverlay').style.display='none'; }
+  for(const m of data) {
+    const tel = String(m.telefono||'');
+    if(!tel || tel.startsWith('SIM_') || CCS_TELS.has(tel)) continue;
 
-// ══ UTILIDADES ═════════════════════════════════════════════
-function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function nl2br(s){ return esc(s).replace(/\n/g,'<br>'); }
-function ini(n){
-  const p = (n||'').trim().split(' ');
-  return ((p[0]||'')[0]||'').toUpperCase() + ((p[1]||'')[0]||'').toUpperCase();
-}
-function ahora() {
-  return new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',timeZone:'America/Lima'});
-}
-function toast(msg, tipo='ok') {
-  const c = document.getElementById('toasts');
-  const d = document.createElement('div');
-  d.className = `toast ${tipo}`;
-  d.textContent = msg;
-  c.appendChild(d);
-  setTimeout(()=> d.remove(), 3500);
-}
+    // Crear conv si no existe
+    if(!convs[tel]) {
+      convs[tel] = {tel, nombre:'', tipo:'?', estado:'', cc:'', msgs:[], unread:0, ts:''};
+      cambios = true;
+    }
+    const c = convs[tel];
 
-// Tipo → clase avatar/badge
-function tipoAv(t) {
-  if(t==='IMO'||t==='IMO_GRADUADO') return 'av-imo';
-  if(t==='PX') return 'av-px';
-  if(t==='NUEVO') return 'av-nuevo';
-  return 'av-ext';
-}
-function tipoBadge(t, estado) {
-  if(estado==='DERIVADO'||estado==='DER') return {cls:'tb-derivado', lbl:'derivado'};
-  if(estado==='CONFIRMADO') return {cls:'tb-px', lbl:'confirmado ✅'};
-  if(t==='IMO'||t==='IMO_GRADUADO') return {cls:'tb-imo', lbl:t==='IMO_GRADUADO'?'graduado':'imo'};
-  if(t==='PX') return {cls:'tb-px', lbl:'px'};
-  if(t==='NUEVO') return {cls:'tb-nuevo', lbl:'nuevo'};
-  return {cls:'tb-ext', lbl:'externo'};
-}
-
-// ══ SINCRONIZACIÓN ═════════════════════════════════════════
-async function sincronizarHistorial() {
-  try {
-    if(!CFG.url) { setOnline(false, 'Sin URL configurada'); return; }
-    // Timeout de 30s — Render free tier puede tardar al arrancar
-    const ctrl = new AbortController();
-    const tId  = setTimeout(() => ctrl.abort(), 30000);
-    const r = await fetch(CFG.url + '/api/historial?limit=2000',
-                          { signal: ctrl.signal });
-    clearTimeout(tId);
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const data = await r.json();
-    let cambios = false;
-
-    for(const m of data) {
-      const tel = String(m.telefono || '');
-      if(!tel) continue;
-      let c = convs.find(x => x.tel===tel);
-      if(!c) {
-        c = {tel, nombre: m.nombre||'+'+tel, tipo:'?', estado:'',
-              msgs:[], unread:0, ts:''};
-        convs.push(c);
-        cambios = true;
-      }
-      // Marcar como DERIVADO si el bot envió mensaje de derivación
-      if(m.tipo==='out' && m.texto) {
-        const txt = m.texto;
-        if(txt.includes('Te derivo') || txt.includes('Derivado a') || 
-           txt.includes('derivo con') || txt.includes('DERIVADO') ||
-           txt.includes('✅ Mensaje entregado') || txt.includes('entregado a tu coordinadora')) {
-          c.estado = 'DERIVADO';
-          // Detectar qué CC
-          if(!c.cc_asignada) {
-            if(txt.includes('Diana'))  c.cc_asignada='Diana';
-            else if(txt.includes('Joyce'))  c.cc_asignada='Joyce';
-            else if(txt.includes('Zuley'))  c.cc_asignada='Zuley';
-            else if(txt.includes('Leyla'))  c.cc_asignada='Leyla';
-            else if(txt.includes('Linid'))  c.cc_asignada='Linid';
+    // ── NOMBRE COMPLETO ─────────────────────────────────────
+    // El historial tiene nombre en formato "(TIPO) Nombre Apellido"
+    // Queremos el nombre COMPLETO sin el prefijo (TIPO)
+    if(m.nombre) {
+      const nom_raw = String(m.nombre);
+      // Quitar prefijo (TIPO)
+      const nom_limpio = nom_raw.replace(/^\([^)]+\)\s*/, '').trim();
+      // Tomar el nombre más largo y descriptivo que encontremos
+      if(nom_limpio.length > 3 &&
+         !nom_limpio.includes('BOT') &&
+         !nom_limpio.includes('SIS') &&
+         !nom_limpio.includes('PANEL') &&
+         !nom_limpio.includes('TEST') &&
+         nom_limpio !== tel) {
+        // Preferir nombres con al menos 2 palabras (nombre + apellido)
+        const palabras = nom_limpio.split(' ').filter(x=>x.length>1);
+        if(palabras.length >= 2 || (palabras.length === 1 && c.nombre.split(' ').length < 2)) {
+          if(nom_limpio.length > c.nombre.length || c.nombre === '') {
+            c.nombre = nom_limpio;
+            cambios = true;
           }
         }
       }
-      // Marcar confirmados
-      if(m.tipo==='out' && m.texto && m.texto.includes('¡Confirmado')) {
-        c.estado = 'CONFIRMADO';
-      }
-      // Deducir tipo del nombre — soporta todos los formatos del historial
-      if(c.tipo==='?' && m.nombre) {
-        const nm = m.nombre.toUpperCase();
-        // Formato "(TIPO) Nombre" — extraer tipo
-        const matchTipo = nm.match(/^\(([^)]+)\)/);
-        if(matchTipo) {
-          const t = matchTipo[1];
-          if(t==='IMO'||t.includes('IMO')||t==='GRADUADO'||t.includes('GRAD')) c.tipo='IMO';
-          else if(t==='PX'||t.includes('PX')||t.includes('REZAGADO')||t.includes('PROSPECTO')) c.tipo='PX';
-          else if(t==='NUEVO'||t.includes('NUEVO')) c.tipo='NUEVO';
-          else c.tipo='EXT';
+
+      // ── TIPO desde el prefijo ──────────────────────────────
+      if(c.tipo === '?') {
+        const prefix = nom_raw.match(/^\(([^)]+)\)/);
+        if(prefix) {
+          const t = prefix[1].toUpperCase();
+          if(t.includes('IMO') || t.includes('GRAD'))           c.tipo = 'IMO';
+          else if(t.includes('PX') || t.includes('REZAG') ||
+                  t.includes('PROSP') || t.includes('PART'))    c.tipo = 'PX';
+          else if(t.includes('NUEVO') || t.includes('PROSP'))   c.tipo = 'NUEVO';
+          else                                                    c.tipo = 'EXT';
+          cambios = true;
         }
-        else if(nm.includes('IMO'))   c.tipo='IMO';
-        else if(nm.includes('PX'))    c.tipo='PX';
-        else if(nm.includes('NUEVO')||nm.includes('SIM')) c.tipo='NUEVO';
-        else c.tipo='EXT';
-      }
-      // Extraer nombre limpio — quitar el prefijo (TIPO)
-      if(m.nombre && m.nombre.includes('(')) {
-        const m3 = (m.nombre||'').match(/^\([^)]+\)\s*(.+)$/);
-        if(m3 && m3[1] && m3[1].length>2) {
-          if(c.nombre==='+'+tel || c.nombre===tel || c.nombre.length < 3) {
-            c.nombre = m3[1];
-          }
-        }
-      }
-      // Detectar estado DERIVADO del mensaje
-      if(m.tipo==='out' && m.texto && (m.texto.includes('Te derivo') || m.texto.includes('Derivado a') || m.texto.includes('DERIVADO'))) {
-        c.estado = 'DERIVADO';
-      }
-      // Agregar mensaje si no existe
-      const yaExiste = c.msgs.some(x => x.texto===m.texto && x.hora===m.hora && x.tipo===m.tipo);
-      if(!yaExiste) {
-        c.msgs.push({texto:m.texto, hora:m.hora, tipo:m.tipo});
-        c.ts = m.hora;
-        if(m.tipo==='in' && tel!==activeTel) {
-          c.unread++;
-          document.title = `🔴 Nuevo — Torre Control`;
-        }
-        cambios = true;
-      }
-      // Detectar estado DERIVADO por texto del bot
-      if(m.tipo==='out') {
-        const txt = (m.texto||'').toLowerCase();
-        if(txt.includes('te derivo') || txt.includes('derivado') || txt.includes('derivando'))
-          c.estado = 'DERIVADO';
-        else if(txt.includes('confirmado') && txt.includes('✅'))
-          c.estado = 'CONFIRMADO';
       }
     }
-    if(cambios) { renderConvList(); if(activeTel) renderMessages(); }
-    setOnline(true);
-  } catch(e) {
-    setOnline(false, 'Error conectando');
+
+    // Si sigue sin tipo, el nombre sin prefijo da pistas
+    if(c.tipo === '?' && c.nombre) {
+      const n = c.nombre.toUpperCase();
+      if(n.includes('IMO'))      { c.tipo = 'IMO'; cambios=true; }
+      else if(n.includes('PX')) { c.tipo = 'PX';  cambios=true; }
+    }
+
+    // ── ESTADO: DERIVADO ────────────────────────────────────
+    if(m.tipo === 'out' && m.texto) {
+      const txt = m.texto;
+      if(txt.includes('Te derivo')       ||
+         txt.includes('Derivado a')      ||
+         txt.includes('derivo con')      ||
+         txt.includes('entregado a tu coordinadora') ||
+         txt.includes('Coordinación')) {
+        c.estado = 'DERIVADO';
+        // Detectar a qué CC fue derivado
+        for(const [nom, key] of Object.entries(CCS_MAP)) {
+          if(txt.includes(nom) && nom.length > 3) {
+            c.cc = key;
+            break;
+          }
+        }
+        cambios = true;
+      }
+      // CONFIRMADO resetea el estado
+      if(txt.includes('¡Confirmado')) {
+        c.estado = 'CONFIRMADO';
+        cambios = true;
+      }
+    }
+
+    // ── MENSAJES ────────────────────────────────────────────
+    const key = `${m.hora}|${m.tipo}|${(m.texto||'').substring(0,30)}`;
+    const existe = c.msgs.some(x => x._key === key);
+    if(!existe) {
+      c.msgs.push({_key:key, tipo:m.tipo, texto:m.texto||'', hora:m.hora||''});
+      c.ts = m.hora||'';
+      if(m.tipo === 'in' && tel !== telActivo) {
+        c.unread++;
+        cambios = true;
+      }
+      cambios = true;
+    }
   }
+
+  return cambios;
 }
 
-async function sincronizarCC() {
-  try {
-    const r = await fetch(CFG.url + '/api/carga_coordinadoras');
-    if(!r.ok) return;
-    const data = await r.json();
-    renderCC(data);
-  } catch(e) {}
+// ══════════════════════════════════════════════════════════════
+// RENDER
+// ══════════════════════════════════════════════════════════════
+function iniciales(nombre) {
+  const p = (nombre||'').trim().split(' ').filter(x=>x.length>1);
+  if(p.length >= 2) return (p[0][0]+p[p.length-1][0]).toUpperCase();
+  if(p.length === 1) return p[0].substring(0,2).toUpperCase();
+  return '?';
 }
 
-function setOnline(ok, msg) {
-  document.getElementById('onlineDot').style.background = ok ? '#1D9E75' : '#A32D2D';
-  document.getElementById('onlineTxt').textContent = ok ? 'En línea' : (msg||'Sin conexión');
-  if(!ok) console.warn('Panel offline:', msg);
-  document.getElementById('syncBadge').textContent = ok ? '● LIVE' : '○ OFFLINE';
-  document.getElementById('syncBadge').style.background = ok ? '#1D9E75' : '#A32D2D';
-}
+function renderLista() {
+  const q   = (document.getElementById('searchInput').value||'').toLowerCase();
+  const tab = tabActivo;
 
-function iniciarSync() {
-  if(syncTimer) clearInterval(syncTimer);
-  sincronizarHistorial();
-  sincronizarCC();
-  syncTimer = setInterval(() => {
-    sincronizarHistorial();
-  }, 8000);   // cada 8s — reduce carga en Render free tier
-  setInterval(sincronizarCC, 30000);
-}
-
-// ══ RENDER LISTA DE CONVERSACIONES ═════════════════════════
-function setTab(el) {
-  document.querySelectorAll('.sb-tab').forEach(t => t.classList.remove('on'));
-  el.classList.add('on');
-  tabActivo = el.dataset.tab;
-  renderConvList();
-}
-
-function renderConvList() {
-  const q = (document.getElementById('searchInput').value||'').toLowerCase();
-  let lista = convs.filter(c => {
-    const mq = !q || c.nombre.toLowerCase().includes(q) || c.tel.includes(q);
-    const mt = tabActivo==='todos' ||
-               (tabActivo==='imo' && (c.tipo==='IMO'||c.tipo==='IMO_GRADUADO')) ||
-               (tabActivo==='px'  && c.tipo==='PX') ||
-               (tabActivo==='derivado' && c.estado==='DERIVADO') ||
-               (tabActivo==='nuevo'    && (c.tipo==='NUEVO'||c.tipo==='EXT'||c.tipo==='?'));
+  let lista = Object.values(convs).filter(c => {
+    const mq = !q ||
+      c.nombre.toLowerCase().includes(q) ||
+      c.tel.includes(q);
+    const mt =
+      tab === 'todos'  ? true :
+      tab === 'imo'    ? c.tipo === 'IMO' :
+      tab === 'px'     ? c.tipo === 'PX' :
+      tab === 'der'    ? c.estado === 'DERIVADO' :
+      tab === 'nuevo'  ? (c.tipo === 'NUEVO' || c.tipo === 'EXT' || c.tipo === '?') :
+      true;
     return mq && mt;
   });
-  lista.sort((a,b) => (b.unread-a.unread) || (b.ts>a.ts?1:-1));
+
+  // Ordenar: unread primero, luego por hora
+  lista.sort((a,b) => (b.unread - a.unread) || (b.ts > a.ts ? 1 : -1));
 
   // Stats
-  document.getElementById('statTotal').textContent    = convs.length;
-  document.getElementById('statUnread').textContent   = convs.filter(c=>c.unread>0).length;
-  document.getElementById('statDerivados').textContent= convs.filter(c=>c.estado==='DERIVADO'||c.estado==='DER'||c.estado==='RELAY').length;
+  const total = Object.keys(convs).length;
+  const unread = Object.values(convs).filter(c=>c.unread>0).length;
+  const der    = Object.values(convs).filter(c=>c.estado==='DERIVADO').length;
+  document.getElementById('sTotal').textContent  = total;
+  document.getElementById('sUnread').textContent = unread;
+  document.getElementById('sDer').textContent    = der;
 
+  // Carga por CC
+  const carga = {};
+  Object.values(convs).filter(c=>c.estado==='DERIVADO').forEach(c=>{
+    if(c.cc) carga[c.cc] = (carga[c.cc]||0)+1;
+  });
+  ['dmoscoso','jmarin','zurteaga','lpasquel','lvalencia'].forEach(k=>{
+    const el = document.getElementById('cc-'+k);
+    if(!el) return;
+    const n = carga[k]||0;
+    el.textContent = n;
+    el.className   = 'cc-count ' + (n===0?'zero':'');
+  });
+
+  // Renderizar items
   const el = document.getElementById('convList');
   if(!lista.length) {
-    el.innerHTML = '<div style="padding:20px;text-align:center;font-size:11px;color:#b4b2a9">Sin resultados</div>';
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--txt3)">Sin resultados</div>';
     return;
   }
 
   el.innerHTML = lista.map(c => {
-    const lastMsg = c.msgs[c.msgs.length-1];
-    const prev    = lastMsg ? lastMsg.texto.slice(0,42)+(lastMsg.texto.length>42?'…':'') : '—';
-    // Badge especial para derivados y confirmados
-    let estadoBadge = '';
-    if(c.estado==='DERIVADO')   estadoBadge = '<span class="tipo-badge tb-derivado" style="margin-left:4px">derivado</span>';
-    if(c.estado==='CONFIRMADO') estadoBadge = '<span class="tipo-badge" style="background:#E1F5EE;color:#0F6E56;margin-left:4px">confirmó ✅</span>';
-    const {cls,lbl} = tipoBadge(c.tipo, c.estado);
-    const avCls = tipoAv(c.tipo);
-    const iniciales = ini(c.nombre);
-    return `<div class="conv-item${activeTel===c.tel?' active':''}" onclick="selConv('${c.tel}')">
-      <div class="conv-avatar ${avCls}">${esc(iniciales)}</div>
+    const ini    = iniciales(c.nombre);
+    const activo = c.tel === telActivo ? ' active' : '';
+    const tipo_c = c.tipo==='IMO'?'imo':c.tipo==='PX'?'px':c.tipo==='NUEVO'?'nuevo':'ext';
+    const ultimo = c.msgs[c.msgs.length-1];
+    const preview= (ultimo?.texto||'').replace(/\*([^*]+)\*/g,'$1').replace(/\n/g,' ').substring(0,45);
+    const es_der = c.estado==='DERIVADO';
+    const badge_tipo = c.tipo==='IMO'?'<span class="tipo-badge imo">IMO</span>':
+                       c.tipo==='PX' ?'<span class="tipo-badge px">PX</span>':'';
+    const badge_der  = es_der ?'<span class="tipo-badge der">DER</span>':'';
+    const cc_tag     = es_der && c.cc ? `<span class="cc-tag">${c.cc}</span>`:'';
+    const unread_el  = c.unread>0?`<span class="conv-unread">${c.unread}</span>`:'';
+    const der_el     = es_der?'<span class="conv-der-badge">Derivado</span>':'';
+
+    return `<div class="conv-item${activo}" onclick="abrirConv('${c.tel}')">
+      <div class="conv-avatar ${tipo_c}">${ini}${badge_tipo}${badge_der}</div>
       <div class="conv-body">
-        <div class="conv-name">${esc(c.nombre.split(' ').slice(0,3).join(' '))}</div>
-        <div class="conv-prev">${esc(prev)}</div>
-        <div style="margin-top:2px">
-          <span class="tipo-badge ${cls}">${lbl}</span>
-          ${estadoBadge}
-          <span style="font-size:9px;color:#b4b2a9;margin-left:4px">+${esc(c.tel)}</span>
-        </div>
+        <div class="conv-nombre">${c.nombre||'+'+c.tel}${cc_tag}</div>
+        <div class="conv-preview${es_der?' der':''}">${es_der?'↗ Derivado — ':''} ${preview}</div>
       </div>
       <div class="conv-meta">
-        <span class="conv-time">${esc(lastMsg?.hora||'')}</span>
-        ${c.unread>0 ? `<div class="conv-badge">${c.unread}</div>` : ''}
+        <span class="conv-hora">${(c.ts||'').replace(/\d{2}\/\d{2}\s/,'')}</span>
+        ${unread_el}${der_el}
       </div>
     </div>`;
   }).join('');
 }
 
-// ══ CHAT ═══════════════════════════════════════════════════
-function selConv(tel) {
-  activeTel = tel;
-  const c = convs.find(x=>x.tel===tel);
-  if(c) { c.unread=0; document.title='Torre de Control — CPSL Lima'; }
-  renderConvList();
-  renderChatPanel(c);
-  renderPerfil(c);
-}
-
-function renderChatPanel(c) {
+// ══════════════════════════════════════════════════════════════
+// ABRIR CONVERSACIÓN
+// ══════════════════════════════════════════════════════════════
+function abrirConv(tel) {
+  telActivo = tel;
+  const c = convs[tel];
   if(!c) return;
-  const {cls, lbl} = tipoBadge(c.tipo, c.estado);
-  document.getElementById('chatArea').innerHTML = `
-    <div class="chat-header">
-      <div class="conv-avatar ${tipoAv(c.tipo)}" style="width:34px;height:34px;font-size:12px">${esc(ini(c.nombre))}</div>
-      <div class="chat-header-info">
-        <div class="chat-header-name">${esc(c.nombre.split(' ').slice(0,3).join(' '))}</div>
-        <div class="chat-header-sub">+${esc(c.tel)} &nbsp;·&nbsp; <span class="tipo-badge ${cls}">${lbl}</span></div>
-      </div>
-      <div class="chat-header-actions">
-        <button class="ch-btn" onclick="marcarEstado('${c.tel}','DERIVADO')">🔀 Derivar</button>
-        <button class="ch-btn" onclick="abrirSimConTel('${c.tel}')">🧪 Simular</button>
-        <button class="ch-btn primary" onclick="enfocarInput()">✏️ Escribir</button>
-      </div>
+  c.unread = 0;
+
+  // Header
+  const es_der = c.estado==='DERIVADO';
+  const cc_str = c.cc ? ` → ${c.cc}` : '';
+  const tipo_str = c.tipo==='IMO'?'IMO — Líder':c.tipo==='PX'?'Prospecto C1':c.tipo;
+  document.getElementById('chatHeader').innerHTML = `
+    <div class="conv-avatar ${c.tipo==='IMO'?'imo':c.tipo==='PX'?'px':'ext'}" style="width:38px;height:38px;font-size:13px">
+      ${iniciales(c.nombre)}
     </div>
-    <div id="messages" class="messages"></div>
-    <div class="chat-input-area">
-      <div class="quick-replies">${QR_CHIPS.map((q,i)=>`<button class="qr-chip" onclick="usarQR(${i})">${esc(q.l)}</button>`).join('')}</div>
-      <div class="input-row">
-        <textarea class="msg-input" id="msgInput" placeholder="Escribe tu mensaje…" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
-        <button class="send-btn" id="sendBtn" onclick="enviarManual()">➤</button>
-      </div>
-    </div>`;
-  renderMessages();
-  setTimeout(scrollFin, 50);
+    <div>
+      <div class="chat-header-name">${c.nombre||'+'+tel}</div>
+      <div class="chat-tel">+${tel} · ${tipo_str}${es_der?`<span class="chat-header-cc">↗ Derivado${cc_str}</span>`:''}</div>
+    </div>
+    <div class="chat-header-spacer"></div>
+    <a href="https://wa.me/${tel}" target="_blank" style="font-size:10px;color:var(--green);text-decoration:none">Abrir WA ↗</a>
+  `;
+
+  // Mensajes
+  renderMsgs(tel);
+  renderLista();
 }
 
-function renderMessages() {
-  const el = document.getElementById('messages');
-  if(!el) return;
-  const c = convs.find(x=>x.tel===activeTel);
+function renderMsgs(tel) {
+  const c = convs[tel];
   if(!c) return;
-  const atBottom = (el.scrollHeight - el.scrollTop - el.clientHeight) < 60;
-  const html = c.msgs.map(m => {
-    const dir = m.tipo==='in'?'in':'out';
-    const who = dir==='in' ? esc(c.nombre.split(' ')[0]) : 'Tú';
-    return `<div class="msg ${dir}">
-      <div class="bubble">${nl2br(m.texto)}</div>
-      <div class="msg-meta">
-        ${dir==='out'?`<span class="check-double">✓✓</span>`:''}
-        ${esc(m.hora)}
-      </div>
-    </div>`;
-  }).join('');
-  el.innerHTML = html || '<div style="text-align:center;padding:20px;font-size:11px;color:#b4b2a9">Sin mensajes aún</div>';
-  if(atBottom) scrollFin();
-}
+  const el = document.getElementById('chatMsgs');
 
-function scrollFin() {
-  const el = document.getElementById('messages');
-  if(el) el.scrollTop = el.scrollHeight;
-}
-function enfocarInput() { const el=document.getElementById('msgInput'); if(el) el.focus(); }
-function autoResize(el) {
-  el.style.height='auto';
-  el.style.height=Math.min(el.scrollHeight,100)+'px';
-}
-function handleKey(e) {
-  if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); enviarManual(); }
-}
-function usarQR(i) {
-  const el = document.getElementById('msgInput');
-  if(!el) return;
-  el.value = QR_CHIPS[i].t;
-  el.focus();
-}
-function marcarEstado(tel, estado) {
-  const c = convs.find(x=>x.tel===tel);
-  if(c){ c.estado=estado; renderConvList(); if(activeTel===tel) renderChatPanel(c); }
-}
-
-async function enviarManual() {
-  const el   = document.getElementById('msgInput');
-  const btn  = document.getElementById('sendBtn');
-  const texto= (el?.value||'').trim();
-  if(!texto || !activeTel) return;
-  btn.disabled=true;
-  el.value=''; el.style.height='auto';
-
-  // Agregar burbuja local optimista
-  const c = convs.find(x=>x.tel===activeTel);
-  if(c) {
-    c.msgs.push({texto, hora:ahora(), tipo:'out'});
-    renderMessages(); scrollFin();
+  if(!c.msgs.length) {
+    el.innerHTML = '<div class="chat-empty"><span>Sin mensajes</span></div>';
+    return;
   }
 
-  // Enviar al bot
+  el.innerHTML = c.msgs.map(m => `
+    <div class="msg-wrap ${m.tipo}">
+      <div class="msg-bubble ${m.tipo}">${(m.texto||'').replace(/\*([^*]+)\*/g,'<b>$1</b>').replace(/\n/g,'<br>')}</div>
+      <div class="msg-hora">${m.hora||''}</div>
+    </div>
+  `).join('');
+
+  // Scroll al final
+  el.scrollTop = el.scrollHeight;
+}
+
+// ══════════════════════════════════════════════════════════════
+// SYNC
+// ══════════════════════════════════════════════════════════════
+async function sync() {
   try {
-    if(!CFG.token || !CFG.phoneId) throw new Error('Sin credenciales WA');
-    const r = await fetch(`https://graph.facebook.com/v19.0/${CFG.phoneId}/messages`, {
-      method:'POST',
-      headers:{'Authorization':`Bearer ${CFG.token}`,'Content-Type':'application/json'},
-      body: JSON.stringify({messaging_product:'whatsapp',to:activeTel,type:'text',text:{body:texto}})
-    });
-    if(r.ok) toast('Enviado ✓','ok');
-    else {
-      const d = await r.json();
-      toast('Error WA: '+(d.error?.message||r.status),'error');
-    }
-  } catch(e) {
-    toast('Error: '+e.message, 'error');
-  }
-  btn.disabled=false;
-}
-
-// ══ PERFIL PANEL DERECHO ═══════════════════════════════════
-function renderPerfil(c) {
-  if(!c) return;
-  const el = document.getElementById('perfilPanel');
-  const {lbl} = tipoBadge(c.tipo, c.estado);
-  el.innerHTML = `
-    <div class="panel-section-title">Perfil Activo</div>
-    <div class="perfil-field">
-      <div class="perfil-label">Tipo</div>
-      <div class="perfil-val"><span class="tipo-badge ${tipoBadge(c.tipo,c.estado).cls}">${lbl}</span></div>
-    </div>
-    <div class="perfil-field">
-      <div class="perfil-label">Nombre</div>
-      <div class="perfil-val">${esc(c.nombre)}</div>
-    </div>
-    <div class="perfil-field">
-      <div class="perfil-label">Teléfono</div>
-      <div class="perfil-val" style="font-family:'DM Mono',monospace">+${esc(c.tel)}</div>
-    </div>
-    <div class="perfil-field">
-      <div class="perfil-label">Mensajes</div>
-      <div class="perfil-val">${c.msgs.length} (${c.msgs.filter(m=>m.tipo==='in').length} recibidos)</div>
-    </div>
-    <div class="perfil-field">
-      <div class="perfil-label">Estado</div>
-      <div class="perfil-val">${esc(c.estado||'activo')}</div>
-    </div>
-    <div style="margin-top:8px">
-      <button class="btn" style="width:100%;font-size:11px;margin-bottom:4px" onclick="abrirSimConTel('${c.tel}')">🧪 Simular</button>
-      <button class="btn primary" style="width:100%;font-size:11px" onclick="enfocarInput()">✏️ Responder</button>
-    </div>`;
-}
-
-// ══ COORDINADORAS ══════════════════════════════════════════
-function renderCC(data) {
-  const el = document.getElementById('ccCards');
-  const colors = {
-    dmoscoso:'#1D9E75', jmarin:'#185FA5',
-    lpasquel:'#BA7517', zurteaga:'#534AB7', lvalencia:'#A32D2D'
-  };
-  el.innerHTML = Object.entries(data).map(([key, cc]) => {
-    const color = colors[key]||'#888';
-    const carga = cc.casos_activos||0;
-    return `<div class="cc-card">
-      <div class="cc-dot" style="background:${color}"></div>
-      <div class="cc-info">
-        <div class="cc-name">${esc(cc.nombre)}</div>
-        <div class="cc-casos">${carga} caso${carga!==1?'s':''} activo${carga!==1?'s':''}</div>
-      </div>
-      <div class="cc-num" style="color:${carga>5?'#A32D2D':carga>2?'#BA7517':'#1D9E75'}">${carga}</div>
-    </div>`;
-  }).join('') || '<div style="font-size:11px;color:#b4b2a9">Sin datos</div>';
-}
-
-// ══ NUEVO CHAT ═════════════════════════════════════════════
-function abrirNuevoChat() { document.getElementById('nuevoOverlay').style.display='flex'; }
-function cerrarNuevo()     { document.getElementById('nuevoOverlay').style.display='none'; }
-
-async function iniciarNuevoChat() {
-  const tel    = (document.getElementById('nuevoTel').value||'').trim().replace(/\D/g,'');
-  const nombre = (document.getElementById('nuevoNombre').value||'').trim() || '+'+tel;
-  const msg    = (document.getElementById('nuevoMsg').value||'').trim();
-  if(!tel){ toast('Teléfono requerido','error'); return; }
-
-  // Crear o buscar conversación
-  let c = convs.find(x=>x.tel===tel);
-  if(!c){ c={tel,nombre,tipo:'EXT',estado:'',msgs:[],unread:0,ts:''}; convs.push(c); }
-
-  cerrarNuevo();
-  selConv(tel);
-
-  // Enviar mensaje si hay
-  if(msg && CFG.token && CFG.phoneId) {
-    try {
-      await fetch(`https://graph.facebook.com/v19.0/${CFG.phoneId}/messages`,{
-        method:'POST',
-        headers:{'Authorization':`Bearer ${CFG.token}`,'Content-Type':'application/json'},
-        body: JSON.stringify({messaging_product:'whatsapp',to:tel,type:'text',text:{body:msg}})
-      });
-      c.msgs.push({texto:msg,hora:ahora(),tipo:'out'});
-      toast('Chat iniciado ✓','ok');
-    } catch(e){ toast('Error al enviar: '+e.message,'error'); }
-  }
-  renderConvList(); renderMessages();
-  document.getElementById('nuevoTel').value='';
-  document.getElementById('nuevoNombre').value='';
-  document.getElementById('nuevoMsg').value='';
-}
-
-// ══ SIMULADOR ══════════════════════════════════════════════
-let simMode = 'rol';   // 'rol' | 'tel' | 'custom'
-simTel = 'SIM_IMO_001';
-
-function setSimMode(el) {
-  document.querySelectorAll('.sim-mode-btn').forEach(b=>b.classList.remove('on'));
-  el.classList.add('on');
-  simMode = el.dataset.mode;
-  document.getElementById('simPanelRol').style.display    = simMode==='rol'    ? '' : 'none';
-  document.getElementById('simPanelTel').style.display    = simMode==='tel'    ? '' : 'none';
-  document.getElementById('simPanelCustom').style.display = simMode==='custom' ? '' : 'none';
-  limpiarSim();
-}
-
-function setSimRol(el) {
-  document.querySelectorAll('.sim-rol-btn').forEach(b=>b.classList.remove('on'));
-  el.classList.add('on');
-  simTel = el.dataset.tel;
-  document.getElementById('simRolInfo').innerHTML =
-    `Simulando: <strong>${el.dataset.label}</strong> — Tel ficticio <code>${simTel}</code>`;
-  limpiarSim();
-}
-
-function cargarSimTel(tel) {
-  if(!tel) return;
-  simTel = tel;
-  const c = convs.find(x=>x.tel===tel);
-  const info = document.getElementById('simTelInfo');
-  if(c) {
-    info.innerHTML = `Cargando historial de <strong>${c.nombre}</strong> — ${c.msgs.length} mensajes`;
-    renderSimHistorial(c);
-  } else {
-    info.textContent = `Tel ${tel} — sin historial previo. El bot lo identificará al enviar.`;
-    document.getElementById('simMsg').innerHTML='';
-  }
-}
-
-function buscarConvPorTel(val) {
-  const clean = val.replace(/\D/g,'');
-  if(clean.length >= 9) {
-    const c = convs.find(x=>x.tel.includes(clean));
-    if(c) cargarSimTel(c.tel);
-    else   simTel = clean.startsWith('51') ? clean : '51'+clean;
-  }
-}
-
-function renderSimHistorial(c) {
-  const el = document.getElementById('simMsg');
-  el.innerHTML = c.msgs.map(m=>`
-    <div class="msg ${m.tipo==='in'?'in':'out'}">
-      <div class="bubble" style="font-size:12px">${nl2br(m.texto)}</div>
-      <div class="msg-meta" style="font-size:9px">${esc(m.hora)}</div>
-    </div>`).join('');
-  setTimeout(()=>{ el.scrollTop=el.scrollHeight; }, 50);
-}
-
-function aplicarSimCustom() {
-  const tel = (document.getElementById('simCustomTel').value||'').trim();
-  const rol = document.getElementById('simCustomRol').value;
-  simTel = tel || (rol + '_' + Date.now());
-  document.getElementById('simCustomTel').value = simTel;
-  toast(`Simulando como ${simTel}`, 'ok');
-  limpiarSim();
-}
-
-function limpiarSim() {
-  document.getElementById('simMsg').innerHTML =
-    `<div style="text-align:center;padding:20px;font-size:11px;color:#a0a0a0">
-      Simulando: <strong>${simTel}</strong><br>
-      Escribe HOLA o usa los botones rápidos para iniciar.
-    </div>`;
-}
-
-function abrirSim() {
-  // Poblar select con conversaciones activas
-  const sel = document.getElementById('simTelSelect');
-  sel.innerHTML = '<option value="">— Conversaciones —</option>' +
-    convs.slice(0,100).map(c=>`<option value="${c.tel}">${c.nombre.slice(0,25)} (+${c.tel.slice(-9)})</option>`).join('');
-  document.getElementById('simOverlay').style.display='flex';
-  setSimMode(document.querySelector('[data-mode="rol"]'));
-  setTimeout(()=>{ document.getElementById('simInput').focus(); }, 100);
-}
-
-function abrirSimConTel(tel) {
-  const sel = document.getElementById('simTelSelect');
-  sel.innerHTML = '<option value="">— Conversaciones —</option>' +
-    convs.slice(0,100).map(c=>`<option value="${c.tel}"${c.tel===tel?' selected':''}>${c.nombre.slice(0,25)} (+${c.tel.slice(-9)})</option>`).join('');
-  document.getElementById('simOverlay').style.display='flex';
-  // Activar modo número real
-  const btnTel = document.querySelector('[data-mode="tel"]');
-  setSimMode(btnTel);
-  document.getElementById('simTelReal').value = tel;
-  cargarSimTel(tel);
-  setTimeout(()=>{ document.getElementById('simInput').focus(); }, 100);
-}
-
-function cerrarSim() {
-  document.getElementById('simOverlay').style.display='none';
-}
-
-function setSimStatus(ok, txt) {
-  document.getElementById('simStatusDot').style.background = ok ? '#1D9E75' : '#BA7517';
-  document.getElementById('simStatusTxt').textContent = txt;
-}
-
-function enviarSimRapido(txt) {
-  document.getElementById('simInput').value = txt;
-  enviarSim();
-}
-
-async function enviarSim() {
-  const inp = document.getElementById('simInput');
-  const txt = (inp.value||'').trim();
-  if(!txt || !simTel) return;
-  inp.value='';
-
-  // Agregar burbuja saliente
-  const simEl = document.getElementById('simMsg');
-  // Limpiar mensaje de bienvenida si existe
-  if(simEl.querySelector('div[style*="padding:20px"]')) simEl.innerHTML='';
-
-  simEl.innerHTML += `<div class="msg out">
-    <div class="bubble" style="font-size:12px">${nl2br(txt)}</div>
-    <div class="msg-meta" style="font-size:9px">${ahora()}</div>
-  </div>`;
-  simEl.scrollTop = simEl.scrollHeight;
-  setSimStatus(false, 'Enviando…');
-
-  try {
-    const r = await fetch(CFG.url+'/api/mensaje_simulador',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({telefono:simTel, texto:txt})
-    });
+    const ctrl = new AbortController();
+    const tid  = setTimeout(()=>ctrl.abort(), 20000);
+    const r    = await fetch(BOT+'/api/historial?limit=3000', {signal:ctrl.signal});
+    clearTimeout(tid);
     if(!r.ok) throw new Error('HTTP '+r.status);
-    setSimStatus(true, 'Esperando bot…');
-
-    // Polling: esperar respuesta del bot (hasta 3 intentos)
-    let intentos = 0;
-    const poll = setInterval(async()=>{
-      intentos++;
-      try {
-        const rh = await fetch(`${CFG.url}/api/historial/${simTel}`);
-        if(!rh.ok) return;
-        const hist = await rh.json();
-        const botMsgs = hist.filter(m=>m.tipo==='out');
-
-        // Contar cuántos ya mostramos
-        const yaShown = simEl.querySelectorAll('.msg.in').length;
-        const nuevos  = botMsgs.slice(yaShown);
-
-        if(nuevos.length > 0) {
-          clearInterval(poll);
-          for(const m of nuevos) {
-            simEl.innerHTML += `<div class="msg in">
-              <div class="bubble" style="font-size:12px">${nl2br(m.texto)}</div>
-              <div class="msg-meta" style="font-size:9px">${esc(m.hora)}</div>
-            </div>`;
-          }
-          simEl.scrollTop = simEl.scrollHeight;
-          setSimStatus(true, 'Listo');
-        }
-        if(intentos >= 5) { clearInterval(poll); setSimStatus(true, 'Sin respuesta'); }
-      } catch(e){ clearInterval(poll); }
-    }, 1200);
-
-  } catch(e) {
-    setSimStatus(false, 'Error');
-    toast('Error simulador: '+e.message,'error');
-  }
-}
-
-// ══ INIT ═══════════════════════════════════════════════════
-cargarCfg();
-convs = [];
-document.getElementById('onlineTxt').textContent = 'Conectando...';
-iniciarSync();
-// Sincronizar estado del worker cada 10s
-setInterval(sincronizarWorker, 10000);
-sincronizarWorker();
-
-// ══ REENVÍO DESDE SHEET ══════════════════════════════════════
-async function verSinRespuesta() {
-  if(!CFG.url) { toast('Sin URL configurada','error'); return; }
-  try {
-    toast('Consultando Sheet...','ok');
-    const r = await fetch(CFG.url+'/api/seguimiento/sin_respuesta?horas=48');
     const data = await r.json();
-    const w = window.open('','_blank','width=700,height=500');
-    if(!data.length) { w.document.write('<p style="padding:20px;font-family:monospace">Sin candidatos (todos respondieron o enviados hace <48h)</p>'); return; }
-    const html2 = `<html><body style="font-family:monospace;font-size:12px;padding:16px">
-      <h3 style="margin:0 0 12px">Sin respuesta (>48h) — ${data.length} contactos</h3>
-      <table border="1" cellpadding="6" style="border-collapse:collapse;width:100%">
-        <tr style="background:#eee"><th>Tel</th><th>Nombre</th><th>Tipo</th><th>Enviado</th><th>Horas</th></tr>
-        ${data.map(d=>`<tr><td>${d.tel}</td><td>${d.nombre}</td><td>${d.tipo}</td><td>${d.fecha_envio}</td><td>${d.horas}h</td></tr>`).join('')}
-      </table></body></html>`;
-    w.document.write(html2);
-  } catch(e) { toast('Error: '+e.message,'error'); }
-}
-
-async function iniciarReenvio() {
-  if(!CFG.url) { toast('Sin URL configurada','error'); return; }
-  const horas = prompt('Reenviar a quienes no respondieron en más de X horas:', '48');
-  if(!horas) return;
-  if(!window.confirm(`¿Reenviar plantilla a contactos sin respuesta en más de ${horas}h?`)) return;
-  try {
-    const r = await fetch(CFG.url+'/api/seguimiento/reenviar',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({horas_espera: parseInt(horas)})
-    });
-    const d = await r.json();
-    if(d.error) { toast(d.error,'error'); return; }
-    toast(`Reenvío iniciado (>${horas}h sin resp)`,'ok');
-    setTimeout(sincronizarWorker, 2000);
-  } catch(e) { toast('Error: '+e.message,'error'); }
-}
-
-// ══ DIAGNÓSTICO ═══════════════════════════════════════════════
-async function testNotif() {
-  if(!CFG.url) { toast('Configura URL primero','error'); return; }
-  const cc = prompt('Clave de coordinadora (dmoscoso/jmarin/lpasquel/zurteaga/lvalencia):','dmoscoso');
-  if(!cc) return;
-  try {
-    const r = await fetch(CFG.url+'/api/test_notif',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({cc, msg:'Test desde panel Torre de Control'})
-    });
-    const d = await r.json();
-    if(d.enviado) toast(`✅ Enviado a ${d.cc} (+${d.tel})`,'ok');
-    else toast(`❌ Error: ${d.error||'falló wa()'}`, 'error');
-  } catch(e) { toast('Error: '+e.message,'error'); }
-}
-
-async function verTokenStatus() {
-  if(!CFG.url) { toast('Configura URL primero','error'); return; }
-  try {
-    const r = await fetch(CFG.url+'/api/token_status');
-    const d = await r.json();
-    const msg = `Token: ${d.token_configurado?'✅':'❌'} (${d.token_len} chars)\n`+
-                `Phone ID: ${d.phone_id_configurado?'✅':'❌'}\n`+
-                `Meta API: ${d.meta_ok?'✅ '+d.meta_resp:'❌ '+d.meta_resp}`;
-    alert(msg);
-  } catch(e) { toast('Error: '+e.message,'error'); }
-}
-
-// ══ WORKER SEGUIMIENTO ════════════════════════════════════════
-async function sincronizarWorker() {
-  try {
-    const r = await fetch(CFG.url + '/api/seguimiento/estado');
-    if(!r.ok) { document.getElementById('segStatus').textContent='Sin conexión'; return; }
-    const d = await r.json();
-    const corriendo = d.corriendo;
-    const ok=d.ok||0, err=d.err||0, total=d.total||0;
-    const pct = total>0 ? Math.round((ok+err)/total*100) : 0;
-
-    const stEl = document.getElementById('segStatus');
-    if(corriendo) {
-      stEl.innerHTML = `<span style="color:var(--verde)">● Corriendo</span> — ${ok}✅ ${err}❌ / ${total}`;
-    } else {
-      stEl.innerHTML = total>0
-        ? `<span style="color:#888">⬛ Completado</span> — ${ok} enviados, ${err} errores`
-        : `<span style="color:#888">⬛ Listo para iniciar</span>`;
-    }
-
-    const prog = document.getElementById('segProgreso');
-    const fill = document.getElementById('segBarFill');
-    const ult  = document.getElementById('segUltimo');
-    if(corriendo || total>0) {
-      prog.style.display='';
-      fill.style.width = pct+'%';
-      ult.textContent  = d.ultimo||'';
-    }
+    const cambios = procesarHistorial(data);
+    if(cambios) { renderLista(); if(telActivo) renderMsgs(telActivo); }
+    setOnline(true);
   } catch(e) {
-    document.getElementById('segStatus').textContent = 'No disponible';
+    setOnline(false, e.message?.includes('abort')?'Timeout':'Sin conexión');
   }
 }
 
-async function iniciarSeguimiento() {
-  if(!CFG.url) { toast('Configura la URL del bot primero','error'); return; }
-  const modo = document.getElementById('segModo').value;
-  const confirm_msg = {
-    'ambos': '¿Iniciar seguimiento para IMOs + PX sin respuesta?',
-    'imos':  '¿Iniciar seguimiento solo para IMOs?',
-    'px':    '¿Iniciar seguimiento solo para PX (E25/E26)?',
-  }[modo];
-  if(!window.confirm(confirm_msg)) return;
+function setOnline(ok, msg) {
+  const dot  = document.getElementById('statusDot');
+  const txt  = document.getElementById('statusTxt');
+  const live = document.getElementById('liveBadge');
+  dot.className  = 'status-dot' + (ok?' online':'');
+  txt.textContent = ok ? 'En línea' : (msg||'Sin conexión');
+  live.style.display = ok ? '' : 'none';
+}
+
+function iniciarSync() {
+  sync();
+  syncTimer = setInterval(sync, 7000);
+  // Sync carga CC cada 30s
+  setInterval(syncCC, 30000);
+  // Sync estado seguimiento cada 10s
+  setInterval(syncSeg, 10000);
+}
+
+async function syncCC() {
   try {
-    const r = await fetch(CFG.url+'/api/seguimiento/iniciar', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
+    const r = await fetch(BOT+'/api/carga_coordinadoras');
+    if(!r.ok) return;
+    const d = await r.json();
+    // No sobreescribir el contador de derivados — solo mostrar si hay datos del bot
+  } catch(e) {}
+}
+
+async function syncSeg() {
+  try {
+    const r = await fetch(BOT+'/api/seguimiento/estado');
+    if(!r.ok) return;
+    const d = await r.json();
+    const el = document.getElementById('segStatus');
+    if(d.corriendo) {
+      el.className = 'seg-status running';
+      el.textContent = `▶ ${d.ultimo||'Corriendo...'} (${d.ok}/${d.total})`;
+    } else if(d.ok > 0 || d.err > 0) {
+      el.className = 'seg-status';
+      el.textContent = `✅ ${d.ok} enviados / ${d.err} errores`;
+    } else {
+      el.className = 'seg-status';
+      el.textContent = 'Listo para iniciar';
+    }
+  } catch(e) {}
+}
+
+// ══════════════════════════════════════════════════════════════
+// ENVIAR MENSAJE
+// ══════════════════════════════════════════════════════════════
+async function enviarMsg() {
+  if(!telActivo) { toast('Selecciona una conversación','err'); return; }
+  const inp = document.getElementById('chatInput');
+  const msg = inp.value.trim();
+  if(!msg) return;
+  inp.value = '';
+  try {
+    const r = await fetch(BOT+'/api/enviar',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({telefono:telActivo, mensaje:msg})
+    });
+    const d = await r.json();
+    if(d.status==='ok') { sync(); toast('Enviado','ok'); }
+    else toast('Error al enviar','err');
+  } catch(e) { toast('Error: '+e.message,'err'); }
+}
+
+function keyEnter(e) {
+  if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); enviarMsg(); }
+}
+
+// ══════════════════════════════════════════════════════════════
+// NUEVO CHAT
+// ══════════════════════════════════════════════════════════════
+function abrirNuevoChat() {
+  const tel = prompt('Número de teléfono (con código país, ej: 51999888777):');
+  if(!tel) return;
+  const t = tel.replace(/\D/g,'');
+  if(t.length < 10) { toast('Número inválido','err'); return; }
+  if(!convs[t]) {
+    convs[t] = {tel:t, nombre:'+'+t, tipo:'?', estado:'', cc:'', msgs:[], unread:0, ts:''};
+  }
+  abrirConv(t);
+  renderLista();
+}
+
+// ══════════════════════════════════════════════════════════════
+// TABS
+// ══════════════════════════════════════════════════════════════
+function setTab(tab, el) {
+  tabActivo = tab;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  renderLista();
+}
+
+// ══════════════════════════════════════════════════════════════
+// SEGUIMIENTO
+// ══════════════════════════════════════════════════════════════
+async function iniciarSeg() {
+  const modo = document.getElementById('segMode').value;
+  try {
+    const r = await fetch(BOT+'/api/seguimiento/iniciar',{
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({modo})
     });
     const d = await r.json();
-    if(d.error) { toast(d.error,'error'); return; }
-    toast(`Seguimiento iniciado — modo: ${modo}`,'ok');
-    setTimeout(sincronizarWorker, 1000);
-  } catch(e) { toast('Error: '+e.message,'error'); }
+    if(d.error) { toast(d.error,'err'); return; }
+    toast('Seguimiento iniciado','ok');
+    syncSeg();
+  } catch(e) { toast('Error: '+e.message,'err'); }
 }
 
-async function detectarSinRespuesta() {
-  if(!CFG.url) { toast('Configura URL primero','error'); return; }
+async function verLog() {
   try {
-    const horas = prompt('¿Cuántas horas sin respuesta para considerar pendiente?','48');
-    if(!horas) return;
-    toast('Consultando Sheet...','ok');
-    const r = await fetch(`${CFG.url}/api/seguimiento/detectar?horas=${horas}`);
+    const r = await fetch(BOT+'/api/seguimiento/log');
     const d = await r.json();
-    if(d.error){ toast(d.error,'error'); return; }
-    const w = window.open('','_blank','width=700,height=500');
-    const rows = (d.contactos||[]).map(c =>
-      `${c.tipo} | ${c.nombre} | +${c.tel} | ${Math.round(c.horas)}h sin resp`
-    ).join('\n');
-    w.document.write(`<pre style="font:13px monospace;padding:16px">`+
-      `Total sin respuesta: ${d.total}\n\n${rows||'Ninguno'}</pre>`);
-  } catch(e) { toast('Error: '+e.message,'error'); }
+    const logs = (Array.isArray(d)?d:[]).slice(-80).map(l=>`[${l.hora||''}] ${l.nivel||''}: ${l.msg||''}`).join('\n');
+    const w = window.open('','_blank','width=750,height=500');
+    w.document.write('<pre style="font:12px monospace;padding:16px;background:#111;color:#eee">'+(logs||'Sin log')+'</pre>');
+  } catch(e) { toast('Error: '+e.message,'err'); }
 }
 
-async function iniciarReenvio() {
-  if(!CFG.url) { toast('Configura URL primero','error'); return; }
-  const horas = prompt('Reenviar a quienes lleven más de N horas sin responder:','48');
+async function sinRespuesta() {
+  const horas = prompt('Ver contactos sin respuesta desde hace N horas:','48');
   if(!horas) return;
-  if(!window.confirm(`¿Reenviar mensajes a contactos con más de ${horas}h sin respuesta?`)) return;
   try {
-    const r = await fetch(CFG.url+'/api/seguimiento/reenvio',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({horas_espera: parseInt(horas)})
+    const r = await fetch(`${BOT}/api/seguimiento/detectar?horas=${horas}`);
+    const d = await r.json();
+    const rows = (d.contactos||[]).map(c=>`${c.tipo||'?'} | ${c.nombre||''} | +${c.tel} | ${Math.round(c.horas||0)}h sin respuesta`).join('\n');
+    const w = window.open('','_blank','width:750,height:500');
+    w.document.write(`<pre style="font:12px monospace;padding:16px;background:#111;color:#eee">Total: ${d.total||0}\n\n${rows||'Sin pendientes'}</pre>`);
+  } catch(e) { toast('Error: '+e.message,'err'); }
+}
+
+async function reenviar() {
+  const horas = prompt('Reenviar a quienes llevan más de N horas sin responder:','48');
+  if(!horas) return;
+  if(!confirm(`¿Reenviar a contactos con más de ${horas}h sin respuesta?`)) return;
+  try {
+    const r = await fetch(BOT+'/api/seguimiento/reenvio',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({horas_espera:parseInt(horas)})
     });
     const d = await r.json();
-    if(d.error){ toast(d.error,'error'); return; }
-    toast('Reenvío iniciado — revisa el Log','ok');
-    setTimeout(sincronizarWorker, 1000);
-  } catch(e) { toast('Error: '+e.message,'error'); }
+    if(d.error) { toast(d.error,'err'); return; }
+    toast('Reenvío iniciado','ok');
+    syncSeg();
+  } catch(e) { toast('Error: '+e.message,'err'); }
 }
 
-async function verLogSeg() {
+async function solicitarReportes() {
+  if(!confirm('¿Solicitar reporte del día a Diana, Joyce y Zuley?')) return;
   try {
-    const r = await fetch(CFG.url+'/api/seguimiento/log');
-    const logs = await r.json();
-    const txt = logs.slice(-50).map(l => `[${l.hora}] ${l.nivel}: ${l.msg}`).join('\n');
-    const w = window.open('','_blank','width=700,height=500');
-    w.document.write(`<pre style="font-family:monospace;font-size:12px;padding:16px">${txt||'Sin log'}</pre>`);
-  } catch(e) { toast('Error leyendo log','error'); }
+    const r = await fetch(BOT+'/api/solicitar_reporte',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({cc:'todas'})
+    });
+    const d = await r.json();
+    toast(`Reportes solicitados (${d.enviados?.filter(x=>x.enviado).length||0} enviados)`,'ok');
+  } catch(e) { toast('Error: '+e.message,'err'); }
 }
+
+// ══════════════════════════════════════════════════════════════
+// DIAGNÓSTICO
+// ══════════════════════════════════════════════════════════════
+async function testToken() {
+  try {
+    const r = await fetch(BOT+'/api/token_status');
+    const d = await r.json();
+    const msg = `Token: ${d.token_configurado?'✅':'❌'} (${d.token_len} chars)\nMeta API: ${d.meta_ok?'✅':'❌'} (${d.meta_resp})`;
+    alert(msg);
+  } catch(e) { toast('Error: '+e.message,'err'); }
+}
+
+async function testNotif() {
+  const cc = prompt('Clave CC (dmoscoso / jmarin / zurteaga):','dmoscoso');
+  if(!cc) return;
+  try {
+    const r = await fetch(BOT+'/api/test_notif',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({cc, msg:'🧪 Test desde panel Torre de Control V110'})
+    });
+    const d = await r.json();
+    if(d.enviado) toast(`✅ Enviado a ${d.cc}`,'ok');
+    else toast(`❌ ${d.error||'Falló'}`,'err');
+  } catch(e) { toast('Error: '+e.message,'err'); }
+}
+
+async function limpiarSesiones() {
+  if(!confirm('¿Limpiar todas las sesiones activas?')) return;
+  try {
+    const r = await fetch(BOT+'/api/clear_sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    const d = await r.json();
+    toast(`Sesiones limpias (${d.archivos_borrados||0} archivos)`,'ok');
+  } catch(e) { toast('Error: '+e.message,'err'); }
+}
+
+// ══════════════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════════════
+function toast(msg, tipo) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show ' + (tipo||'');
+  setTimeout(()=>el.classList.remove('show'), 2500);
+}
+
+// ══════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════
+iniciarSync();
 </script>
 </body>
 </html>
