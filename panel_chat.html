@@ -840,6 +840,8 @@ body {
     <div class="panel-section" id="segPanel">
       <div class="panel-section-title">Seguimiento Autónomo</div>
       <div id="segStatus" style="font-size:11px;color:var(--gris-txt);margin-bottom:8px">Cargando...</div>
+      <button class="btn" style="width:100%;font-size:10px;padding:3px;margin-bottom:6px;color:var(--azul)" onclick="testNotif()">🧪 Test notificación a CC</button>
+      <button class="btn" style="width:100%;font-size:10px;padding:3px;margin-bottom:6px" onclick="verTokenStatus()">🔑 Ver estado del token WA</button>
       <div style="margin-bottom:6px">
         <div style="font-size:10px;color:var(--gris-txt);margin-bottom:3px">Modo:</div>
         <select id="segModo" style="width:100%;font-size:11px;padding:4px;border:1px solid var(--gris-borde);border-radius:6px;font-family:inherit">
@@ -1104,7 +1106,8 @@ function tipoAv(t) {
   return 'av-ext';
 }
 function tipoBadge(t, estado) {
-  if(estado==='DERIVADO') return {cls:'tb-derivado', lbl:'derivado'};
+  if(estado==='DERIVADO'||estado==='DER') return {cls:'tb-derivado', lbl:'derivado'};
+  if(estado==='CONFIRMADO') return {cls:'tb-px', lbl:'confirmado ✅'};
   if(t==='IMO'||t==='IMO_GRADUADO') return {cls:'tb-imo', lbl:t==='IMO_GRADUADO'?'graduado':'imo'};
   if(t==='PX') return {cls:'tb-px', lbl:'px'};
   if(t==='NUEVO') return {cls:'tb-nuevo', lbl:'nuevo'};
@@ -1135,30 +1138,43 @@ async function sincronizarHistorial() {
         convs.push(c);
         cambios = true;
       }
-      // Deducir tipo del nombre — robusto para V109 y versiones anteriores
+      // Marcar como DERIVADO si el bot envió mensaje de derivación
+      if(m.tipo==='out' && m.texto && m.texto.includes('Te derivo con')) {
+        c.estado = 'DERIVADO';
+      }
+      // Marcar confirmados
+      if(m.tipo==='out' && m.texto && m.texto.includes('¡Confirmado')) {
+        c.estado = 'CONFIRMADO';
+      }
+      // Deducir tipo del nombre — soporta todos los formatos del historial
       if(c.tipo==='?' && m.nombre) {
         const nm = m.nombre.toUpperCase();
-        if(nm.includes('IMO'))                           c.tipo='IMO';
-        else if(nm.includes('PX') || nm.includes('(PX'))c.tipo='PX';
-        else if(nm.includes('NUEVO')||nm.includes('SIMULACI')||nm.includes('SIM'))
-                                                          c.tipo='NUEVO';
-        else if(nm.includes('(') && nm.includes(')'))    {
-          // formato "(TIPO) Nombre" del V109
-          const m2 = nm.match(/\(([^)]+)\)/);
-          if(m2) {
-            const t = m2[1];
-            if(t==='IMO'||t==='IMO_GRADUADO') c.tipo='IMO';
-            else if(t==='PX')                 c.tipo='PX';
-            else if(t==='NUEVO')              c.tipo='NUEVO';
-            else                              c.tipo='EXT';
-          }
+        // Formato "(TIPO) Nombre" — extraer tipo
+        const matchTipo = nm.match(/^\(([^)]+)\)/);
+        if(matchTipo) {
+          const t = matchTipo[1];
+          if(t==='IMO'||t.includes('IMO')||t==='GRADUADO'||t.includes('GRAD')) c.tipo='IMO';
+          else if(t==='PX'||t.includes('PX')||t.includes('REZAGADO')||t.includes('PROSPECTO')) c.tipo='PX';
+          else if(t==='NUEVO'||t.includes('NUEVO')) c.tipo='NUEVO';
+          else c.tipo='EXT';
         }
+        else if(nm.includes('IMO'))   c.tipo='IMO';
+        else if(nm.includes('PX'))    c.tipo='PX';
+        else if(nm.includes('NUEVO')||nm.includes('SIM')) c.tipo='NUEVO';
         else c.tipo='EXT';
       }
-      // Extraer nombre limpio si es formato "(TIPO) Nombre"
-      if(c.nombre==='+'+tel || c.nombre===tel) {
+      // Extraer nombre limpio — quitar el prefijo (TIPO)
+      if(m.nombre && m.nombre.includes('(')) {
         const m3 = (m.nombre||'').match(/^\([^)]+\)\s*(.+)$/);
-        if(m3 && m3[1] && m3[1].length>2) c.nombre = m3[1];
+        if(m3 && m3[1] && m3[1].length>2) {
+          if(c.nombre==='+'+tel || c.nombre===tel || c.nombre.length < 3) {
+            c.nombre = m3[1];
+          }
+        }
+      }
+      // Detectar estado DERIVADO del mensaje
+      if(m.tipo==='out' && m.texto && (m.texto.includes('Te derivo') || m.texto.includes('Derivado a') || m.texto.includes('DERIVADO'))) {
+        c.estado = 'DERIVADO';
       }
       // Agregar mensaje si no existe
       const yaExiste = c.msgs.some(x => x.texto===m.texto && x.hora===m.hora && x.tipo===m.tipo);
@@ -1170,6 +1186,14 @@ async function sincronizarHistorial() {
           document.title = `🔴 Nuevo — Torre Control`;
         }
         cambios = true;
+      }
+      // Detectar estado DERIVADO por texto del bot
+      if(m.tipo==='out') {
+        const txt = (m.texto||'').toLowerCase();
+        if(txt.includes('te derivo') || txt.includes('derivado') || txt.includes('derivando'))
+          c.estado = 'DERIVADO';
+        else if(txt.includes('confirmado') && txt.includes('✅'))
+          c.estado = 'CONFIRMADO';
       }
     }
     if(cambios) { renderConvList(); if(activeTel) renderMessages(); }
@@ -1230,7 +1254,7 @@ function renderConvList() {
   // Stats
   document.getElementById('statTotal').textContent    = convs.length;
   document.getElementById('statUnread').textContent   = convs.filter(c=>c.unread>0).length;
-  document.getElementById('statDerivados').textContent= convs.filter(c=>c.estado==='DERIVADO').length;
+  document.getElementById('statDerivados').textContent= convs.filter(c=>c.estado==='DERIVADO'||c.estado==='DER').length;
 
   const el = document.getElementById('convList');
   if(!lista.length) {
@@ -1241,6 +1265,10 @@ function renderConvList() {
   el.innerHTML = lista.map(c => {
     const lastMsg = c.msgs[c.msgs.length-1];
     const prev    = lastMsg ? lastMsg.texto.slice(0,42)+(lastMsg.texto.length>42?'…':'') : '—';
+    // Badge especial para derivados y confirmados
+    let estadoBadge = '';
+    if(c.estado==='DERIVADO')   estadoBadge = '<span class="tipo-badge tb-derivado" style="margin-left:4px">derivado</span>';
+    if(c.estado==='CONFIRMADO') estadoBadge = '<span class="tipo-badge" style="background:#E1F5EE;color:#0F6E56;margin-left:4px">confirmó ✅</span>';
     const {cls,lbl} = tipoBadge(c.tipo, c.estado);
     const avCls = tipoAv(c.tipo);
     const iniciales = ini(c.nombre);
@@ -1251,6 +1279,7 @@ function renderConvList() {
         <div class="conv-prev">${esc(prev)}</div>
         <div style="margin-top:2px">
           <span class="tipo-badge ${cls}">${lbl}</span>
+          ${estadoBadge}
           <span style="font-size:9px;color:#b4b2a9;margin-left:4px">+${esc(c.tel)}</span>
         </div>
       </div>
@@ -1682,6 +1711,35 @@ async function iniciarReenvio() {
     if(d.error) { toast(d.error,'error'); return; }
     toast(`Reenvío iniciado (>${horas}h sin resp)`,'ok');
     setTimeout(sincronizarWorker, 2000);
+  } catch(e) { toast('Error: '+e.message,'error'); }
+}
+
+// ══ DIAGNÓSTICO ═══════════════════════════════════════════════
+async function testNotif() {
+  if(!CFG.url) { toast('Configura URL primero','error'); return; }
+  const cc = prompt('Clave de coordinadora (dmoscoso/jmarin/lpasquel/zurteaga/lvalencia):','dmoscoso');
+  if(!cc) return;
+  try {
+    const r = await fetch(CFG.url+'/api/test_notif',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({cc, msg:'Test desde panel Torre de Control'})
+    });
+    const d = await r.json();
+    if(d.enviado) toast(`✅ Enviado a ${d.cc} (+${d.tel})`,'ok');
+    else toast(`❌ Error: ${d.error||'falló wa()'}`, 'error');
+  } catch(e) { toast('Error: '+e.message,'error'); }
+}
+
+async function verTokenStatus() {
+  if(!CFG.url) { toast('Configura URL primero','error'); return; }
+  try {
+    const r = await fetch(CFG.url+'/api/token_status');
+    const d = await r.json();
+    const msg = `Token: ${d.token_configurado?'✅':'❌'} (${d.token_len} chars)\n`+
+                `Phone ID: ${d.phone_id_configurado?'✅':'❌'}\n`+
+                `Meta API: ${d.meta_ok?'✅ '+d.meta_resp:'❌ '+d.meta_resp}`;
+    alert(msg);
   } catch(e) { toast('Error: '+e.message,'error'); }
 }
 
