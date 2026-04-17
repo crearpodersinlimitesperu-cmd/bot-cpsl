@@ -432,18 +432,93 @@ def _scheduler():
 HORA_REPORTE = os.environ.get("REPORTE_HORA","12:30")  # default 12:30pm
 
 def _scheduler_reportes():
-    """Solicita reporte diario a coordinadoras a la hora configurada."""
+    """
+    Scheduler de reportes:
+    - A las 12:30 → solicita reporte a Diana, Zuley, Joyce
+    - A las 14:30 → recordatorio a quienes no respondieron
+    - A las 15:00 → envía consolidado a José aunque falten reportes
+    """
     import requests as req2
-    BOT_URL = os.environ.get("BOT_URL","https://bot-cpsl.onrender.com")
+    BOT_URL   = os.environ.get("BOT_URL","https://bot-cpsl.onrender.com")
+    JOSE_TEL  = "51919563284"
+    ya_solicitado   = False
+    ya_recordatorio = False
+    ya_consolidado  = False
+    ultimo_dia      = None
+
     while True:
         try:
-            hora_actual = datetime.now(TZ_LIMA).strftime("%H:%M")
-            if hora_actual == HORA_REPORTE:
+            ahora_dt   = datetime.now(TZ_LIMA)
+            hora_actual = ahora_dt.strftime("%H:%M")
+            dia_actual  = ahora_dt.strftime("%d/%m/%Y")
+
+            # Reset diario
+            if dia_actual != ultimo_dia:
+                ya_solicitado   = False
+                ya_recordatorio = False
+                ya_consolidado  = False
+                ultimo_dia      = dia_actual
+
+            # 12:30 → Solicitar reportes a todas las CCs
+            if hora_actual == HORA_REPORTE and not ya_solicitado:
                 log.info(f"Solicitando reportes a coordinadoras ({HORA_REPORTE})")
                 req2.post(f"{BOT_URL}/api/solicitar_reporte",
                          json={"cc":"todas"}, timeout=10)
+                ya_solicitado = True
+
+            # 14:30 → Recordatorio a quien no respondió
+            if hora_actual == "14:30" and not ya_recordatorio:
+                try:
+                    r = req2.get(f"{BOT_URL}/api/reporte_consolidado", timeout=10)
+                    d = r.json()
+                    pendientes = d.get("pendientes", [])
+                    if pendientes:
+                        log.info(f"Recordatorio a: {pendientes}")
+                        # Reenviar solicitud solo a los pendientes
+                        for nom in pendientes:
+                            # Buscar tel por nombre
+                            CCS_TELS = {
+                                "Diana Moscoso":  "51912379744",
+                                "Joyce Marín":    "51933599903",
+                                "Zuley Urteaga":  "51933599864",
+                                "Leyla Pasquel":  "51919502385",
+                                "Linid Valencia": "51912379686",
+                            }
+                            tel = CCS_TELS.get(nom)
+                            if tel:
+                                req2.post(f"{BOT_URL}/api/enviar",
+                                    json={"telefono": tel,
+                                          "mensaje": f"⏰ *Recordatorio* {nom.split()[0]}, aún no hemos recibido tu reporte del día. Por favor envíalo cuando puedas. Escribe *HOLA* para acceder al menú."},
+                                    timeout=10)
+                except Exception as e:
+                    log.error(f"recordatorio_reportes: {e}")
+                ya_recordatorio = True
+
+            # 15:00 → Enviar consolidado a José aunque falten
+            if hora_actual == "15:00" and not ya_consolidado:
+                try:
+                    r = req2.get(f"{BOT_URL}/api/reporte_consolidado", timeout=10)
+                    d = r.json()
+                    consolidado = d.get("consolidado")
+                    pendientes  = d.get("pendientes", [])
+                    reportes_n  = d.get("reportes", 0)
+                    if consolidado:
+                        msg_cons = "CONSOLIDADO DIARIO CPSL Lima\n\n" + str(consolidado)
+                        req2.post(f"{BOT_URL}/api/enviar",
+                            json={"telefono": JOSE_TEL, "mensaje": msg_cons},
+                            timeout=10)
+                    elif reportes_n == 0:
+                        noms = ", ".join(pendientes) if pendientes else "Todas"
+                        msg_sin = "Sin reportes recibidos hoy. Pendientes: " + noms
+                        req2.post(f"{BOT_URL}/api/enviar",
+                            json={"telefono": JOSE_TEL, "mensaje": msg_sin},
+                            timeout=10)
+                except Exception as e:
+                    log.error(f"consolidado_jose: {e}")
+                ya_consolidado = True
+
         except Exception as e:
-            log.error(f"scheduler_reportes: {e}")
+            log.error(f"scheduler_reportes error: {e}")
         time.sleep(60)
 
 if AUTO:
