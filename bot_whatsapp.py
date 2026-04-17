@@ -1129,6 +1129,22 @@ def test_notif():
     )
     return jsonify({"enviado":exito,"cc":nom,"tel":tel}), 200
 
+@app.route("/api/casos/abrir", methods=["POST"])
+def api_abrir_caso():
+    """Abre un caso derivado manualmente desde el panel."""
+    d   = request.json or {}
+    tel = str(d.get("tel","")).strip()
+    if not tel:
+        return jsonify({"error":"tel requerido"}), 400
+    caso = abrir_caso(
+        tel_px   = tel,
+        nombre   = d.get("nombre", tel),
+        cc_key   = d.get("cc", "dmoscoso"),
+        asunto   = d.get("asunto", "Derivado desde panel"),
+        urgente  = bool(d.get("urgente", False))
+    )
+    return jsonify({"ok": True, "caso": caso}), 200
+
 @app.route("/api/casos")
 def api_casos():
     """Lista de casos derivados activos para el panel."""
