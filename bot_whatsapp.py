@@ -42,21 +42,29 @@ def cc_add(k):
     with _carga_lk:
         if k in _carga: _carga[k] += 1
 
-# Mapa fijo equipo → coordinadora (basado en archivos de aliados reales)
+# Mapa equipo → coordinadora para DERIVACIONES
+# REGLA: Linid y Leyla NO reciben derivaciones directas
+# Sus PX se derivan a Diana (E14-E19) y Joyce (E20-E22)
+# Excepción: solo Maestría del Juego va a Linid/Leyla (flujo especial)
 _CC_POR_EQUIPO = {
     "EQUIPO 26": "dmoscoso",   # Diana Moscoso
     "EQUIPO 25": "jmarin",     # Joyce Marín
     "EQUIPO 24": "zurteaga",   # Zuley Urteaga
     "EQUIPO 23": "zurteaga",
-    "EQUIPO 22": "lpasquel",   # Leyla Pasquel
-    "EQUIPO 21": "lpasquel",
-    "EQUIPO 20": "lpasquel",
-    "EQUIPO 19": "lvalencia",  # Linid Valencia
-    "EQUIPO 18": "lvalencia",
-    "EQUIPO 17": "lvalencia",
-    "EQUIPO 16": "lvalencia",
-    "EQUIPO 15": "lvalencia",
-    "EQUIPO 14": "lvalencia",
+    "EQUIPO 22": "jmarin",     # Joyce (antes Leyla)
+    "EQUIPO 21": "jmarin",
+    "EQUIPO 20": "jmarin",
+    "EQUIPO 19": "dmoscoso",   # Diana (antes Linid)
+    "EQUIPO 18": "dmoscoso",
+    "EQUIPO 17": "dmoscoso",
+    "EQUIPO 16": "dmoscoso",
+    "EQUIPO 15": "dmoscoso",
+    "EQUIPO 14": "dmoscoso",
+}
+# Linid y Leyla solo para Maestría del Juego (flujo especial)
+_CC_MJ = {
+    "lvalencia": {"nombre":"Linid Valencia","tel":"51912379686"},
+    "lpasquel":  {"nombre":"Leyla Pasquel", "tel":"51919502385"},
 }
 
 def cc_por_equipo(equipo):
