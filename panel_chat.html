@@ -343,24 +343,29 @@ function procesarHistorial(data) {
     // ── ESTADO: DERIVADO ────────────────────────────────────
     if(m.tipo === 'out' && m.texto) {
       const txt = m.texto;
-      if(txt.includes('Te derivo')       ||
-         txt.includes('Derivado a')      ||
-         txt.includes('derivo con')      ||
-         txt.includes('entregado a tu coordinadora') ||
-         txt.includes('Coordinación')) {
+      // SOLO derivaciones explícitas — NO el menú general
+      const es_der = (
+        txt.includes('\u2705 Te derivo con') ||
+        txt.includes('\u2705 Derivado a Coordinaci') ||
+        txt.includes('\u2705 Mensaje entregado a tu coordinadora') ||
+        txt.includes('Puedes escribirle directamente')
+      );
+      const es_menu = (
+        txt.includes('Portal IMO') || txt.includes('Pendientes de C1') ||
+        txt.includes('dado de baja') || txt.includes('Bienvenido a CPSL') ||
+        txt.includes('Info Entrenamiento') || txt.includes('men\u00fa') ||
+        txt.includes('MENU para ver')
+      );
+      if(es_der && !es_menu) {
         c.estado = 'DERIVADO';
-        // Detectar a qué CC fue derivado
-        for(const [nom, key] of Object.entries(CCS_MAP)) {
-          if(txt.includes(nom) && nom.length > 3) {
-            c.cc = key;
-            break;
-          }
+        // Detectar CC y reasignar Linid/Leyla → Diana/Joyce
+        const cc_map_der = {
+          'Diana':'dmoscoso','Joyce':'jmarin','Zuley':'zurteaga',
+          'Leyla':'jmarin','Linid':'dmoscoso'
+        };
+        for(const [nom,key] of Object.entries(cc_map_der)) {
+          if(txt.includes(nom)) { c.cc = key; break; }
         }
-        cambios = true;
-      }
-      // CONFIRMADO resetea el estado
-      if(txt.includes('¡Confirmado')) {
-        c.estado = 'CONFIRMADO';
         cambios = true;
       }
     }
