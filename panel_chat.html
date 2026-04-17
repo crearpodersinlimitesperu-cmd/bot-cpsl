@@ -525,6 +525,125 @@ function renderMsgs(tel) {
   el.scrollTop = el.scrollHeight;
 }
 
+
+// ══════════════════════════════════════════════════════════════
+// GESTIÓN DE CASOS DERIVADOS
+// ══════════════════════════════════════════════════════════════
+let casosData = {};
+
+async function syncCasos() {
+  try {
+    const r = await fetch(BOT + '/api/casos');
+    if(!r.ok) return;
+    const d = await r.json();
+    casosData = d;
+    renderCasos(d);
+  } catch(e) {}
+}
+
+function renderCasos(d) {
+  const resumen = d.resumen || {};
+  const casos   = d.casos   || [];
+
+  // Contador badge
+  const total_act = (resumen.urgentes||0) + (resumen.abiertos||0) + (resumen.en_gestion||0);
+  const elCount = document.getElementById('casosCount');
+  if(elCount) elCount.textContent = total_act > 0 ? '(' + total_act + ')' : '';
+
+  // Actualizar stat de derivados con casos REALES del gestor
+  const elDer = document.getElementById('sDer');
+  if(elDer && total_act > 0) elDer.textContent = total_act;
+
+  // Carga por CC
+  const por_cc = resumen.por_cc || {};
+  ['dmoscoso','jmarin','zurteaga','lpasquel','lvalencia'].forEach(k => {
+    const el = document.getElementById('cc-' + k);
+    if(!el) return;
+    const n = por_cc[k] || 0;
+    el.textContent = n;
+    el.className = 'cc-count ' + (n === 0 ? 'zero' : '');
+  });
+
+  // Lista de casos en panel derecho
+  const elList = document.getElementById('casosList');
+  if(!elList) return;
+
+  if(!casos.length) {
+    elList.innerHTML = '<div style="font-size:10px;color:var(--txt3);padding:6px 0">Sin casos activos</div>';
+    return;
+  }
+
+  const CC_NOM = {dmoscoso:'Diana', jmarin:'Joyce', zurteaga:'Zuley'};
+  elList.innerHTML = casos.slice(0, 12).map(c => {
+    const emoji = c.estado === 'URGENTE' ? '🔴' : c.estado === 'EN_GESTION' ? '🔵' : '⏳';
+    const cls   = c.estado === 'URGENTE' ? 'urgente' : c.estado === 'EN_GESTION' ? 'gestion' : '';
+    const ccNom = CC_NOM[c.cc_key] || c.cc_key || '?';
+    const nom   = (c.nombre || c.tel_px || '?').substring(0, 22);
+    const asunto= (c.asunto || '').substring(0, 35);
+    const data = encodeURIComponent(JSON.stringify({tel:c.tel_px,nom:c.nombre,as:c.asunto,st:c.estado,cc:c.cc_key}));
+    return '<div class="caso-item ' + cls + '" onclick="abrirCasoData(this)" data-caso="' + data + '">' +
+      '<div class="caso-nombre">' + emoji + ' ' + nom + '</div>' +
+      '<div class="caso-info">' + asunto + '</div>' +
+      '<div class="caso-cc">' + ccNom + ' · ' + c.estado + '</div>' +
+      '</div>';
+  }).join('');
+}
+
+function abrirCasoData(el) {
+  const d = JSON.parse(decodeURIComponent(el.dataset.caso || '{}'));
+  verCaso(d.tel, d.nom, d.as, d.st, d.cc);
+}
+
+function verCaso(tel, nombre, asunto, estado, cc_key) {
+  const CC_NOM = {dmoscoso:'Diana Moscoso', jmarin:'Joyce Marín', zurteaga:'Zuley Urteaga'};
+  const cc_nom = CC_NOM[cc_key] || cc_key;
+  const accion = prompt(
+    'Caso: ' + nombre + '\nAsunto: ' + asunto + '\nCC: ' + cc_nom + '\nEstado: ' + estado +
+    '\n\n1 = En gestión\n2 = Cerrar caso\n3 = Cancelar', '3'
+  );
+  if(!accion || accion === '3') return;
+  if(accion === '1') {
+    const nota = prompt('Nota (opcional):', '') || '';
+    fetch(BOT + '/api/casos/' + tel + '/estado', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({estado: 'EN_GESTION', nota: nota})
+    }).then(() => { toast('Actualizado ✅', 'ok'); setTimeout(syncCasos, 500); });
+  } else if(accion === '2') {
+    const nota = prompt('Motivo de cierre:', 'Resuelto') || 'Cerrado desde panel';
+    fetch(BOT + '/api/casos/' + tel + '/cerrar', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({nota: nota})
+    }).then(() => { toast('Caso cerrado ✅', 'ok'); setTimeout(syncCasos, 500); });
+  }
+}
+
+async function followup12h() {
+  if(!confirm('¿Enviar recordatorio a coordinadoras por casos sin actualizar en 12h?')) return;
+  try {
+    toast('Enviando followup...', 'ok');
+    const r = await fetch(BOT + '/api/followup', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({horas: 12})
+    });
+    const d = await r.json();
+    toast('Followup enviado: ' + (d.enviados || 0) + ' casos', 'ok');
+    setTimeout(syncCasos, 1000);
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+async function verCasosCerrados() {
+  try {
+    const r = await fetch(BOT + '/api/casos');
+    const d = await r.json();
+    const cerrados = (d.casos || []).filter(c => c.estado === 'CERRADO');
+    if(!cerrados.length) { alert('No hay casos cerrados aún.'); return; }
+    const txt = cerrados.map(c =>
+      '✅ ' + c.nombre + '\n   ' + c.asunto + '\n   Cerrado: ' + (c.ts_cierre||'').substring(0,10)
+    ).join('\n\n');
+    alert('CASOS CERRADOS (' + cerrados.length + '):\n\n' + txt);
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
 // ══════════════════════════════════════════════════════════════
 // SYNC
 // ══════════════════════════════════════════════════════════════
