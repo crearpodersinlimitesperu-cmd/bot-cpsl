@@ -514,21 +514,35 @@ def _flujo_cc(tel, up, texto, cc_info):
         if up in {"9","VOLVER"}:
             s["st_cc"] = "MAIN"; set_s(tel, s)
             _menu_cc(tel, nom); return
-        # Guardar reporte
+        # Parsear y registrar reporte
         hora_s = ahora().strftime("%d/%m/%Y %H:%M:%S")
         reg(tel, nom_full, "", texto, "REPORTE_CC", dir_="IN", staff=nom_full)
         add_hist(tel, f"CC/{nom}", texto, "in")
+        # Usar el parser de reportes
+        resumen_parsed, parsed = registrar_reporte(tel, texto)
+        # Confirmar a la CC con el resumen parseado
         wa(tel,
-           f"✅ Reporte registrado.\n\n"
-           f"_{hora_s}_\n\n"
+           f"✅ *Reporte registrado* — {hora_s}\n\n"
+           f"{resumen_parsed}\n\n"
+           f"_Si hay algún error, reenvía el reporte corregido._\n\n"
            f"0️⃣ Salir | 9️⃣ Menú",
            f"SIS→{nom}")
-        # Notificar a José
-        wa(JOSE_TEL,
-           f"📊 *REPORTE CC — {nom_full}*\n"
-           f"_{hora_s}_\n\n"
-           f"{texto}",
-           f"SIS→JOSE")
+        # Enviar consolidado a José
+        consolidado = consolidar_reportes()
+        msg_jose = (
+            f"📊 *NUEVO REPORTE — {nom_full}*\n_{hora_s}_\n\n"
+            f"{resumen_parsed}"
+        )
+        if consolidado:
+            msg_jose += f"\n\n{'─'*30}\n{consolidado}"
+        wa(JOSE_TEL, msg_jose, f"SIS→JOSE")
+        # Verificar si faltan reportes
+        pendientes = reportes_pendientes()
+        if pendientes:
+            noms_pend = ", ".join(p["nombre"].split()[0] for p in pendientes)
+            wa(JOSE_TEL,
+               f"⏳ *Reportes pendientes:* {noms_pend}",
+               f"SIS→JOSE")
         s["st_cc"] = "MAIN"; set_s(tel, s)
 
     elif st == "ESPERANDO_CONFIRMACION":
@@ -1079,6 +1093,18 @@ def test_notif():
     )
     return jsonify({"enviado":exito,"cc":nom,"tel":tel}), 200
 
+@app.route("/api/reporte_consolidado")
+def reporte_consolidado():
+    """Devuelve el consolidado de reportes del día."""
+    consolidado = consolidar_reportes()
+    pendientes  = reportes_pendientes()
+    return jsonify({
+        "consolidado": consolidado,
+        "pendientes":  [p["nombre"] for p in pendientes],
+        "reportes":    len(_reportes_hoy),
+        "hora":        ahora().strftime("%d/%m/%Y %H:%M")
+    }), 200
+
 @app.route("/api/solicitar_reporte", methods=["POST"])
 def solicitar_reporte():
     """
@@ -1165,6 +1191,23 @@ def panel():
     except: return "<h2>Panel no disponible</h2>",200
 
 # ── INTEGRACIÓN WORKER DE SEGUIMIENTO ────────────────────────
+# Importar sistema de reportes CC
+try:
+    from reportes_cc import (
+        parsear_reporte, formatear_reporte,
+        registrar_reporte, consolidar_reportes,
+        reportes_pendientes, _reportes_hoy,
+        CCS as CCS_REPORTES
+    )
+    _REP_OK = True
+    logger.info("✅ Sistema de reportes CC cargado")
+except ImportError as e:
+    _REP_OK = False
+    logger.warning(f"⚠️ reportes_cc.py no disponible: {e}")
+    def registrar_reporte(tel, txt): return "Reporte registrado.", {}
+    def consolidar_reportes(): return None
+    def reportes_pendientes(): return []
+
 try:
     from seguimiento_github import (
         run_seguimiento, _estado as _estado_worker,
