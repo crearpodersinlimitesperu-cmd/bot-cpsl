@@ -134,6 +134,13 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .toast.show{opacity:1}
 .toast.ok{border-color:var(--green);color:var(--green)}
 .toast.err{border-color:var(--red);color:var(--red)}
+.caso-item{padding:6px 8px;border-radius:6px;background:var(--bg3);margin-bottom:3px;cursor:pointer;transition:background .12s}
+.caso-item:hover{background:var(--bg4)}
+.caso-item.urgente{background:var(--red3);border-left:2px solid var(--red)}
+.caso-item.gestion{background:var(--blue3);border-left:2px solid var(--blue)}
+.caso-nombre{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.caso-info{font-size:10px;color:var(--txt3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.caso-cc{font-size:9px;font-weight:700;color:var(--orange)}
 </style>
 </head>
 <body>
@@ -199,6 +206,15 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
         <div class="cc-item"><div class="cc-dot"></div><span class="cc-nombre">Zuley Urteaga</span><span class="cc-count zero" id="cc-zurteaga">0</span></div>
         <div class="cc-item"><div class="cc-dot"></div><span class="cc-nombre">Leyla Pasquel</span><span class="cc-count zero" id="cc-lpasquel">0</span></div>
         <div class="cc-item"><div class="cc-dot"></div><span class="cc-nombre">Linid Valencia</span><span class="cc-count zero" id="cc-lvalencia">0</span></div>
+      </div>
+    </div>
+
+    <div class="rp-section" id="casosSection">
+      <div class="rp-title">Casos Derivados <span id="casosCount" style="color:var(--orange);font-size:11px;font-weight:700"></span></div>
+      <div id="casosList" style="max-height:180px;overflow-y:auto;margin-bottom:6px"></div>
+      <div class="btn-row">
+        <button class="btn-seg warn" onclick="followup12h()">⏰ Followup 12h</button>
+        <button class="btn-seg" onclick="verCasosCerrados()">📁 Cerrados</button>
       </div>
     </div>
 
@@ -537,6 +553,9 @@ function iniciarSync() {
   syncTimer = setInterval(sync, 7000);
   // Sync carga CC cada 30s
   setInterval(syncCC, 30000);
+  // Sync casos cada 15s — contador en tiempo real
+  syncCasos();
+  setInterval(syncCasos, 15000);
   // Sync estado seguimiento cada 10s
   setInterval(syncSeg, 10000);
 }
