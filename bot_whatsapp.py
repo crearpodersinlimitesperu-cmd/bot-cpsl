@@ -397,6 +397,10 @@ def notif_cc(p, motivo, extra=""):
     if not Cfg.TOKEN:
         logger.critical("notif_cc: WA_TOKEN VACÍO — derivación no enviada")
         return nom_cc
+    # Abrir caso en el gestor si es derivación
+    if "solicita" in motivo.lower() or "CONFIRMA" in motivo or "NO ASISTE" in motivo or "DEVOLUCION" in motivo or "directo" in motivo.lower():
+        urgente = "DEVOLUCION" in motivo or "PLATA" in motivo or "URGENTE" in motivo
+        abrir_caso(str(tel_px), nom_px, cc_key or cc_libre(), motivo, urgente=urgente)
     exito = wa(tel_cc,
        f"🚨 *TORRE DE CONTROL — CPSL Lima*\n\n"
        f"*Nombre:* {nom_px}\n"
@@ -453,6 +457,30 @@ def _flujo_cc(tel, up, texto, cc_info):
         return
 
     if st == "MAIN":
+        # Respuestas rápidas al followup de casos (1=resuelto, 2=gestión, 3=apoyo)
+        if up in {"1","2","3"} and s.get("caso_followup"):
+            tel_caso = s["caso_followup"]
+            if up == "1":
+                cerrar_caso(tel_caso, f"Resuelto por {nom_full}")
+                wa(tel, f"✅ Caso cerrado. Registrado en el sistema.", f"SIS→{nom}")
+                wa(Cfg.JOSE_TEL,
+                   f"✅ *Caso cerrado* por {nom_full}\n"
+                   f"PX: wa.me/{tel_caso}",
+                   f"SIS→JOSE")
+            elif up == "2":
+                actualizar_caso(tel_caso, "EN_GESTION", f"En gestión por {nom_full}")
+                wa(tel, f"📋 Entendido — marcado como En gestión.", f"SIS→{nom}")
+            elif up == "3":
+                actualizar_caso(tel_caso, "ABIERTO", f"Sin respuesta — {nom_full} pide apoyo")
+                wa(tel, f"🆘 Avisado a coordinación para apoyo.", f"SIS→{nom}")
+                wa(Cfg.JOSE_TEL,
+                   f"🆘 *{nom_full} necesita apoyo*\nCaso: wa.me/{tel_caso}",
+                   f"SIS→JOSE")
+            s.pop("caso_followup", None)
+            set_s(tel, s)
+            _menu_cc(tel, nom)
+            return
+
         if up == "1":
             wa(tel,
                f"📋 *Reporte del día — {nom_full}*\n\n"
@@ -1101,6 +1129,65 @@ def test_notif():
     )
     return jsonify({"enviado":exito,"cc":nom,"tel":tel}), 200
 
+@app.route("/api/casos")
+def api_casos():
+    """Lista de casos derivados activos para el panel."""
+    cc_key = request.args.get("cc")
+    casos  = casos_abiertos(cc_key)
+    resumen = resumen_casos()
+    return jsonify({"casos": casos, "resumen": resumen}), 200
+
+@app.route("/api/casos/<tel_px>/cerrar", methods=["POST"])
+def api_cerrar_caso(tel_px):
+    """Cierra un caso desde el panel."""
+    d    = request.json or {}
+    nota = d.get("nota", "Cerrado desde panel")
+    ok   = cerrar_caso(tel_px, nota)
+    if ok:
+        logger.info(f"Caso cerrado: {tel_px} — {nota}")
+    return jsonify({"ok": ok}), 200
+
+@app.route("/api/casos/<tel_px>/estado", methods=["POST"])
+def api_estado_caso(tel_px):
+    """Actualiza el estado de un caso."""
+    d       = request.json or {}
+    estado  = d.get("estado","EN_GESTION")
+    nota    = d.get("nota","")
+    ok      = actualizar_caso(tel_px, estado, nota)
+    return jsonify({"ok": ok}), 200
+
+@app.route("/api/followup", methods=["POST"])
+def api_followup():
+    """Envía followup a CCs por casos sin respuesta en +12h."""
+    horas   = int((request.json or {}).get("horas", 12))
+    pendientes = casos_para_followup(horas)
+    enviados   = 0
+    for caso in pendientes:
+        cc_key = caso.get("cc_key","dmoscoso")
+        cc     = STAFF.get(cc_key, STAFF["dmoscoso"])
+        nom_px = caso.get("nombre","?")
+        tel_px = caso.get("tel_px","?")
+        asunto = caso.get("asunto","?")
+        estado = caso.get("estado","?")
+        ok = wa(cc["tel"],
+            f"⏰ *Seguimiento de caso — CPSL Lima*\n\n"
+            f"*{nom_px}*\n"
+            f"wa.me/{tel_px}\n"
+            f"Asunto: {asunto}\n"
+            f"Estado: {estado}\n\n"
+            f"¿Pudiste contactar a esta persona? Responde:\n"
+            f"1️⃣ Sí, resuelto\n"
+            f"2️⃣ En gestión\n"
+            f"3️⃣ Sin respuesta — necesito apoyo",
+            f"SIS→{cc['nombre']}"
+        )
+        if ok:
+            marcar_notificado(tel_px)
+            enviados += 1
+        time.sleep(1)
+    logger.info(f"Followup enviado: {enviados}/{len(pendientes)} casos")
+    return jsonify({"enviados": enviados, "total": len(pendientes)}), 200
+
 @app.route("/api/reporte_consolidado")
 def reporte_consolidado():
     """Devuelve el consolidado de reportes del día."""
@@ -1199,6 +1286,26 @@ def panel():
     except: return "<h2>Panel no disponible</h2>",200
 
 # ── INTEGRACIÓN WORKER DE SEGUIMIENTO ────────────────────────
+# Importar gestor de casos derivados
+try:
+    from casos_derivados import (
+        abrir_caso, cerrar_caso, actualizar_caso,
+        casos_abiertos, casos_para_followup,
+        marcar_notificado, resumen_casos
+    )
+    _CASOS_OK = True
+    logger.info("✅ Gestor de casos derivados cargado")
+except ImportError as e:
+    _CASOS_OK = False
+    logger.warning(f"⚠️ casos_derivados.py no disponible: {e}")
+    def abrir_caso(*a,**k): return {}
+    def cerrar_caso(*a,**k): return False
+    def actualizar_caso(*a,**k): return False
+    def casos_abiertos(*a,**k): return []
+    def casos_para_followup(*a,**k): return []
+    def marcar_notificado(*a,**k): pass
+    def resumen_casos(): return {"total":0,"urgentes":0,"abiertos":0,"en_gestion":0,"cerrados":0,"por_cc":{}}
+
 # Importar sistema de reportes CC
 try:
     from reportes_cc import (
@@ -1298,6 +1405,38 @@ def seg_sin_resp():
     horas = int(request.args.get("horas", 48))
     resultado = detectar_sin_respuesta(horas_espera=horas)
     return jsonify(resultado), 200
+
+
+# ── SCHEDULER FOLLOWUP CASOS DERIVADOS (08:00 y 20:00) ───────
+def _scheduler_followup():
+    ya_hecho = set()
+    while True:
+        try:
+            hora  = ahora().strftime("%H:%M")
+            clave = ahora().strftime("%d/%m") + hora
+            if hora in ("08:00","20:00") and clave not in ya_hecho:
+                pendientes = casos_para_followup(horas=12)
+                if pendientes:
+                    logger.info(f"Followup automatico: {len(pendientes)} casos")
+                    for caso in pendientes:
+                        cc_k = caso.get("cc_key","dmoscoso")
+                        cc   = STAFF.get(cc_k, STAFF["dmoscoso"])
+                        msg  = (f"Seguimiento CPSL Lima\n\n"
+                                f"{caso.get('nombre','?')}\n"
+                                f"wa.me/{caso.get('tel_px','?')}\n"
+                                f"Asunto: {caso.get('asunto','?')}\n\n"
+                                f"Responde: 1=Resuelto 2=En gestion 3=Necesito apoyo")
+                        wa(cc["tel"], msg, f"SIS->{cc['nombre']}")
+                        marcar_notificado(caso.get("tel_px",""))
+                        time.sleep(1.5)
+                ya_hecho.add(clave)
+                if len(ya_hecho) > 100: ya_hecho.clear()
+        except Exception as e:
+            logger.error(f"followup_sched: {e}")
+        time.sleep(60)
+
+threading.Thread(target=_scheduler_followup, daemon=True, name="followup").start()
+logger.info("Scheduler followup activo — 08:00 y 20:00")
 
 if __name__=="__main__":
     logger.info("🚀 CPSL Torre de Control V109")
