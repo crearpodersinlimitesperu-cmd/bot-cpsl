@@ -221,4 +221,3 @@ def reportes_pendientes():
         for tel, info in CCS.items()
         if info["key"] not in enviados
     ]
-
