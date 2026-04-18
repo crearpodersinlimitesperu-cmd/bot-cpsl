@@ -159,7 +159,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   <!-- SIDEBAR -->
   <div class="sidebar">
     <div class="search-wrap">
-      <input type="text" id="searchInput" placeholder="Buscar nombre o teléfono..." oninput="renderLista()">
+      <input type="text" id="searchInput" placeholder="Buscar nombre o teléfono..." oninput="buscar(this.value)" oninput="renderLista()">
     </div>
     <div class="tabs">
       <div class="tab active" data-tab="todos" onclick="setTab('todos',this)">Todos</div>
@@ -192,7 +192,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     </div>
     <div class="chat-input-wrap">
       <textarea class="chat-input" id="chatInput" rows="1" placeholder="Escribe un mensaje..." onkeydown="keyEnter(event)"></textarea>
-      <button class="btn-send" onclick="enviarMsg()">Enviar</button>
+      <button class="btn-send" id="btnEnviar" onclick="enviarMsg()">Enviar</button>
     </div>
   </div>
 
@@ -395,6 +395,27 @@ function iniciales(nombre) {
   if(p.length >= 2) return (p[0][0]+p[p.length-1][0]).toUpperCase();
   if(p.length === 1) return p[0].substring(0,2).toUpperCase();
   return '?';
+}
+
+function setTab(tab, el) {
+  tabActivo = tab;
+  // Actualizar estilo de tabs
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  if(el) el.classList.add('active');
+  renderLista();
+}
+
+function abrirNuevoChat() {
+  const tel = prompt('Teléfono (ej: 51912345678):');
+  if(!tel || tel.trim().length < 9) return;
+  const tel_n = tel.trim().replace(/\D/g,'');
+  if(!convs[tel_n]) {
+    convs[tel_n] = {
+      tel: tel_n, nombre: tel_n, tipo: 'EXT',
+      estado: 'ACTIVO', unread: 0, ts: '', msgs: []
+    };
+  }
+  abrirConv(tel_n);
 }
 
 function renderLista() {
@@ -862,6 +883,111 @@ function toast(msg, tipo) {
 // INIT
 // ══════════════════════════════════════════════════════════════
 iniciarSync();
+
+// ══════════════════════════════════════════════════════════════
+// TABS — TODOS / IMO / PX / DERIVADOS / NUEVOS
+// ══════════════════════════════════════════════════════════════
+function setTab(tab, el) {
+  tabActivo = tab;
+  // Actualizar clase activa
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  if(el) el.classList.add('active');
+  renderLista();
+}
+
+// ══════════════════════════════════════════════════════════════
+// BÚSQUEDA EN TIEMPO REAL
+// ══════════════════════════════════════════════════════════════
+function buscar(q) {
+  renderLista();
+}
+
+// ══════════════════════════════════════════════════════════════
+// NUEVO CHAT — abrir conversación con número nuevo
+// ══════════════════════════════════════════════════════════════
+function abrirNuevoChat() {
+  const tel = prompt('Número de teléfono (con código de país, ej: 51987654321):');
+  if(!tel) return;
+  const telLimpio = tel.replace(/\D/g,'');
+  if(telLimpio.length < 9) { toast('Número inválido','err'); return; }
+  // Crear conversación vacía si no existe
+  if(!convs[telLimpio]) {
+    convs[telLimpio] = {
+      tel: telLimpio,
+      nombre: telLimpio,
+      tipo: '?',
+      estado: 'NUEVO',
+      msgs: [],
+      unread: 0,
+      ts: new Date().toISOString(),
+      cc: ''
+    };
+    renderLista();
+  }
+  abrirConv(telLimpio);
+}
+
+// ══════════════════════════════════════════════════════════════
+// ABRIR CONVERSACIÓN
+// ══════════════════════════════════════════════════════════════
+function abrirConv(tel) {
+  telActivo = tel;
+  // Marcar como leído
+  if(convs[tel]) {
+    convs[tel].unread = 0;
+    renderLista();
+  }
+  renderMsgs(tel);
+  // Mostrar header de la conversación
+  const c = convs[tel] || {nombre: tel, tipo:'?', estado:'', cc:''};
+  const nom = c.nombre || tel;
+  const tipo_badge = c.tipo === 'IMO' ? '👑 IMO' : c.tipo === 'PX' ? '👤 PX' : '🔵 NUEVO';
+  const cc_str = c.cc ? ` · ${({'dmoscoso':'Diana','jmarin':'Joyce','zurteaga':'Zuley'}[c.cc]||c.cc)}` : '';
+  const es_der = c.estado === 'DERIVADO';
+  const header = document.getElementById('chatHeader');
+  if(header) {
+    header.innerHTML = `
+      <div class="chat-header-info">
+        <div class="chat-header-nom">${nom}</div>
+        <div class="chat-header-sub">
+          <span class="chat-header-badge">${tipo_badge}</span>
+          ${es_der ? `<span class="chat-header-cc">↗ Derivado${cc_str}</span>` : ''}
+          <a href="https://wa.me/${tel}" target="_blank" class="chat-header-wa">📱 WhatsApp</a>
+        </div>
+      </div>
+    `;
+  }
+  // Actualizar input placeholder
+  const inp = document.getElementById('chatInput');
+  if(inp) inp.placeholder = `Mensaje para ${nom.split(' ')[0]}...`;
+}
+
+// ══════════════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════════════
+function add_hist(tel, nom, texto, tipo) {
+  if(!convs[tel]) convs[tel] = {tel,nombre:nom||tel,tipo:'?',estado:'',msgs:[],unread:0,ts:'',cc:''};
+  const hora = new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
+  convs[tel].msgs.push({texto, tipo, hora, nombre: nom});
+  convs[tel].ts = new Date().toISOString();
+  if(tipo === 'in') convs[tel].unread = (convs[tel].unread||0)+1;
+}
+
+function syncCC() {
+  fetch(BOT+'/api/carga_coordinadoras')
+    .then(r=>r.json())
+    .then(d=>{
+      ['dmoscoso','jmarin','zurteaga','lpasquel','lvalencia'].forEach(k=>{
+        const el = document.getElementById('cc-'+k);
+        if(el) {
+          const n = d[k]||0;
+          el.textContent = n;
+          el.className = 'cc-count'+(n===0?' zero':'');
+        }
+      });
+    }).catch(()=>{});
+}
+
 </script>
 </body>
 </html>
