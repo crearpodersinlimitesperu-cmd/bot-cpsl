@@ -631,6 +631,12 @@ def flujo(tel, texto):
 
         s = get_s(tel)
 
+        # ── GERENTE JOSÉ — menú ejecutivo (L1) ─────────────────
+        if tel == "51919563284":
+            _flujo_gerente(tel, up, texto)
+            return
+
+
         # ── Reset / primera vez ───────────────────────────────
         if not s or up in RESET_W:
             # Coordinadora sin sesión → menú CC
@@ -685,6 +691,30 @@ def flujo(tel, texto):
             return
 
         tipo = p.get("tipo","NUEVO")
+
+        # ── MODO ENTRENAMIENTO ─────────────────────────────────
+        if os.environ.get("MODO_ENTRENAMIENTO","").lower() == "true":
+            tipo_chk = p.get("tipo","NUEVO")
+            st_chk   = s.get("st","")
+            if tipo_chk in ("PX","NUEVO") and st_chk in ("MAIN","NEW","")  and up not in RESET_W:
+                nom_e = p.get("nombre","") or "amigo/a"
+                s["msg_entrena"] = texto; set_s(tel, s)
+                wa(tel,
+                   f"🙏 Hola {nom_e}, gracias por escribirnos.\n\n"
+                   f"En este momento nuestro equipo está en *entrenamiento activo* de liderazgo. "
+                   f"Nuestras respuestas pueden tardar más de lo habitual.\n\n"
+                   f"Para atenderte rápido cuando salgamos, déjanos el detalle:\n\n"
+                   f"• ¿Cuál es tu consulta o situación?\n"
+                   f"• ¿Es urgente?\n\n"
+                   f"_Tu mensaje queda registrado. Con gusto te contactamos. 🙏_",
+                   "ENTRENA")
+                wa("51919563284",
+                   f"📨 *Msg durante entrenamiento*\n"
+                   f"De: {p.get('nombre','?')} (wa.me/{tel})\n"
+                   f"Msg: {texto[:120]}",
+                   "SIS→JOSE")
+                return
+
         if tipo == "IMO":   _imo(tel, up, texto, s, p)
         elif tipo == "PX":  _px(tel, up, texto, s, p)
         else:               _nuevo(tel, up, texto, s, p)
@@ -1469,6 +1499,150 @@ def _scheduler_followup():
 
 threading.Thread(target=_scheduler_followup, daemon=True, name="followup").start()
 logger.info("Scheduler followup activo — 08:00 y 20:00")
+
+
+# ── FLUJO GERENTE (José Sánchez) ────────────────────────────────
+def _flujo_gerente(tel, up, texto):
+    """Menú ejecutivo para el Gerente — José Sánchez."""
+    s = get_s(tel) or {}
+    st = s.get("st_jose","MAIN")
+
+    MENU_G = (
+        f"⚡ *Torre de Control — CPSL Lima*\n"
+        f"_José Sánchez · Gerente · {ahora().strftime('%d/%m %H:%M')}_\n\n"
+        f"1️⃣ Estado del sistema\n"
+        f"2️⃣ Derivados activos\n"
+        f"3️⃣ Reporte consolidado\n"
+        f"4️⃣ Aviso masivo a CCs\n"
+        f"5️⃣ Activar modo ENTRENAMIENTO\n"
+        f"6️⃣ Desactivar modo ENTRENAMIENTO\n"
+        f"0️⃣ Salir"
+    )
+
+    if up in RESET_W or st == "MAIN" or not st:
+        wa(tel, MENU_G, "GERENTE")
+        s["st_jose"] = "MAIN"; set_s(tel, s)
+        return
+
+    if up == "1":
+        res = resumen_casos()
+        cc_detalle = "\n".join(
+            f"  · {STAFF.get(k,{}).get('nombre',k)}: {n} casos"
+            for k,n in res.get("por_cc",{}).items()
+        ) or "  Sin casos asignados"
+        wa(tel,
+           f"📊 *Estado CPSL Lima*\n"
+           f"_{ahora().strftime('%d/%m/%Y %H:%M')}_\n\n"
+           f"🔴 Urgentes: {res.get('urgentes',0)}\n"
+           f"⏳ Abiertos: {res.get('abiertos',0)}\n"
+           f"🔵 En gestión: {res.get('en_gestion',0)}\n"
+           f"✅ Cerrados: {res.get('cerrados',0)}\n\n"
+           f"Por coordinadora:\n{cc_detalle}",
+           "GERENTE")
+        s["st_jose"] = "MAIN"; set_s(tel, s)
+        return
+
+    if up == "2":
+        activos = casos_abiertos()
+        if not activos:
+            wa(tel, "✅ Sin casos derivados activos.", "GERENTE")
+        else:
+            resumen = "\n".join(
+                f"{'🔴' if c['estado']=='URGENTE' else '⏳'} {c.get('nombre','?')[:22]} → {STAFF.get(c.get('cc_key',''),{}).get('nombre','?')}"
+                for c in activos[:12]
+            )
+            wa(tel, f"🗂 *Derivados activos ({len(activos)}):*\n\n{resumen}", "GERENTE")
+        s["st_jose"] = "MAIN"; set_s(tel, s)
+        return
+
+    if up == "4":
+        s["st_jose"] = "AVISO_MASIVO"; set_s(tel, s)
+        wa(tel, "📢 Escribe el mensaje que quieres enviar a *todas las coordinadoras* (Diana, Joyce, Zuley):\n\n_O escribe 0 para cancelar._", "GERENTE")
+        return
+
+    if st == "AVISO_MASIVO" and up != "0":
+        for cc_tel, cc_info in STAFF.items():
+            wa(cc_tel, f"📢 *Mensaje de Gerencia:*\n\n{texto}", "GERENTE")
+        wa(tel, f"✅ Mensaje enviado a todas las coordinadoras.", "GERENTE")
+        s["st_jose"] = "MAIN"; set_s(tel, s)
+        return
+
+    if up == "5":
+        os.environ["MODO_ENTRENAMIENTO"] = "true"
+        wa(tel, "⚡ *Modo ENTRENAMIENTO activado.*\nEl bot pedirá más detalle antes de derivar y notificará a los contactos la demora.", "GERENTE")
+        s["st_jose"] = "MAIN"; set_s(tel, s)
+        return
+
+    if up == "6":
+        os.environ["MODO_ENTRENAMIENTO"] = ""
+        wa(tel, "✅ *Modo ENTRENAMIENTO desactivado.*\nEl bot opera en modo normal.", "GERENTE")
+        s["st_jose"] = "MAIN"; set_s(tel, s)
+        return
+
+    if up == "0":
+        s["st_jose"] = "MAIN"; set_s(tel, s)
+        wa(tel, "👋 Hasta pronto, José.", "GERENTE")
+        return
+
+    # Default: mostrar menú
+    wa(tel, MENU_G, "GERENTE")
+    s["st_jose"] = "MAIN"; set_s(tel, s)
+
+
+# ── KEEPALIVE DE VENTANA 24H ────────────────────────────────────
+# Envía mensaje de texto libre cada 23h a CCs y casos abiertos
+# para mantener la ventana abierta y evitar plantillas de pago
+
+def _keepalive_loop():
+    """Envía ping de cortesía cada 23h para mantener ventana WhatsApp abierta."""
+    import time as _t
+    # Intervalos: 23 horas en segundos
+    INTERVALO = 23 * 3600
+    # Primera ejecución: esperar 1 hora desde el arranque
+    _t.sleep(3600)
+    
+    while True:
+        try:
+            ahora_s = ahora().strftime("%d/%m/%Y %H:%M")
+            
+            # 1. Mantener ventana con coordinadoras
+            CCS_KEEPALIVE = [
+                ("51912379744", "Diana"),
+                ("51933599903", "Joyce"),
+                ("51933599864", "Zuley"),
+            ]
+            for tel_cc, nom in CCS_KEEPALIVE:
+                ok = wa(tel_cc,
+                    f"👋 Hola {nom} — CPSL Lima al día.\n"
+                    f"Estamos disponibles. Escribe *HOLA* si necesitas algo.",
+                    "KEEPALIVE")
+                if ok:
+                    logger.info(f"Keepalive enviado a {nom}")
+                _t.sleep(3)
+            
+            # 2. Mantener ventana con casos derivados abiertos
+            try:
+                activos = casos_abiertos()
+                for caso in activos[:20]:  # máximo 20 por ciclo
+                    tel_px = caso.get("tel_px","")
+                    nom_px = caso.get("nombre","").split()[0] if caso.get("nombre") else ""
+                    if tel_px:
+                        wa(tel_px,
+                            f"Hola {nom_px} — te escribimos desde Crear Poder Sin Límites Perú.\n"
+                            f"Tu coordinadora está en contacto. Escribe *HOLA* si tienes alguna consulta.",
+                            "KEEPALIVE")
+                        _t.sleep(2)
+            except Exception as e:
+                logger.error(f"keepalive_casos: {e}")
+            
+            logger.info(f"Keepalive completado — {ahora_s}")
+        except Exception as e:
+            logger.error(f"keepalive_loop: {e}")
+        
+        _t.sleep(INTERVALO)
+
+threading.Thread(target=_keepalive_loop, daemon=True, name="keepalive").start()
+logger.info("✅ Keepalive loop activo — ciclo 23h")
 
 if __name__=="__main__":
     logger.info("🚀 CPSL Torre de Control V109")
