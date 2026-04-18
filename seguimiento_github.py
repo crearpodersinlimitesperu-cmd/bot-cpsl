@@ -33,13 +33,20 @@ PHONE_ID   = os.environ.get("WA_PHONE_ID","")
 SHEET_ID   = os.environ.get("SHEET_ID","")
 CREDS_JSON = os.environ.get("GOOGLE_CREDENTIALS","")
 SHEET_TAB  = os.environ.get("SHEET_TAB","Hoja 1")
-AUTO       = os.environ.get("SEGUIMIENTO_AUTO","false").lower() == "true"
+# ── SEGUIMIENTO — CONFIGURACIÓN ANTI-SPAM ────────────────────────
+# AUTO siempre False por defecto — solo activar manualmente desde panel
+# El envío masivo causa restricción de Meta
+AUTO       = False  # NO leer env var — solo activar desde panel /api/seguimiento/iniciar
 HORA_AUTO  = os.environ.get("SEGUIMIENTO_HORA","09:00")
 
-TEMPLATE   = "invitacion_c1_px"
+# Plantilla — solo para envío masivo inicial único
+# Dejar vacío hasta que Meta apruebe "invitacion_c1_e27"
+TEMPLATE   = os.environ.get("WA_TEMPLATE_NAME","")
 LANG_CODE  = "es_PE"
-FECHA_C1   = "Viernes 01 de Mayo"
-PAUSA      = 1.5
+FECHA_C1   = "Viernes 01, Sábado 02 y Domingo 03 de Mayo"
+
+# PAUSA entre mensajes — nunca menos de 30s para no triggear spam
+PAUSA      = float(os.environ.get("SEGUIMIENTO_PAUSA","45"))  # 45s default
 
 # GitHub raw URL del CSV
 GITHUB_CSV = ("https://raw.githubusercontent.com/"
@@ -313,6 +320,10 @@ def notif_cc(cc_key, nom_px, tel_px, motivo):
 # WORKER PRINCIPAL
 # ══════════════════════════════════════════════════════════════
 def run_seguimiento(modo="ambos", horas_reenvio=48, limite=None):
+    # Límite diario — NUNCA enviar más de 50 mensajes por ciclo (anti-spam Meta)
+    if limite is None:
+        limite = int(os.environ.get("SEGUIMIENTO_LIMITE","50"))
+    limite = min(limite, 100)  # cap absoluto
     """
     Seguimiento 100% desde GitHub + Sheet.
     modo: 'px' | 'imos' | 'ambos'
@@ -460,13 +471,21 @@ def run_seguimiento(modo="ambos", horas_reenvio=48, limite=None):
 
 # ── SCHEDULER AUTOMÁTICO ──────────────────────────────────────
 def _scheduler():
+    """
+    Scheduler desactivado por defecto (AUTO=False).
+    El seguimiento masivo SOLO se lanza desde el panel:
+      POST /api/seguimiento/iniciar  ← con límite manual
+    Esto previene restricciones de Meta por spam.
+    """
     while True:
         try:
+            # AUTO siempre False — no lanzar automáticamente
+            # Para activar puntualmente: usar panel Torre de Control
             if AUTO and not _estado["corriendo"]:
                 hora_actual = ahora().strftime("%H:%M")
                 if hora_actual == HORA_AUTO:
-                    log.info(f"Scheduler: lanzando seguimiento automático ({HORA_AUTO})")
-                    run_seguimiento(modo="ambos", horas_reenvio=48)
+                    log.info(f"Scheduler: lanzando seguimiento ({HORA_AUTO}) — limite=50")
+                    run_seguimiento(modo="ambos", horas_reenvio=48, limite=50)
         except Exception as e: log.error(f"scheduler: {e}")
         time.sleep(60)
 
