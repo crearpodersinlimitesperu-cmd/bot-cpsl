@@ -1028,12 +1028,28 @@ def carga_cc():
 
 @app.route("/api/enviar",methods=["POST"])
 def api_enviar():
-    d=request.json or {}
-    tel=d.get("telefono",""); msg=d.get("mensaje","")
-    if not tel or not msg: return jsonify({"error":"faltan datos"}),400
-    wa(tel,msg,"PANEL")
-    reg(tel,"PANEL","MANUAL",msg,"MANUAL_OUT",dir_="OUT")
-    return jsonify({"status":"ok"}),200
+    """Envío real via Meta API — el panel usa este endpoint para enviar mensajes."""
+    d   = request.json or {}
+    tel = d.get("telefono","").strip()
+    msg = d.get("mensaje", d.get("texto","")).strip()  # acepta tanto "mensaje" como "texto"
+    if not tel or not msg:
+        return jsonify({"error":"faltan datos"}), 400
+    # Verificar token antes de intentar
+    if not Cfg.TOKEN:
+        logger.error("api_enviar: TOKEN vacío")
+        return jsonify({"status":"error","msg":"Token WA no configurado"}), 500
+    ok = wa(tel, msg, "PANEL")
+    if ok:
+        reg(tel, "PANEL", "MANUAL", msg, "MANUAL_OUT", dir_="OUT")
+        return jsonify({"status":"ok", "enviado":True}), 200
+    else:
+        logger.error(f"api_enviar: wa() falló para {tel}")
+        return jsonify({"status":"error","enviado":False,"msg":"Meta rechazó el envío — ver logs"}), 500
+
+@app.route("/api/wa", methods=["POST"])
+def api_wa():
+    """Alias de /api/enviar para compatibilidad."""
+    return api_enviar()
 
 @app.route("/api/mensaje_simulador",methods=["POST"])
 def api_sim():
