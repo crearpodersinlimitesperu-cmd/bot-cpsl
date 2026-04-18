@@ -1482,11 +1482,12 @@ def seg_estado():
 
 @app.route("/api/seguimiento/iniciar", methods=["POST"])
 def seg_iniciar():
-    d   = request.json or {}
-    res = run_seguimiento(
-        modo        = d.get("modo","ambos"),
-        limite_imos = d.get("limite_imos"),
-        limite_px   = d.get("limite_px"),
+    d    = request.json or {}
+    lim  = min(int(d.get('limite', 50) or 50), 100)
+    res  = run_seguimiento(
+        modo          = d.get('modo','ambos'),
+        horas_reenvio = int(d.get('horas_reenvio', 48) or 48),
+        limite        = lim,
     )
     return jsonify(res), 200
 
@@ -1625,7 +1626,7 @@ def _flujo_gerente(tel, up, texto):
            f"✅ Cerrados: {res.get('cerrados',0)}\n\n"
            f"Por coordinadora:\n{cc_detalle}",
            "GERENTE")
-        s["st_jose"] = "MAIN"; set_s(tel, s)
+        s["st_jose"] = "MENU"; set_s(tel, s)
         return
 
     if up == "2":
@@ -1638,7 +1639,7 @@ def _flujo_gerente(tel, up, texto):
                 for c in activos[:12]
             )
             wa(tel, f"🗂 *Derivados activos ({len(activos)}):*\n\n{resumen}", "GERENTE")
-        s["st_jose"] = "MAIN"; set_s(tel, s)
+        s["st_jose"] = "MENU"; set_s(tel, s)
         return
 
     if up == "4":
@@ -1650,29 +1651,29 @@ def _flujo_gerente(tel, up, texto):
         for cc_tel, cc_info in STAFF.items():
             wa(cc_tel, f"📢 *Mensaje de Gerencia:*\n\n{texto}", "GERENTE")
         wa(tel, f"✅ Mensaje enviado a todas las coordinadoras.", "GERENTE")
-        s["st_jose"] = "MAIN"; set_s(tel, s)
+        s["st_jose"] = "MENU"; set_s(tel, s)
         return
 
     if up == "5":
         os.environ["MODO_ENTRENAMIENTO"] = "true"
         wa(tel, "⚡ *Modo ENTRENAMIENTO activado.*\nEl bot pedirá más detalle antes de derivar y notificará a los contactos la demora.", "GERENTE")
-        s["st_jose"] = "MAIN"; set_s(tel, s)
+        s["st_jose"] = "MENU"; set_s(tel, s)
         return
 
     if up == "6":
         os.environ["MODO_ENTRENAMIENTO"] = ""
         wa(tel, "✅ *Modo ENTRENAMIENTO desactivado.*\nEl bot opera en modo normal.", "GERENTE")
-        s["st_jose"] = "MAIN"; set_s(tel, s)
+        s["st_jose"] = "MENU"; set_s(tel, s)
         return
 
     if up == "0":
-        s["st_jose"] = "MAIN"; set_s(tel, s)
+        s["st_jose"] = "MENU"; set_s(tel, s)
         wa(tel, "👋 Hasta pronto, José.", "GERENTE")
         return
 
     # Default: mostrar menú
     wa(tel, MENU_G, "GERENTE")
-    s["st_jose"] = "MAIN"; set_s(tel, s)
+    s["st_jose"] = "MENU"; set_s(tel, s)
 
 
 # ── KEEPALIVE DE VENTANA 24H ────────────────────────────────────
@@ -1687,6 +1688,8 @@ def _keepalive_loop():
     # Primera ejecución: esperar 1 hora desde el arranque
     _t.sleep(3600)
     
+    _ka_intentos  = {}  # tel_dia -> n intentos
+    _ka_intervalo = 3 * 3600  # 3h entre reintentos si no responde
     while True:
         try:
             ahora_s = ahora().strftime("%d/%m/%Y %H:%M")
