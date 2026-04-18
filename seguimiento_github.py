@@ -55,10 +55,10 @@ STAFF = {
 }
 CC_POR_EQUIPO = {
     "EQUIPO 26":"dmoscoso","EQUIPO 25":"jmarin","EQUIPO 24":"zurteaga",
-    "EQUIPO 23":"zurteaga","EQUIPO 22":"lpasquel","EQUIPO 21":"lpasquel",
-    "EQUIPO 20":"lpasquel","EQUIPO 19":"lvalencia","EQUIPO 18":"lvalencia",
-    "EQUIPO 17":"lvalencia","EQUIPO 16":"lvalencia","EQUIPO 15":"lvalencia",
-    "EQUIPO 14":"lvalencia",
+    "EQUIPO 23":"zurteaga",
+    "EQUIPO 22":"jmarin","EQUIPO 21":"jmarin","EQUIPO 20":"jmarin",    # antes Leyla
+    "EQUIPO 19":"dmoscoso","EQUIPO 18":"dmoscoso","EQUIPO 17":"dmoscoso",  # antes Linid
+    "EQUIPO 16":"dmoscoso","EQUIPO 15":"dmoscoso","EQUIPO 14":"dmoscoso",
 }
 
 # Estado del worker expuesto al panel
@@ -241,22 +241,64 @@ def wa_text(tel, txt):
     except Exception as e: log.error(f"wa_text: {e}"); return False
 
 def wa_template(tel, pila):
+    """
+    Envío de seguimiento.
+    - Si la plantilla está aprobada (TEMPLATE_APROBADA=true) → usa template de Meta
+    - Si no → envía texto libre (requiere ventana 24h abierta, costo $0)
+    """
     if not WA_TOKEN: return False, "Sin token"
+
+    usar_template = os.environ.get("TEMPLATE_APROBADA","").lower() == "true"
+
+    if usar_template:
+        # Usar plantilla aprobada por Meta
+        nombre_tpl = os.environ.get("WA_TEMPLATE_NAME", TEMPLATE)
+        try:
+            r = req.post(
+                f"https://graph.facebook.com/v19.0/{PHONE_ID}/messages",
+                json={"messaging_product":"whatsapp","to":tel,"type":"template",
+                      "template":{"name":nombre_tpl,"language":{"code":LANG_CODE},
+                      "components":[{"type":"body","parameters":[
+                          {"type":"text","text":pila},
+                          {"type":"text","text":FECHA_C1}
+                      ]}]}},
+                headers={"Authorization":f"Bearer {WA_TOKEN}",
+                         "Content-Type":"application/json"}, timeout=15)
+            if r.status_code == 200:
+                return True, r.json().get("messages",[{}])[0].get("id","")
+            err = r.json().get("error",{}).get("message",r.text[:80])
+            # Si falla por template inexistente, caer en texto libre
+            if "132001" in str(err) or "132000" in str(err):
+                log.warning(f"Template fallo ({err}) — usando texto libre para {tel}")
+            else:
+                return False, err
+        except Exception as e:
+            log.error(f"wa_template error: {e}")
+
+    # ── TEXTO LIBRE (ventana 24h abierta, $0 costo) ───────────────
+    msg = (
+        "Hola " + pila + " 👋\n\n"
+        "Te escribimos desde *Crear Poder Sin Límites Perú*.\n"
+        "Tienes un cupo reservado para *C1 E27*:\n"
+        "📅 Viernes 01, Sábado 02 y Domingo 03 de Mayo\n"
+        "Hotel José Antonio Deluxe, Miraflores.\n\n"
+        "¿Confirmas tu asistencia?\n\n"
+        "1️⃣ Sí, confirmo\n"
+        "2️⃣ Necesito más info\n"
+        "3️⃣ No puedo asistir")
     try:
         r = req.post(
             f"https://graph.facebook.com/v19.0/{PHONE_ID}/messages",
-            json={"messaging_product":"whatsapp","to":tel,"type":"template",
-                  "template":{"name":TEMPLATE,"language":{"code":LANG_CODE},
-                  "components":[{"type":"body","parameters":[
-                      {"type":"text","text":pila},
-                      {"type":"text","text":FECHA_C1}
-                  ]}]}},
+            json={"messaging_product":"whatsapp","to":tel,
+                  "type":"text","text":{"body":msg}},
             headers={"Authorization":f"Bearer {WA_TOKEN}",
                      "Content-Type":"application/json"}, timeout=15)
         if r.status_code == 200:
             return True, r.json().get("messages",[{}])[0].get("id","")
-        return False, r.json().get("error",{}).get("message",r.text[:80])
-    except Exception as e: return False, str(e)
+        err = r.json().get("error",{}).get("message",r.text[:80])
+        return False, err
+    except Exception as e:
+        return False, str(e)
 
 def notif_cc(cc_key, nom_px, tel_px, motivo):
     cc = STAFF.get(cc_key, STAFF["dmoscoso"])
