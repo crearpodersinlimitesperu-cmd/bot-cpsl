@@ -721,49 +721,34 @@ async function enviarMsg() {
   const msg = inp.value.trim();
   if(!msg) return;
   inp.value = '';
+  // Indicador visual de envío
+  const btn = document.getElementById('btnEnviar');
+  if(btn) { btn.disabled=true; btn.textContent='...'; }
   try {
     const r = await fetch(BOT+'/api/enviar',{
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({telefono:telActivo, mensaje:msg})
     });
     const d = await r.json();
-    if(d.status==='ok') { sync(); toast('Enviado','ok'); }
-    else toast('Error al enviar','err');
-  } catch(e) { toast('Error: '+e.message,'err'); }
-}
-
-function keyEnter(e) {
-  if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); enviarMsg(); }
-}
-
-// ══════════════════════════════════════════════════════════════
-// NUEVO CHAT
-// ══════════════════════════════════════════════════════════════
-function abrirNuevoChat() {
-  const tel = prompt('Número de teléfono (con código país, ej: 51999888777):');
-  if(!tel) return;
-  const t = tel.replace(/\D/g,'');
-  if(t.length < 10) { toast('Número inválido','err'); return; }
-  if(!convs[t]) {
-    convs[t] = {tel:t, nombre:'+'+t, tipo:'?', estado:'', cc:'', msgs:[], unread:0, ts:''};
+    if(r.ok && d.enviado) {
+      // Solo agregar al historial si Meta confirmó el envío
+      add_hist(telActivo,'TÚ',msg,'out');
+      renderMsgs(telActivo);
+      toast('✅ Enviado','ok');
+    } else {
+      // Error real — restaurar el mensaje y mostrar el error
+      inp.value = msg;
+      toast('❌ ' + (d.msg||'No llegó a WhatsApp — revisa token'), 'err');
+    }
+  } catch(e) {
+    inp.value = msg;
+    toast('❌ Error de red: '+e.message,'err');
+  } finally {
+    if(btn) { btn.disabled=false; btn.textContent='Enviar'; }
   }
-  abrirConv(t);
-  renderLista();
 }
 
-// ══════════════════════════════════════════════════════════════
-// TABS
-// ══════════════════════════════════════════════════════════════
-function setTab(tab, el) {
-  tabActivo = tab;
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  el.classList.add('active');
-  renderLista();
-}
 
-// ══════════════════════════════════════════════════════════════
-// SEGUIMIENTO
-// ══════════════════════════════════════════════════════════════
 async function iniciarSeg() {
   const modo = document.getElementById('segMode').value;
   try {
