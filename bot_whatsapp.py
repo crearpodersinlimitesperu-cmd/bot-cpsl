@@ -1575,47 +1575,49 @@ logger.info("Scheduler followup activo — 08:00 y 20:00")
 
 # ── FLUJO GERENTE (José Sánchez) ────────────────────────────────
 def _flujo_gerente(tel, up, texto):
-    """Menú ejecutivo para el Gerente — José Sánchez."""
     s   = get_s(tel) or {}
-    st  = s.get("st_jose", "")   # vacío = primera vez
-
-    MENU_G = (
-        f"⚡ *Torre de Control — CPSL Lima*\n"
-        f"_José Sánchez · Gerente · {ahora().strftime('%d/%m %H:%M')}_\n\n"
-        f"1️⃣ Estado del sistema\n"
-        f"2️⃣ Derivados activos\n"
-        f"3️⃣ Reporte consolidado\n"
-        f"4️⃣ Aviso masivo a CCs\n"
-        f"5️⃣ Activar modo ENTRENAMIENTO\n"
-        f"6️⃣ Desactivar modo ENTRENAMIENTO\n"
-        f"0️⃣ Salir"
-    )
+    st  = s.get("st_jose", "")
     OPCIONES = {"1","2","3","4","5","6","0"}
 
-    # Mostrar menú solo si: primera vez, palabra reset, o número inválido
-    if up in RESET_W or (not st and up not in OPCIONES):
-        wa(tel, MENU_G, "GERENTE")
+    def menu():
+        wa(tel,
+           f"⚡ *Torre de Control CPSL Lima*\n"
+           f"_José Sánchez · Gerente · {ahora().strftime('%d/%m %H:%M')}_\n\n"
+           f"1️⃣ Estado del sistema\n"
+           f"2️⃣ Derivados activos\n"
+           f"3️⃣ Reporte consolidado\n"
+           f"4️⃣ Aviso masivo a CCs\n"
+           f"5️⃣ Activar modo ENTRENAMIENTO\n"
+           f"6️⃣ Desactivar modo ENTRENAMIENTO\n"
+           f"0️⃣ Salir",
+           "GERENTE")
         s["st_jose"] = "MENU"; set_s(tel, s)
-        return
 
-    # Si está en sub-estado AVISO_MASIVO, procesar primero
+    # Mostrar menú: primera vez o palabra de reset
+    if up in RESET_W or (not st and up not in OPCIONES):
+        menu(); return
+
+    # Sub-estado AVISO_MASIVO — espera el texto del aviso
     if st == "AVISO_MASIVO":
         if up == "0":
             wa(tel, "❌ Aviso cancelado.", "GERENTE")
-            s["st_jose"] = "MENU"; set_s(tel, s)
-            return
-        # Enviar mensaje a todas las CCs
-        for cc_tel in STAFF:
-            wa(cc_tel, f"📢 *Mensaje de Gerencia:*\n\n{texto}", "GERENTE")
-        wa(tel, f"✅ Mensaje enviado a {len(STAFF)} coordinadoras.", "GERENTE")
+        else:
+            enviados = 0
+            for cc_tel in ["51912379744","51933599903","51933599864"]:
+                if wa(cc_tel, f"📢 *Mensaje de Gerencia:*\n\n{texto}", "GERENTE"):
+                    enviados += 1
+                time.sleep(1)
+            wa(tel, f"✅ Mensaje enviado a {enviados} coordinadoras.\n\nEscribe un número para otra opción.", "GERENTE")
         s["st_jose"] = "MENU"; set_s(tel, s)
         return
 
+    # ── Opciones del menú ─────────────────────────────────────
     if up == "1":
-        res = resumen_casos()
-        cc_detalle = "\n".join(
+        res    = resumen_casos()
+        por_cc = res.get("por_cc", {})
+        cc_txt = "\n".join(
             f"  · {STAFF.get(k,{}).get('nombre',k)}: {n} casos"
-            for k,n in res.get("por_cc",{}).items()
+            for k,n in por_cc.items()
         ) or "  Sin casos asignados"
         wa(tel,
            f"📊 *Estado CPSL Lima*\n"
@@ -1624,7 +1626,8 @@ def _flujo_gerente(tel, up, texto):
            f"⏳ Abiertos: {res.get('abiertos',0)}\n"
            f"🔵 En gestión: {res.get('en_gestion',0)}\n"
            f"✅ Cerrados: {res.get('cerrados',0)}\n\n"
-           f"Por coordinadora:\n{cc_detalle}",
+           f"Por coordinadora:\n{cc_txt}\n\n"
+           f"_Escribe un número para otra opción._",
            "GERENTE")
         s["st_jose"] = "MENU"; set_s(tel, s)
         return
@@ -1632,49 +1635,72 @@ def _flujo_gerente(tel, up, texto):
     if up == "2":
         activos = casos_abiertos()
         if not activos:
-            wa(tel, "✅ Sin casos derivados activos.", "GERENTE")
+            wa(tel, "✅ Sin casos derivados activos.\n\n_Escribe un número para otra opción._", "GERENTE")
         else:
-            resumen = "\n".join(
-                f"{'🔴' if c['estado']=='URGENTE' else '⏳'} {c.get('nombre','?')[:22]} → {STAFF.get(c.get('cc_key',''),{}).get('nombre','?')}"
-                for c in activos[:12]
-            )
-            wa(tel, f"🗂 *Derivados activos ({len(activos)}):*\n\n{resumen}", "GERENTE")
+            lineas = []
+            for c in activos[:12]:
+                emoji = "🔴" if c["estado"] == "URGENTE" else "⏳"
+                cc_n  = STAFF.get(c.get("cc_key",""),{}).get("nombre","?")
+                lineas.append(f"{emoji} {c.get('nombre','?')[:22]} → {cc_n}")
+            wa(tel,
+               f"🗂 *Derivados activos ({len(activos)}):*\n\n" +
+               "\n".join(lineas) +
+               "\n\n_Escribe un número para otra opción._",
+               "GERENTE")
+        s["st_jose"] = "MENU"; set_s(tel, s)
+        return
+
+    if up == "3":
+        consolidado = consolidar_reportes()
+        pendientes  = [p["nombre"] for p in reportes_pendientes()]
+        if consolidado:
+            wa(tel, consolidado + "\n\n_Escribe un número para otra opción._", "GERENTE")
+        else:
+            pend_txt = ", ".join(pendientes) if pendientes else "Todas"
+            wa(tel,
+               f"📋 *Reporte consolidado*\n"
+               f"Sin reportes recibidos hoy.\n"
+               f"Pendientes: {pend_txt}\n\n"
+               f"_Escribe un número para otra opción._",
+               "GERENTE")
         s["st_jose"] = "MENU"; set_s(tel, s)
         return
 
     if up == "4":
         s["st_jose"] = "AVISO_MASIVO"; set_s(tel, s)
-        wa(tel, "📢 Escribe el mensaje que quieres enviar a *todas las coordinadoras* (Diana, Joyce, Zuley):\n\n_O escribe 0 para cancelar._", "GERENTE")
-        return
-
-    if st == "AVISO_MASIVO" and up != "0":
-        for cc_tel, cc_info in STAFF.items():
-            wa(cc_tel, f"📢 *Mensaje de Gerencia:*\n\n{texto}", "GERENTE")
-        wa(tel, f"✅ Mensaje enviado a todas las coordinadoras.", "GERENTE")
-        s["st_jose"] = "MENU"; set_s(tel, s)
+        wa(tel,
+           "📢 Escribe el mensaje que quieres enviar a *todas las coordinadoras* (Diana, Joyce, Zuley):\n\n"
+           "_O escribe 0 para cancelar._",
+           "GERENTE")
         return
 
     if up == "5":
         os.environ["MODO_ENTRENAMIENTO"] = "true"
-        wa(tel, "⚡ *Modo ENTRENAMIENTO activado.*\nEl bot pedirá más detalle antes de derivar y notificará a los contactos la demora.", "GERENTE")
+        wa(tel,
+           "⚡ *Modo ENTRENAMIENTO activado.*\n"
+           "El bot pedirá más detalle antes de derivar y notificará la demora.\n\n"
+           "_Escribe un número para otra opción._",
+           "GERENTE")
         s["st_jose"] = "MENU"; set_s(tel, s)
         return
 
     if up == "6":
         os.environ["MODO_ENTRENAMIENTO"] = ""
-        wa(tel, "✅ *Modo ENTRENAMIENTO desactivado.*\nEl bot opera en modo normal.", "GERENTE")
+        wa(tel,
+           "✅ *Modo ENTRENAMIENTO desactivado.*\n"
+           "El bot opera en modo normal.\n\n"
+           "_Escribe un número para otra opción._",
+           "GERENTE")
         s["st_jose"] = "MENU"; set_s(tel, s)
         return
 
     if up == "0":
-        s["st_jose"] = "MENU"; set_s(tel, s)
         wa(tel, "👋 Hasta pronto, José.", "GERENTE")
+        s["st_jose"] = ""; set_s(tel, s)
         return
 
     # Default: mostrar menú
-    wa(tel, MENU_G, "GERENTE")
-    s["st_jose"] = "MENU"; set_s(tel, s)
-
+    menu()
 
 # ── KEEPALIVE DE VENTANA 24H ────────────────────────────────────
 # Envía mensaje de texto libre cada 23h a CCs y casos abiertos
