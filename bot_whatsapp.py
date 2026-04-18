@@ -130,6 +130,36 @@ def _get_rows():
         logger.error(f"CSV error: {e}")
         return []
 
+
+# ── ÍNDICE DE GRADUADOS ──────────────────────────────────────
+# Cargado una vez al inicio — identifica rangos permanentes
+_GRADUADOS_IDX = {}  # nombre_norm → {graduado, rango}
+def _cargar_graduados():
+    global _GRADUADOS_IDX
+    try:
+        import openpyxl as _opx
+        _p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "GRADUADOS_LIMA.xlsx")
+        if not os.path.exists(_p): return
+        _wb = _opx.load_workbook(_p, data_only=True, read_only=True)
+        # Hoja GRADUADOS — creadores cuánticos
+        if "GRADUADOS " in _wb.sheetnames:
+            for _r in _wb["GRADUADOS "].iter_rows(min_row=2, values_only=True):
+                if _r[0]:
+                    _n = re.sub(r"\s+"," ",re.sub(r"[^\w\s]","",str(_r[0]).upper())).strip()
+                    _GRADUADOS_IDX[_n] = {"graduado":True,"rango":"GRADUADO","equipo":str(_r[1] or "")}
+        # Hoja ALIADOS C1E27 — ya sentados en E27
+        if "ALIADOS C1E27" in _wb.sheetnames:
+            for _r in _wb["ALIADOS C1E27"].iter_rows(min_row=3, values_only=True):
+                if _r[0] and str(_r[0]).strip() not in ("CREADOR CUANTICO",""):
+                    _n = re.sub(r"\s+"," ",re.sub(r"[^\w\s]","",str(_r[0]).upper())).strip()
+                    if _n not in _GRADUADOS_IDX:
+                        _GRADUADOS_IDX[_n] = {"graduado":True,"rango":"GRADUADO_E27"}
+        _wb.close()
+        logger.info(f"Graduados cargados: {len(_GRADUADOS_IDX)}")
+    except Exception as _e:
+        logger.warning(f"graduados: {_e}")
+_cargar_graduados()
+
 # ── NORMALIZACIÓN ─────────────────────────────────────────────
 def _d(s): return re.sub(r'\D','',str(s or ''))
 def n9(t):  return _d(t)[-9:]
@@ -214,6 +244,20 @@ def perfil_crm(tel):
     p["staff_tel"] = STAFF[k]["tel"]
     p["staff_nom"] = STAFF[k]["nombre"]
     cc_add(k)
+
+    # ── Enriquecer con rango y estado de graduado ──────────────
+    nom_norm = re.sub(r"\s+"," ",re.sub(r"[^\w\s]","",
+        f"{p.get('nombre','')} {p.get('apellido','')}".upper())).strip()
+    grad_info = _GRADUADOS_IDX.get(nom_norm, {})
+    if not grad_info:
+        # Búsqueda por apellidos
+        partes = nom_norm.split()
+        if len(partes) >= 2:
+            clave = " ".join(partes[:2])
+            grad_info = next((v for n,v in _GRADUADOS_IDX.items()
+                             if n.startswith(clave)), {})
+    p["graduado"] = grad_info.get("graduado", False)
+    p["rango"]    = grad_info.get("rango", "")
 
     return p
 
@@ -1504,8 +1548,8 @@ logger.info("Scheduler followup activo — 08:00 y 20:00")
 # ── FLUJO GERENTE (José Sánchez) ────────────────────────────────
 def _flujo_gerente(tel, up, texto):
     """Menú ejecutivo para el Gerente — José Sánchez."""
-    s = get_s(tel) or {}
-    st = s.get("st_jose","MAIN")
+    s   = get_s(tel) or {}
+    st  = s.get("st_jose", "")   # vacío = primera vez
 
     MENU_G = (
         f"⚡ *Torre de Control — CPSL Lima*\n"
@@ -1518,10 +1562,25 @@ def _flujo_gerente(tel, up, texto):
         f"6️⃣ Desactivar modo ENTRENAMIENTO\n"
         f"0️⃣ Salir"
     )
+    OPCIONES = {"1","2","3","4","5","6","0"}
 
-    if up in RESET_W or st == "MAIN" or not st:
+    # Mostrar menú solo si: primera vez, palabra reset, o número inválido
+    if up in RESET_W or (not st and up not in OPCIONES):
         wa(tel, MENU_G, "GERENTE")
-        s["st_jose"] = "MAIN"; set_s(tel, s)
+        s["st_jose"] = "MENU"; set_s(tel, s)
+        return
+
+    # Si está en sub-estado AVISO_MASIVO, procesar primero
+    if st == "AVISO_MASIVO":
+        if up == "0":
+            wa(tel, "❌ Aviso cancelado.", "GERENTE")
+            s["st_jose"] = "MENU"; set_s(tel, s)
+            return
+        # Enviar mensaje a todas las CCs
+        for cc_tel in STAFF:
+            wa(cc_tel, f"📢 *Mensaje de Gerencia:*\n\n{texto}", "GERENTE")
+        wa(tel, f"✅ Mensaje enviado a {len(STAFF)} coordinadoras.", "GERENTE")
+        s["st_jose"] = "MENU"; set_s(tel, s)
         return
 
     if up == "1":
