@@ -1,4 +1,4 @@
-"""
+      """
 Bot WhatsApp — Crear Poder Sin Límites Perú
 V109: Routing correcto desde un solo CSV
       PX  → identificado por columna Teléfono
@@ -445,13 +445,23 @@ def notif_cc(p, motivo, extra=""):
     if "solicita" in motivo.lower() or "CONFIRMA" in motivo or "NO ASISTE" in motivo or "DEVOLUCION" in motivo or "directo" in motivo.lower():
         urgente = "DEVOLUCION" in motivo or "PLATA" in motivo or "URGENTE" in motivo
         abrir_caso(str(tel_px), nom_px, cc_key or cc_libre(), motivo, urgente=urgente)
+    # IMO del participante
+    imo_n   = p.get("imo_nombre","") or p.get("imo","")
+    imo_tel = p.get("imo_tel","")
+    imo_str = f"\n*IMO:* {imo_n}" if imo_n else ""
+    if imo_tel and imo_tel != tel_px:
+        imo_str += f" (wa.me/{imo_tel})"
+
     exito = wa(tel_cc,
-       f"🚨 *TORRE DE CONTROL — CPSL Lima*\n\n"
-       f"*Nombre:* {nom_px}\n"
-       f"*Tel:* wa.me/{tel_px}\n"
-       f"{ctx}\n\n"
-       f"*Asunto:* {motivo}"
-       + (f"\n*Detalle:* {extra}" if extra else ""),
+       f"📋 *CASO DERIVADO — CPSL Lima*\n"
+       f"_{ahora().strftime('%d/%m/%Y %H:%M')}_\n\n"
+       f"*👤 Nombre:* {nom_px}\n"
+       f"*📱 WhatsApp:* wa.me/{tel_px}\n"
+       f"*🏷 {ctx}*"
+       f"{imo_str}\n\n"
+       f"*📝 Asunto:* {motivo}"
+       + (f"\n*Detalle:* {extra}" if extra else "")
+       + f"\n\n_Escribe *HOLA* para confirmar que atendiste este caso._",
        f"SIS→{nom_cc}"
     )
     if not exito:
@@ -473,13 +483,26 @@ _CC_TELS = {
 }
 
 def _menu_cc(tel_cc, nom):
-    """Menú principal para coordinadoras."""
+    """Menú principal para coordinadoras — incluye conteo de casos pendientes."""
+    cc_key    = _CC_TELS.get(tel_cc, {}).get("key", "")
+    mis_casos = casos_abiertos(cc_key) if cc_key else []
+    urgentes  = sum(1 for c in mis_casos if c.get("estado") == "URGENTE")
+
+    if mis_casos:
+        alerta = f"\n\n⚠️ Tienes *{len(mis_casos)} caso(s) derivado(s)* pendiente(s)"
+        if urgentes:
+            alerta += f" — {urgentes} URGENTE{'S' if urgentes>1 else ''}"
+        alerta += ".\nUsa la opción 4 para confirmar atención."
+    else:
+        alerta = "\n\n✅ Sin casos derivados pendientes."
+
     wa(tel_cc,
-       f"👋 Hola {nom}! Soy el asistente de Torre de Control CPSL.\n\n"
+       f"👋 Hola {nom}! — Torre de Control CPSL Lima"
+       f"{alerta}\n\n"
        f"1️⃣ Enviar reporte del día\n"
        f"2️⃣ Registrar confirmación de PX\n"
        f"3️⃣ Reportar devolución\n"
-       f"4️⃣ Ver mis derivados pendientes\n"
+       f"4️⃣ Ver y confirmar mis casos derivados\n"
        f"0️⃣ Salir\n\n"
        f"_Escribe el número de tu opción._",
        f"SIS→{nom}")
@@ -589,6 +612,75 @@ def _flujo_cc(tel, up, texto, cc_info):
 
         else:
             _menu_cc(tel, nom)
+
+    elif st == "VER_CASOS":
+        # CC está revisando sus casos — responde con número para confirmar
+        cc_key_act = s.get("cc_key","")
+        mis_casos  = casos_abiertos(cc_key_act)
+        if not mis_casos:
+            wa(tel, "✅ Sin casos derivados pendientes.", f"SIS→{nom}")
+            s["st_cc"] = "MAIN"; set_s(tel, s)
+            return
+        # Mapeo número → caso
+        mapa_casos = {str(i+1): c for i,c in enumerate(mis_casos[:9])}
+        if up in mapa_casos:
+            caso = mapa_casos[up]
+            tel_px = caso.get("tel_px","")
+            nom_px = caso.get("nombre","?")
+            # Submenú de confirmación
+            s["caso_confirmando"] = tel_px
+            s["st_cc"] = "CONFIRMAR_CASO"
+            set_s(tel, s)
+            wa(tel,
+               f"Caso seleccionado:\n"
+               f"*{nom_px}* (wa.me/{tel_px})\n"
+               f"Asunto: {caso.get('asunto','?')}\n\n"
+               f"¿Cuál es el estado?\n"
+               f"1️⃣ Atendí y resolví ✅\n"
+               f"2️⃣ Contacté — en proceso 🔵\n"
+               f"3️⃣ No pude contactar ❌\n"
+               f"0️⃣ Volver a la lista",
+               f"SIS→{nom}")
+            return
+        # Mostrar lista de casos
+        lineas = ["*Tus casos derivados pendientes:*\n"]
+        for i,c in enumerate(mis_casos[:9],1):
+            emoji = "🔴" if c.get("estado")=="URGENTE" else "⏳"
+            lineas.append(f"{i}️⃣ {emoji} *{c.get('nombre','?')}*\n"
+                         f"   wa.me/{c.get('tel_px','')}\n"
+                         f"   {c.get('equipo','')} | {c.get('asunto','?')[:50]}\n")
+        lineas.append("\nEscribe el *número* del caso para confirmar atención.\n0️⃣ Volver al menú.")
+        wa(tel, "\n".join(lineas), f"SIS→{nom}")
+        return
+
+    elif st == "CONFIRMAR_CASO":
+        tel_caso = s.get("caso_confirmando","")
+        if up == "1":
+            cerrar_caso(tel_caso, f"Resuelto por {nom_full}")
+            wa(tel, "✅ Caso cerrado — registrado en el sistema.", f"SIS→{nom}")
+            wa(JOSE_TEL,
+               f"✅ *Caso cerrado* — {nom_full}\n"
+               f"PX: wa.me/{tel_caso}", "SIS→JOSE")
+        elif up == "2":
+            actualizar_caso(tel_caso, "EN_GESTION", f"En proceso por {nom_full}")
+            wa(tel, "🔵 Registrado como En proceso.", f"SIS→{nom}")
+        elif up == "3":
+            actualizar_caso(tel_caso, "ABIERTO", f"Sin contacto — {nom_full} reporta")
+            wa(tel, "❌ Registrado sin contacto. Se notificará a Gerencia.", f"SIS→{nom}")
+            wa(JOSE_TEL,
+               f"⚠️ *Sin contacto* — {nom_full}\n"
+               f"PX: wa.me/{tel_caso}", "SIS→JOSE")
+        s.pop("caso_confirmando", None)
+        s["st_cc"] = "VER_CASOS"
+        set_s(tel, s)
+        # Volver a mostrar lista actualizada
+        mis_casos2 = casos_abiertos(s.get("cc_key",""))
+        if mis_casos2:
+            _flujo_cc(tel, "VER", texto, s)  # re-mostrar lista
+        else:
+            wa(tel, "✅ Todos tus casos atendidos. Excelente trabajo!", f"SIS→{nom}")
+            s["st_cc"] = "MAIN"; set_s(tel, s)
+        return
 
     elif st == "ESPERANDO_REPORTE":
         if up in {"9","VOLVER"}:
