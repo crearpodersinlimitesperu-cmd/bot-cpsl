@@ -1945,8 +1945,8 @@ def api_bienvenida_preview():
     )
     return jsonify({"mensaje": msg, "cc": cc["nombre"], "tel_cc": cc["tel"]}), 200
 
-@app.route("/api/bienvenida/iniciar", methods=["POST"])
-def api_bienvenida_iniciar():
+@app.route("/api/bienvenida/v1/iniciar", methods=["POST"])
+def api_bienvenida_v1_iniciar():
     """Inicia la campaña de bienvenida E27 en background."""
     import threading
     d      = request.json or {}
@@ -1968,8 +1968,8 @@ def api_bienvenida_iniciar():
     threading.Thread(target=_run, daemon=True, name="bienvenida_e27").start()
     return jsonify({"ok": True, "limite": limite, "msg": f"Campaña iniciada — {limite} mensajes"}), 200
 
-@app.route("/api/bienvenida/estado")
-def api_bienvenida_estado():
+@app.route("/api/bienvenida/v1/estado")
+def api_bienvenida_v1_estado():
     """Estado de la campaña de bienvenida."""
     try:
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bienvenida_estado.json")
@@ -1980,10 +1980,7 @@ def api_bienvenida_estado():
     return jsonify({"corriendo": False, "enviados": 0, "total": 0}), 200
 
 
-# Registrar endpoints de bienvenida E27
-if _BIENVENIDA_OK:
-    _reg_bienvenida(app)
-    logger.info("✅ Endpoints bienvenida E27 registrados")
+# Endpoints bienvenida E27 ya registrados arriba (ver lineas ~1316-1330)
 
 if __name__=="__main__":
     logger.info("🚀 CPSL Torre de Control V109")
