@@ -1,4 +1,4 @@
-      """
+"""
 Bot WhatsApp — Crear Poder Sin Límites Perú
 V109: Routing correcto desde un solo CSV
       PX  → identificado por columna Teléfono
@@ -1312,6 +1312,24 @@ def test_notif():
     )
     return jsonify({"enviado":exito,"cc":nom,"tel":tel}), 200
 
+# ── ENDPOINTS BIENVENIDA E27 ──────────────────────────────────
+@app.route("/api/bienvenida/e27/iniciar", methods=["POST"])
+def api_bienvenida_iniciar():
+    d      = request.json or {}
+    limite = min(int(d.get("limite", 50) or 50), 100)
+    def _run():
+        run_bienvenida_e27(limite=limite)
+    threading.Thread(target=_run, daemon=True, name="bienvenida_e27").start()
+    return jsonify({"ok": True, "limite": limite, "msg": f"Bienvenida E27 iniciada — máx {limite} envíos"}), 200
+
+@app.route("/api/bienvenida/e27/estado")
+def api_bienvenida_estado():
+    return jsonify(estado_bienvenida()), 200
+
+@app.route("/api/bienvenida/e27/detener", methods=["POST"])
+def api_bienvenida_detener():
+    return jsonify(detener_bienvenida()), 200
+
 @app.route("/api/recordatorios/resumen")
 def api_recordatorios_resumen():
     """Estado de todos los recordatorios — para el panel."""
@@ -1496,6 +1514,28 @@ def panel():
     except: return "<h2>Panel no disponible</h2>",200
 
 # ── INTEGRACIÓN WORKER DE SEGUIMIENTO ────────────────────────
+# Importar bienvenida masiva E27
+try:
+    from bienvenida_e27 import registrar_endpoints as _reg_bienvenida, _estado as _estado_bienvenida
+    _BIENVENIDA_OK = True
+except ImportError:
+    _BIENVENIDA_OK = False
+    def _reg_bienvenida(app): pass
+
+# Importar módulo de bienvenida E27
+try:
+    from bienvenida_e27 import (
+        run_bienvenida_e27, estado_bienvenida, detener_bienvenida
+    )
+    _BIENVENIDA_OK = True
+    logger.info("✅ Módulo bienvenida E27 cargado")
+except ImportError as e:
+    _BIENVENIDA_OK = False
+    def run_bienvenida_e27(**k): return {"error": "módulo no disponible"}
+    def estado_bienvenida():      return {}
+    def detener_bienvenida():     return {"ok": False}
+    logger.warning(f"bienvenida_e27 no cargado: {e}")
+
 # Importar sistema de recordatorios anti-spam
 try:
     from sistema_recordatorios import (
@@ -1681,6 +1721,7 @@ def _flujo_gerente(tel, up, texto):
            f"4️⃣ Aviso masivo a CCs\n"
            f"5️⃣ Activar modo ENTRENAMIENTO\n"
            f"6️⃣ Desactivar modo ENTRENAMIENTO\n"
+           f"7️⃣ Bienvenida E27 — estado/iniciar\n"
            f"0️⃣ Salir",
            "GERENTE")
         s["st_jose"] = "MENU"; set_s(tel, s)
@@ -1786,6 +1827,36 @@ def _flujo_gerente(tel, up, texto):
         s["st_jose"] = "MENU"; set_s(tel, s)
         return
 
+    if up == "7":
+        est = estado_bienvenida()
+        if est.get("corriendo"):
+            wa(tel,
+               f"📤 *Bienvenida E27 en curso*\n"
+               f"Enviados: {est.get('enviados',0)}\n"
+               f"Pendientes: {est.get('pendientes_total',0)}\n\n"
+               f"Escribe *7A* para detener.",
+               "GERENTE")
+        elif up == "7A":
+            detener_bienvenida()
+            wa(tel, "⏹ Bienvenida detenida.", "GERENTE")
+        else:
+            wa(tel,
+               f"📤 *Bienvenida E27 — Estado*\n"
+               f"Enviados histórico: {est.get('enviados_total_historico',0)}/275\n"
+               f"Pendientes: {est.get('pendientes_total',275)}\n\n"
+               f"Escribe *7S* para iniciar envío (50 por ciclo).",
+               "GERENTE")
+        s["st_jose"] = "MENU"; set_s(tel, s)
+        return
+
+    if up == "7S":
+        def _b(): run_bienvenida_e27(limite=50)
+        import threading as _th
+        _th.Thread(target=_b, daemon=True).start()
+        wa(tel, "📤 Bienvenida E27 iniciada — 50 mensajes en cola (45s/msg).", "GERENTE")
+        s["st_jose"] = "MENU"; set_s(tel, s)
+        return
+
     if up == "0":
         wa(tel, "👋 Hasta pronto, José.", "GERENTE")
         s["st_jose"] = ""; set_s(tel, s)
@@ -1850,6 +1921,69 @@ def _keepalive_loop():
 
 threading.Thread(target=_keepalive_loop, daemon=True, name="keepalive").start()
 logger.info("✅ Keepalive loop activo — ciclo 23h")
+
+@app.route("/api/bienvenida/preview", methods=["POST"])
+def api_bienvenida_preview():
+    """Preview del mensaje de bienvenida para un participante."""
+    d   = request.json or {}
+    nom = d.get("nombre","Participante")
+    cc_key = d.get("cc","dmoscoso")
+    cc  = STAFF.get(cc_key, STAFF["dmoscoso"])
+    CC_EMOJI = {"dmoscoso":"🌟","jmarin":"⚡","zurteaga":"🔥"}
+    pila = nom.split()[0].title() if nom else "Hola"
+    msg = (
+        f"Hola {pila} \U0001F44B\n\n"
+        f"Bienvenido/a a *Crear Poder Sin L\u00edmites Per\u00fa* \U0001F1F5\u200d\U0001F1EA\n\n"
+        f"Tu inscripci\u00f3n para *C1 Equipo 27* ha sido confirmada.\n"
+        f"\U0001F4C5 Viernes 01, S\u00e1bado 02 y Domingo 03 de Mayo 2026\n"
+        f"\U0001F3E8 Hotel Jos\u00e9 Antonio Deluxe, Miraflores\n\n"
+        f"Tu coordinadora asignada es *{cc['nombre']}* {CC_EMOJI.get(cc_key,'🌟')}\n"
+        f"Gu\u00e1rdala en tus contactos:\n"
+        f"\U0001F4F1 wa.me/{cc['tel']}\n\n"
+        f"Si tienes alguna consulta, escr\u00edbele directamente.\n\n"
+        f"_\u00a1Nos vemos en el sal\u00f3n!_ \u26A1"
+    )
+    return jsonify({"mensaje": msg, "cc": cc["nombre"], "tel_cc": cc["tel"]}), 200
+
+@app.route("/api/bienvenida/iniciar", methods=["POST"])
+def api_bienvenida_iniciar():
+    """Inicia la campaña de bienvenida E27 en background."""
+    import threading
+    d      = request.json or {}
+    limite = min(int(d.get("limite", 50) or 50), 100)
+    
+    def _run():
+        try:
+            from bienvenida_e27 import ejecutar_campana
+            csv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "asignacion_c1_e27.csv")
+            xlsx_path = csv_path.replace(".csv",".xlsx")
+            path = xlsx_path if os.path.exists(xlsx_path) else csv_path
+            if not os.path.exists(path):
+                logger.error(f"bienvenida: archivo no encontrado: {path}")
+                return
+            ejecutar_campana(path, modo_prueba=False, limite=limite)
+        except Exception as e:
+            logger.error(f"bienvenida_iniciar: {e}", exc_info=True)
+    
+    threading.Thread(target=_run, daemon=True, name="bienvenida_e27").start()
+    return jsonify({"ok": True, "limite": limite, "msg": f"Campaña iniciada — {limite} mensajes"}), 200
+
+@app.route("/api/bienvenida/estado")
+def api_bienvenida_estado():
+    """Estado de la campaña de bienvenida."""
+    try:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bienvenida_estado.json")
+        if os.path.exists(path):
+            with open(path) as f:
+                return jsonify(json.load(f)), 200
+    except: pass
+    return jsonify({"corriendo": False, "enviados": 0, "total": 0}), 200
+
+
+# Registrar endpoints de bienvenida E27
+if _BIENVENIDA_OK:
+    _reg_bienvenida(app)
+    logger.info("✅ Endpoints bienvenida E27 registrados")
 
 if __name__=="__main__":
     logger.info("🚀 CPSL Torre de Control V109")
