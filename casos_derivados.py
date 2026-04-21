@@ -51,8 +51,9 @@ def abrir_caso(tel_px, nombre, cc_key, asunto, urgente=False):
                 "nombre":     nombre,
                 "cc_key":     cc_key,
                 "cc_nombre":  STAFF.get(cc_key, {}).get("nombre", cc_key),
-                "asunto":     asunto,
-                "estado":     "URGENTE" if urgente else "ABIERTO",
+                "asunto":          asunto,
+                "asunto_original": asunto,  # inmutable
+                "estado":          "URGENTE" if urgente else "ABIERTO",
                 "ts_apertura":ahora().isoformat(),
                 "ts_cierre":  None,
                 "ultima_notif":None,
