@@ -428,7 +428,7 @@ def notif_cc(p, motivo, extra=""):
         ctx = f"*IMO | {pend_n} enrolados pendientes C1*"
         if equipo: ctx += f" | {equipo}"
     elif tipo == "PX":
-        ctx = f"*Prospecto C1{(' | '+equipo) if equipo else ''}*"
+        ctx = f"*Creador C1 E27{(' | '+equipo) if equipo else ''}*"
         imo_n = p.get("imo_nombre","")
         if imo_n: ctx += f"\n*Su IMO:* {imo_n}"
     else:
@@ -634,7 +634,7 @@ def _flujo_cc(tel, up, texto, cc_info):
             wa(tel,
                f"Caso seleccionado:\n"
                f"*{nom_px}* (wa.me/{tel_px})\n"
-               f"Asunto: {caso.get('asunto','?')}\n\n"
+               f"Asunto: {caso.get('asunto_original') or caso.get('asunto','?')}\n\n"
                f"¿Cuál es el estado?\n"
                f"1️⃣ Atendí y resolví ✅\n"
                f"2️⃣ Contacté — en proceso 🔵\n"
@@ -686,6 +686,13 @@ def _flujo_cc(tel, up, texto, cc_info):
         if up in {"9","VOLVER"}:
             s["st_cc"] = "MAIN"; set_s(tel, s)
             _menu_cc(tel, nom); return
+        # Ignorar si la CC envió un dígito de menú por error
+        if len(up) == 1 and up.isdigit():
+            wa(tel,
+               "Para enviar tu reporte escribe el texto\n"
+               "Ej: Confirmados: 5 — Gestionando: 10\n"
+               "9️⃣ Cancelar", f"SIS→{nom}")
+            return
         # Parsear y registrar reporte
         hora_s = ahora().strftime("%d/%m/%Y %H:%M:%S")
         reg(tel, nom_full, "", texto, "REPORTE_CC", dir_="IN", staff=nom_full)
@@ -1690,7 +1697,7 @@ def _scheduler_followup():
                         msg  = (f"Seguimiento CPSL Lima\n\n"
                                 f"{caso.get('nombre','?')}\n"
                                 f"wa.me/{caso.get('tel_px','?')}\n"
-                                f"Asunto: {caso.get('asunto','?')}\n\n"
+                                f"Asunto: {caso.get('asunto_original') or caso.get('asunto','?')}\n\n"
                                 f"Responde: 1=Resuelto 2=En gestion 3=Necesito apoyo")
                         wa(cc["tel"], msg, f"SIS->{cc['nombre']}")
                         marcar_notificado(caso.get("tel_px",""))
@@ -1903,7 +1910,11 @@ def _keepalive_loop():
                 activos = casos_abiertos()
                 for caso in activos[:20]:  # máximo 20 por ciclo
                     tel_px = caso.get("tel_px","")
-                    nom_px = caso.get("nombre","").split()[0] if caso.get("nombre") else ""
+                    _nom_raw = caso.get("nombre_full","") or caso.get("nombre","")
+                    _partes  = _nom_raw.strip().split()
+                    # Tomar primer token que parezca nombre (no sea todo mayúsculas ni sea número)
+                    nom_px   = next((p.capitalize() for p in _partes if not p.isupper() and not p.isdigit()), 
+                                    _partes[0].capitalize() if _partes else "")
                     if tel_px:
                         wa(tel_px,
                             f"Hola {nom_px} — te escribimos desde Crear Poder Sin Límites Perú.\n"
