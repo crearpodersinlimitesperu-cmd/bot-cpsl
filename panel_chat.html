@@ -989,5 +989,68 @@ function syncCC() {
 }
 
 </script>
+
+<!-- SECCIÓN BIENVENIDA E27 -->
+<div id="sec-bienvenida" style="display:none;">
+  <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+    <div id="bv-total"   style="background:#1e1b4b;border-radius:8px;padding:16px 24px;text-align:center;min-width:120px;">
+      <div style="font-size:28px;font-weight:700;color:#a78bfa" id="bv-n-total">-</div>
+      <div style="font-size:11px;color:#6b7280;margin-top:4px;">TOTAL</div>
+    </div>
+    <div id="bv-env"   style="background:#1e1b4b;border-radius:8px;padding:16px 24px;text-align:center;min-width:120px;">
+      <div style="font-size:28px;font-weight:700;color:#34d399" id="bv-n-env">-</div>
+      <div style="font-size:11px;color:#6b7280;margin-top:4px;">ENVIADOS</div>
+    </div>
+    <div id="bv-pend"  style="background:#1e1b4b;border-radius:8px;padding:16px 24px;text-align:center;min-width:120px;">
+      <div style="font-size:28px;font-weight:700;color:#fbbf24" id="bv-n-pend">-</div>
+      <div style="font-size:11px;color:#6b7280;margin-top:4px;">PENDIENTES</div>
+    </div>
+    <div id="bv-err"   style="background:#1e1b4b;border-radius:8px;padding:16px 24px;text-align:center;min-width:120px;">
+      <div style="font-size:28px;font-weight:700;color:#f87171" id="bv-n-err">-</div>
+      <div style="font-size:11px;color:#6b7280;margin-top:4px;">ERRORES</div>
+    </div>
+    <div style="flex:1;background:#1e1b4b;border-radius:8px;padding:12px 16px;min-width:200px;">
+      <div style="font-size:11px;color:#6b7280;margin-bottom:6px;">PROGRESO</div>
+      <div style="background:#374151;border-radius:4px;height:12px;overflow:hidden;">
+        <div id="bv-barra" style="height:100%;background:linear-gradient(90deg,#7c3aed,#34d399);width:0%;transition:width 0.5s;"></div>
+      </div>
+      <div style="font-size:11px;color:#a78bfa;margin-top:4px;" id="bv-pct">0%</div>
+    </div>
+  </div>
+  
+  <!-- Resumen por CC -->
+  <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;" id="bv-cc-resumen"></div>
+  
+  <!-- Estado del bot -->
+  <div style="background:#1e1b4b;border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:12px;color:#9ca3af;" id="bv-estado-bot">
+    Cargando estado...
+  </div>
+  
+  <!-- Filtros -->
+  <div style="display:flex;gap:8px;margin-bottom:10px;">
+    <button onclick="filtrarBV('TODOS')"    style="background:#374151;color:white;border:none;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px;">Todos</button>
+    <button onclick="filtrarBV('ENVIADO')"  style="background:#059669;color:white;border:none;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px;">✅ Enviados</button>
+    <button onclick="filtrarBV('PENDIENTE')" style="background:#d97706;color:white;border:none;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px;">⏳ Pendientes</button>
+    <button onclick="filtrarBV('ERROR')"    style="background:#dc2626;color:white;border:none;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px;">❌ Errores</button>
+    <input id="bv-search" placeholder="Buscar nombre..." oninput="filtrarBV('BUSCAR')"
+           style="flex:1;background:#374151;color:white;border:1px solid #4b5563;border-radius:4px;padding:5px 10px;font-size:12px;">
+  </div>
+  
+  <!-- Tabla -->
+  <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:12px;" id="bv-tabla">
+      <thead>
+        <tr style="background:#111827;">
+          <th style="padding:8px;text-align:left;color:#6b7280;font-weight:600;">N°</th>
+          <th style="padding:8px;text-align:left;color:#6b7280;font-weight:600;">NOMBRE</th>
+          <th style="padding:8px;text-align:left;color:#6b7280;font-weight:600;">CC</th>
+          <th style="padding:8px;text-align:left;color:#6b7280;font-weight:600;">ESTADO</th>
+          <th style="padding:8px;text-align:left;color:#6b7280;font-weight:600;">HORA</th>
+        </tr>
+      </thead>
+      <tbody id="bv-tbody"></tbody>
+    </table>
+  </div>
+</div>
 </body>
 </html>
