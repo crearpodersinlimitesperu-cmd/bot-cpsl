@@ -107,13 +107,13 @@ def _construir_mensaje(px):
 
     return (
         f"Hola {pila}! Te escribimos desde *Crear Poder Sin L\u00edmites Per\u00fa*.\n\n"
-        f"Bienvenido/a al *Equipo 27* \u2014 C1 E27.\n\n"
-        f"\U0001F4C5 *Fechas:*\n"
+        f"Bienvenido/a a la familia CPSL \u2014 *Equipo 27*.\n\n"
+        f"Tu lugar en *C1 E27* ya est\u00e1 confirmado:\n"
         f"Viernes 01, S\u00e1bado 02 y Domingo 03 de Mayo 2026\n"
-        f"\U0001F4CD Hotel Jos\u00e9 Antonio Deluxe, Calle Bellavista 133, Miraflores.\n\n"
-        f"Tu coordinadora asignada es *{cc_nom}*.\n"
-        f"Te pedimos guardar su n\u00famero: *{tel_display}*\n"
-        f"Ella te contactar\u00e1 para acompa\u00f1arte en el proceso.\n\n"
+        f"Hotel Jos\u00e9 Antonio Deluxe, Calle Bellavista 133, Miraflores.\n\n"
+        f"Tu coordinadora es *{cc_nom}*.\n"
+        f"Guarda su n\u00famero: *{tel_display}*\n"
+        f"Ella te acompa\u00f1ar\u00e1 en todo el proceso.\n\n"
         f"Nos vemos en la cancha. \u26a1\n"
         f"*CPSL Lima*"
     )
