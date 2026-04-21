@@ -1333,6 +1333,40 @@ def api_bienvenida_iniciar():
 def api_bienvenida_estado():
     return jsonify(estado_bienvenida()), 200
 
+@app.route("/api/bienvenida/e27/progreso")
+def api_bienvenida_progreso():
+    """Retorna tabla de enviados/pendientes para el panel."""
+    from bienvenida_e27 import cargar_estado_envio, cargar_participantes
+    estado_env = cargar_estado_envio()
+    pxs = cargar_participantes()
+    rows = []
+    for px in pxs:
+        tel = px.get("Telefono","")
+        ev  = estado_env.get(tel, {})
+        rows.append({
+            "tel":     tel,
+            "nombre":  f"{px.get('Apellidos','')} {px.get('Nombres','').split()[0] if px.get('Nombres') else ''}".strip(),
+            "cc":      px.get("CC_Nombre",""),
+            "estado":  ev.get("estado","PENDIENTE"),
+            "ts":      ev.get("ts",""),
+        })
+    # Resumen por CC
+    resumen_cc = {}
+    for r in rows:
+        cc = r["cc"]
+        if cc not in resumen_cc:
+            resumen_cc[cc] = {"enviados":0,"pendientes":0,"errores":0,"total":0}
+        resumen_cc[cc]["total"] += 1
+        resumen_cc[cc][r["estado"].lower() if r["estado"] in ("ENVIADO","ERROR") else "pendientes"] += 1
+    return jsonify({
+        "filas":      rows,
+        "resumen_cc": resumen_cc,
+        "total":      len(rows),
+        "enviados":   sum(1 for r in rows if r["estado"]=="ENVIADO"),
+        "pendientes": sum(1 for r in rows if r["estado"]=="PENDIENTE"),
+        "errores":    sum(1 for r in rows if r["estado"]=="ERROR"),
+    }), 200
+
 @app.route("/api/bienvenida/e27/detener", methods=["POST"])
 def api_bienvenida_detener():
     return jsonify(detener_bienvenida()), 200
