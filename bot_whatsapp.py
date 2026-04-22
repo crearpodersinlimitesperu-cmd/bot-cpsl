@@ -442,9 +442,10 @@ def notif_cc(p, motivo, extra=""):
         logger.critical("notif_cc: WA_TOKEN VACÍO — derivación no enviada")
         return nom_cc
     # Abrir caso en el gestor si es derivación
+    _cc_key = p.get("staff_key") or cc_libre()
     if "solicita" in motivo.lower() or "CONFIRMA" in motivo or "NO ASISTE" in motivo or "DEVOLUCION" in motivo or "directo" in motivo.lower():
         urgente = "DEVOLUCION" in motivo or "PLATA" in motivo or "URGENTE" in motivo
-        abrir_caso(str(tel_px), nom_px, cc_key or cc_libre(), motivo, urgente=urgente)
+        abrir_caso(str(tel_px), nom_px, _cc_key, motivo, urgente=urgente)
     # IMO del participante
     imo_n   = p.get("imo_nombre","") or p.get("imo","")
     imo_tel = p.get("imo_tel","")
@@ -530,7 +531,7 @@ def _flujo_cc(tel, up, texto, cc_info):
             if up == "1":
                 cerrar_caso(tel_caso, f"Resuelto por {nom_full}")
                 wa(tel, f"✅ Caso cerrado. Registrado en el sistema.", f"SIS→{nom}")
-                wa(Cfg.JOSE_TEL,
+                wa(JOSE_TEL,
                    f"✅ *Caso cerrado* por {nom_full}\n"
                    f"PX: wa.me/{tel_caso}",
                    f"SIS→JOSE")
@@ -540,7 +541,7 @@ def _flujo_cc(tel, up, texto, cc_info):
             elif up == "3":
                 actualizar_caso(tel_caso, "ABIERTO", f"Sin respuesta — {nom_full} pide apoyo")
                 wa(tel, f"🆘 Avisado a coordinación para apoyo.", f"SIS→{nom}")
-                wa(Cfg.JOSE_TEL,
+                wa(JOSE_TEL,
                    f"🆘 *{nom_full} necesita apoyo*\nCaso: wa.me/{tel_caso}",
                    f"SIS→JOSE")
             s.pop("caso_followup", None)
@@ -676,7 +677,7 @@ def _flujo_cc(tel, up, texto, cc_info):
         # Volver a mostrar lista actualizada
         mis_casos2 = casos_abiertos(s.get("cc_key",""))
         if mis_casos2:
-            _flujo_cc(tel, "VER", texto, s)  # re-mostrar lista
+            _flujo_cc(tel, "VER", texto, cc_info)  # re-mostrar lista
         else:
             wa(tel, "✅ Todos tus casos atendidos. Excelente trabajo!", f"SIS→{nom}")
             s["st_cc"] = "MAIN"; set_s(tel, s)

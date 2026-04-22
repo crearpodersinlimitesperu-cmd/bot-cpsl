@@ -159,7 +159,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   <!-- SIDEBAR -->
   <div class="sidebar">
     <div class="search-wrap">
-      <input type="text" id="searchInput" placeholder="Buscar nombre o teléfono..." oninput="buscar(this.value)" oninput="renderLista()">
+      <input type="text" id="searchInput" placeholder="Buscar nombre o teléfono..." oninput="renderLista()">
     </div>
     <div class="tabs">
       <div class="tab active" data-tab="todos" onclick="setTab('todos',this)">Todos</div>
@@ -256,6 +256,11 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 <div class="toast" id="toast"></div>
 
 <script>
+// ══════════════════════════════════════════════════════════════
+// UTILIDADES GLOBALES
+// ══════════════════════════════════════════════════════════════
+function keyEnter(e) { if(e.key==='Enter' && !e.shiftKey) { e.preventDefault(); enviarMsg(); } }
+
 // ══════════════════════════════════════════════════════════════
 // CONFIGURACIÓN
 // ══════════════════════════════════════════════════════════════
@@ -883,110 +888,6 @@ function toast(msg, tipo) {
 // INIT
 // ══════════════════════════════════════════════════════════════
 iniciarSync();
-
-// ══════════════════════════════════════════════════════════════
-// TABS — TODOS / IMO / PX / DERIVADOS / NUEVOS
-// ══════════════════════════════════════════════════════════════
-function setTab(tab, el) {
-  tabActivo = tab;
-  // Actualizar clase activa
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  if(el) el.classList.add('active');
-  renderLista();
-}
-
-// ══════════════════════════════════════════════════════════════
-// BÚSQUEDA EN TIEMPO REAL
-// ══════════════════════════════════════════════════════════════
-function buscar(q) {
-  renderLista();
-}
-
-// ══════════════════════════════════════════════════════════════
-// NUEVO CHAT — abrir conversación con número nuevo
-// ══════════════════════════════════════════════════════════════
-function abrirNuevoChat() {
-  const tel = prompt('Número de teléfono (con código de país, ej: 51987654321):');
-  if(!tel) return;
-  const telLimpio = tel.replace(/\D/g,'');
-  if(telLimpio.length < 9) { toast('Número inválido','err'); return; }
-  // Crear conversación vacía si no existe
-  if(!convs[telLimpio]) {
-    convs[telLimpio] = {
-      tel: telLimpio,
-      nombre: telLimpio,
-      tipo: '?',
-      estado: 'NUEVO',
-      msgs: [],
-      unread: 0,
-      ts: new Date().toISOString(),
-      cc: ''
-    };
-    renderLista();
-  }
-  abrirConv(telLimpio);
-}
-
-// ══════════════════════════════════════════════════════════════
-// ABRIR CONVERSACIÓN
-// ══════════════════════════════════════════════════════════════
-function abrirConv(tel) {
-  telActivo = tel;
-  // Marcar como leído
-  if(convs[tel]) {
-    convs[tel].unread = 0;
-    renderLista();
-  }
-  renderMsgs(tel);
-  // Mostrar header de la conversación
-  const c = convs[tel] || {nombre: tel, tipo:'?', estado:'', cc:''};
-  const nom = c.nombre || tel;
-  const tipo_badge = c.tipo === 'IMO' ? '👑 IMO' : c.tipo === 'PX' ? '👤 PX' : '🔵 NUEVO';
-  const cc_str = c.cc ? ` · ${({'dmoscoso':'Diana','jmarin':'Joyce','zurteaga':'Zuley'}[c.cc]||c.cc)}` : '';
-  const es_der = c.estado === 'DERIVADO';
-  const header = document.getElementById('chatHeader');
-  if(header) {
-    header.innerHTML = `
-      <div class="chat-header-info">
-        <div class="chat-header-nom">${nom}</div>
-        <div class="chat-header-sub">
-          <span class="chat-header-badge">${tipo_badge}</span>
-          ${es_der ? `<span class="chat-header-cc">↗ Derivado${cc_str}</span>` : ''}
-          <a href="https://wa.me/${tel}" target="_blank" class="chat-header-wa">📱 WhatsApp</a>
-        </div>
-      </div>
-    `;
-  }
-  // Actualizar input placeholder
-  const inp = document.getElementById('chatInput');
-  if(inp) inp.placeholder = `Mensaje para ${nom.split(' ')[0]}...`;
-}
-
-// ══════════════════════════════════════════════════════════════
-// HELPERS
-// ══════════════════════════════════════════════════════════════
-function add_hist(tel, nom, texto, tipo) {
-  if(!convs[tel]) convs[tel] = {tel,nombre:nom||tel,tipo:'?',estado:'',msgs:[],unread:0,ts:'',cc:''};
-  const hora = new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
-  convs[tel].msgs.push({texto, tipo, hora, nombre: nom});
-  convs[tel].ts = new Date().toISOString();
-  if(tipo === 'in') convs[tel].unread = (convs[tel].unread||0)+1;
-}
-
-function syncCC() {
-  fetch(BOT+'/api/carga_coordinadoras')
-    .then(r=>r.json())
-    .then(d=>{
-      ['dmoscoso','jmarin','zurteaga','lpasquel','lvalencia'].forEach(k=>{
-        const el = document.getElementById('cc-'+k);
-        if(el) {
-          const n = d[k]||0;
-          el.textContent = n;
-          el.className = 'cc-count'+(n===0?' zero':'');
-        }
-      });
-    }).catch(()=>{});
-}
 
 </script>
 
