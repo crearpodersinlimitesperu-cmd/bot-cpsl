@@ -208,45 +208,61 @@ def _actualizar_sheets_fila(px, estado):
         _sheets_ultimo_flush = ahora_ts
 
 def _flush_sheets():
-    """Envía el buffer acumulado a Google Sheets."""
+    """Envía el buffer acumulado a Google Sheets usando JWT manual (sin google-api-python-client)."""
     if not _sheets_buffer:
         return
     try:
-        import json as _json
-        from google.oauth2 import service_account
-        from googleapiclient.discovery import build
-        
+        import json as _json, base64, requests
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import padding as cp
+
         SHEET_ID = os.environ.get("SHEET_ID","")
         CREDS    = os.environ.get("GOOGLE_CREDENTIALS","")
-        creds_d  = _json.loads(CREDS)
-        creds    = service_account.Credentials.from_service_account_info(
-            creds_d, scopes=["https://www.googleapis.com/auth/spreadsheets"])
-        svc = build("sheets","v4",credentials=creds,cache_discovery=False)
-        
-        # Buscar/crear hoja "BIENVENIDA_E27"
-        meta = svc.spreadsheets().get(spreadsheetId=SHEET_ID).execute()
-        nombres = [s["properties"]["title"] for s in meta.get("sheets",[])]
-        
-        if "BIENVENIDA_E27" not in nombres:
-            svc.spreadsheets().batchUpdate(spreadsheetId=SHEET_ID, body={
-                "requests":[{"addSheet":{"properties":{"title":"BIENVENIDA_E27"}}}]
-            }).execute()
-            # Encabezado
-            svc.spreadsheets().values().update(
-                spreadsheetId=SHEET_ID, range="BIENVENIDA_E27!A1:E1",
-                valueInputOption="RAW",
-                body={"values":[["TELÉFONO","NOMBRE","CC","ESTADO","TIMESTAMP"]]}
-            ).execute()
-        
-        rows = [[b["tel"],b["nombre"],b["cc"],b["estado"],b["ts"]] for b in _sheets_buffer]
-        svc.spreadsheets().values().append(
-            spreadsheetId=SHEET_ID, range="BIENVENIDA_E27!A:E",
-            valueInputOption="RAW", insertDataOption="INSERT_ROWS",
-            body={"values": rows}
-        ).execute()
-        
-        log.info(f"Sheets flush: {len(rows)} filas escritas")
-        _sheets_buffer.clear()
+        SHEET_TAB = "Hoja 1"  # misma hoja que el bot principal
+        if not SHEET_ID or not CREDS:
+            log.warning("Sheets: SHEET_ID o CREDS vacíos")
+            return
+
+        # Generar token JWT
+        now   = int(time.time())
+        creds = _json.loads(CREDS)
+        pem   = creds["private_key"].replace("\\n","\n")
+        hdr   = base64.urlsafe_b64encode(_json.dumps({"alg":"RS256","typ":"JWT"}).encode()).rstrip(b"=")
+        pld   = base64.urlsafe_b64encode(_json.dumps({
+            "iss":creds["client_email"],"scope":"https://www.googleapis.com/auth/spreadsheets",
+            "aud":"https://oauth2.googleapis.com/token","iat":now,"exp":now+3600
+        }).encode()).rstrip(b"=")
+        msg_b = hdr+b"."+pld
+        pk    = serialization.load_pem_private_key(pem.encode(),password=None)
+        sig   = pk.sign(msg_b,cp.PKCS1v15(),hashes.SHA256())
+        jwt_s = (msg_b+b"."+base64.urlsafe_b64encode(sig).rstrip(b"=")).decode()
+        r = requests.post("https://oauth2.googleapis.com/token",
+            data={"grant_type":"urn:ietf:params:oauth:grant-type:jwt-bearer","assertion":jwt_s},timeout=10)
+        if r.status_code != 200:
+            log.error(f"Sheets JWT error: {r.status_code}")
+            return
+        tok = r.json()["access_token"]
+
+        # Escribir filas en la hoja principal (misma que usa el bot)
+        tab = SHEET_TAB.replace(" ","%20")
+        rows = [[
+            ahora().strftime("%d/%m/%Y %H:%M:%S"),
+            "OUT", b["tel"], b["nombre"], "BIENVENIDA_E27",
+            b["cc"], b["estado"], "BIENVENIDA", b["estado"]
+        ] for b in _sheets_buffer]
+
+        r2 = requests.post(
+            f"https://sheets.googleapis.com/v4/spreadsheets/{SHEET_ID}/values/{tab}!A:K:append",
+            params={"valueInputOption":"RAW","insertDataOption":"INSERT_ROWS"},
+            json={"values": rows},
+            headers={"Authorization":f"Bearer {tok}","Content-Type":"application/json"},
+            timeout=15
+        )
+        if r2.status_code == 200:
+            log.info(f"Sheets flush: {len(rows)} filas escritas")
+            _sheets_buffer.clear()
+        else:
+            log.warning(f"Sheets append error: {r2.status_code} {r2.text[:100]}")
     except Exception as e:
         log.warning(f"Sheets flush error: {e}")
 

@@ -462,11 +462,23 @@ def notif_cc(p, motivo, extra=""):
        f"{imo_str}\n\n"
        f"*📝 Asunto:* {motivo}"
        + (f"\n*Detalle:* {extra}" if extra else "")
-       + f"\n\n_Escribe *HOLA* para confirmar que atendiste este caso._",
+       + f"\n\n¿Atendiste este caso?\n"
+       + f"1️⃣ Sí, resuelto\n"
+       + f"2️⃣ En gestión\n"
+       + f"3️⃣ Necesito apoyo",
        f"SIS→{nom_cc}"
     )
     if not exito:
         logger.error(f"notif_cc: wa() falló enviando a {tel_cc}")
+    else:
+        # Guardar caso_followup en la sesión de la CC para que 1/2/3 funcione
+        try:
+            s_cc = get_s(tel_cc) or {}
+            s_cc["caso_followup"] = str(tel_px)
+            s_cc["modo"] = "CC"
+            s_cc["st_cc"] = "MAIN"
+            set_s(tel_cc, s_cc)
+        except: pass
     return nom_cc
 
 
@@ -517,9 +529,17 @@ def _flujo_cc(tel, up, texto, cc_info):
     st       = s.get("st_cc","MAIN")
     JOSE_TEL = "51919563284"  # José recibe copia de reportes
 
-    # Reset
+    # Reset — pero si la CC tiene caso_followup pendiente, ir directo a VER_CASOS
     if not s or up in {"HOLA","MENU","0","INICIO"}:
+        # Preservar caso_followup si existe (para que 1/2/3 funcionen tras notificación)
+        caso_fw = s.get("caso_followup") if s else None
         s = {"modo":"CC","cc_key":cc_key,"st_cc":"MAIN"}
+        if caso_fw and up == "HOLA":
+            # La CC respondió HOLA a un caso derivado → mostrar casos pendientes
+            s["st_cc"] = "VER_CASOS"
+            set_s(tel, s)
+            _flujo_cc(tel, "VER", texto, cc_info)
+            return
         set_s(tel, s)
         _menu_cc(tel, nom)
         return
