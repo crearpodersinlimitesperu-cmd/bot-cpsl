@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Torre de Control — CPSL Lima</title>
+<style>
+:root{
+  --bg:#0f0f11;--bg2:#18181c;--bg3:#222228;--bg4:#2a2a32;
+  --border:#2e2e38;--border2:#3a3a46;
+  --txt:#f0f0f4;--txt2:#9090a0;--txt3:#606070;
+  --green:#1db97a;--green2:#0f6e46;--green3:#0a3d27;
+  --red:#e24b4a;--red3:#3d1515;
+  --orange:#ef9f27;--orange3:#3d2a0a;
+  --blue:#378add;--blue3:#0c2a40;
+  --purple:#8b7cf8;
+  --r:8px;--r2:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--txt);height:100vh;display:flex;flex-direction:column;overflow:hidden;font-size:13px}
+
+/* TOP BAR */
+.topbar{display:flex;align-items:center;gap:12px;padding:0 16px;height:44px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+.topbar-brand{font-size:12px;font-weight:700;letter-spacing:.08em;color:var(--green);text-transform:uppercase}
+.topbar-ver{font-size:10px;color:var(--txt3);margin-left:4px}
+.topbar-spacer{flex:1}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--txt3);flex-shrink:0}
+.status-dot.online{background:var(--green);box-shadow:0 0 6px var(--green)}
+.status-txt{font-size:11px;color:var(--txt2)}
+.badge-live{background:var(--green3);color:var(--green);font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;border:1px solid var(--green2);letter-spacing:.06em}
+
+/* LAYOUT */
+.layout{display:flex;flex:1;overflow:hidden}
+
+/* SIDEBAR IZQUIERDO */
+.sidebar{width:300px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid var(--border);background:var(--bg2)}
+.search-wrap{padding:10px 12px;border-bottom:1px solid var(--border)}
+.search-wrap input{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);padding:7px 10px;color:var(--txt);font-size:12px;outline:none}
+.search-wrap input:focus{border-color:var(--blue)}
+.tabs{display:flex;padding:6px 8px;gap:4px;border-bottom:1px solid var(--border)}
+.tab{flex:1;text-align:center;padding:5px 4px;border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;color:var(--txt3);letter-spacing:.04em;text-transform:uppercase;transition:all .15s}
+.tab:hover{background:var(--bg3);color:var(--txt2)}
+.tab.active{background:var(--bg4);color:var(--txt)}
+.tab.active.t-der{color:var(--orange)}
+.tab.active.t-imo{color:var(--purple)}
+.tab.active.t-px{color:var(--blue)}
+.stats-bar{display:flex;padding:8px 12px;gap:6px;border-bottom:1px solid var(--border)}
+.stat{flex:1;text-align:center;background:var(--bg3);border-radius:6px;padding:6px 4px}
+.stat-n{font-size:16px;font-weight:700;line-height:1}
+.stat-l{font-size:9px;color:var(--txt3);margin-top:2px;text-transform:uppercase;letter-spacing:.04em}
+.stat-n.unread{color:var(--orange)}
+.stat-n.derivados{color:var(--red)}
+.conv-list{flex:1;overflow-y:auto;padding:6px}
+.conv-list::-webkit-scrollbar{width:4px}
+.conv-list::-webkit-scrollbar-track{background:transparent}
+.conv-list::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* CONV ITEM */
+.conv-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r);cursor:pointer;margin-bottom:2px;transition:background .12s;position:relative}
+.conv-item:hover{background:var(--bg3)}
+.conv-item.active{background:var(--bg4)}
+.conv-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;position:relative}
+.conv-avatar.imo{background:#2a2350;color:var(--purple)}
+.conv-avatar.px{background:#0c2236;color:var(--blue)}
+.conv-avatar.nuevo{background:#1a2a1a;color:var(--green)}
+.conv-avatar.ext{background:var(--bg3);color:var(--txt3)}
+.conv-avatar.cc{background:#1a3020;color:var(--green)}
+.tipo-badge{position:absolute;bottom:-2px;right:-2px;font-size:7px;font-weight:800;padding:1px 3px;border-radius:3px;text-transform:uppercase;letter-spacing:.03em}
+.tipo-badge.imo{background:var(--purple);color:#fff}
+.tipo-badge.px{background:var(--blue);color:#fff}
+.tipo-badge.der{background:var(--orange);color:#000}
+.tipo-badge.ok{background:var(--green);color:#000}
+.conv-body{flex:1;min-width:0}
+.conv-nombre{font-size:12px;font-weight:600;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conv-nombre .cc-tag{font-size:9px;color:var(--orange);margin-left:4px;font-weight:700}
+.conv-preview{font-size:11px;color:var(--txt3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.conv-preview.der{color:var(--orange)}
+.conv-meta{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
+.conv-hora{font-size:10px;color:var(--txt3)}
+.conv-unread{background:var(--orange);color:#000;font-size:9px;font-weight:800;padding:1px 5px;border-radius:8px;min-width:16px;text-align:center}
+.conv-der-badge{background:var(--orange3);color:var(--orange);font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;border:1px solid var(--orange)}
+
+/* ÁREA CENTRAL */
+.chat-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.chat-header{padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg2);display:flex;align-items:center;gap:10px;flex-shrink:0;min-height:52px}
+.chat-header-name{font-size:14px;font-weight:700}
+.chat-header-info{font-size:11px;color:var(--txt3)}
+.chat-header-cc{font-size:11px;color:var(--orange);margin-left:6px;font-weight:600}
+.chat-tel{font-size:10px;color:var(--txt3);margin-top:1px}
+.chat-header-spacer{flex:1}
+.btn-der-badge{background:var(--orange3);color:var(--orange);border:1px solid var(--orange);padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer}
+.chat-msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px}
+.chat-msgs::-webkit-scrollbar{width:4px}
+.chat-msgs::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.msg-wrap{display:flex;flex-direction:column;max-width:70%}
+.msg-wrap.out{align-self:flex-end;align-items:flex-end}
+.msg-wrap.in{align-self:flex-start}
+.msg-bubble{padding:8px 12px;border-radius:10px;font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.msg-bubble.out{background:var(--green3);color:var(--txt);border-bottom-right-radius:2px}
+.msg-bubble.in{background:var(--bg3);color:var(--txt);border-bottom-left-radius:2px}
+.msg-hora{font-size:9px;color:var(--txt3);margin-top:2px;padding:0 2px}
+.chat-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--txt3);gap:8px}
+.chat-empty-icon{font-size:32px;opacity:.3}
+.chat-input-wrap{padding:10px 12px;border-top:1px solid var(--border);background:var(--bg2);display:flex;gap:8px}
+.chat-input{flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);padding:8px 12px;color:var(--txt);font-size:12px;outline:none;resize:none;max-height:80px}
+.chat-input:focus{border-color:var(--green)}
+.btn-send{background:var(--green2);color:var(--green);border:none;border-radius:var(--r);padding:8px 14px;cursor:pointer;font-size:12px;font-weight:700;transition:all .15s}
+.btn-send:hover{background:var(--green);color:#000}
+
+/* PANEL DERECHO */
+.right-panel{width:240px;flex-shrink:0;border-left:1px solid var(--border);background:var(--bg2);display:flex;flex-direction:column;overflow-y:auto;padding:12px}
+.right-panel::-webkit-scrollbar{width:4px}
+.right-panel::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.rp-section{margin-bottom:16px}
+.rp-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--txt3);margin-bottom:8px}
+.cc-item{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:var(--r);background:var(--bg3);margin-bottom:4px}
+.cc-dot{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0}
+.cc-nombre{font-size:11px;font-weight:600;flex:1}
+.cc-count{font-size:10px;font-weight:700;color:var(--orange);background:var(--orange3);padding:1px 6px;border-radius:10px}
+.cc-count.zero{color:var(--txt3);background:var(--bg4)}
+.seg-mode{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);padding:6px 8px;color:var(--txt);font-size:11px;margin-bottom:6px;outline:none}
+.btn-row{display:flex;gap:5px;margin-bottom:4px}
+.btn-seg{flex:1;padding:6px;border-radius:var(--r);font-size:10px;font-weight:700;cursor:pointer;border:1px solid var(--border2);background:var(--bg3);color:var(--txt2);transition:all .15s}
+.btn-seg:hover{background:var(--bg4);color:var(--txt)}
+.btn-seg.primary{background:var(--green2);color:var(--green);border-color:var(--green2)}
+.btn-seg.primary:hover{background:var(--green);color:#000}
+.btn-seg.warn{color:var(--orange)}
+.btn-seg.danger{color:var(--red)}
+.seg-status{font-size:10px;color:var(--txt3);padding:4px 0;min-height:16px}
+.seg-status.running{color:var(--green)}
+.new-chat-btn{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);padding:8px;color:var(--txt2);font-size:11px;cursor:pointer;text-align:left;transition:all .15s;margin-top:auto}
+.new-chat-btn:hover{background:var(--bg4);color:var(--txt)}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--bg4);border:1px solid var(--border2);color:var(--txt);padding:8px 16px;border-radius:var(--r);font-size:12px;z-index:999;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+.toast.ok{border-color:var(--green);color:var(--green)}
+.toast.err{border-color:var(--red);color:var(--red)}
+.caso-item{padding:6px 8px;border-radius:6px;background:var(--bg3);margin-bottom:3px;cursor:pointer;transition:background .12s}
+.caso-item:hover{background:var(--bg4)}
+.caso-item.urgente{background:var(--red3);border-left:2px solid var(--red)}
+.caso-item.gestion{background:var(--blue3);border-left:2px solid var(--blue)}
+.caso-nombre{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.caso-info{font-size:10px;color:var(--txt3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.caso-cc{font-size:9px;font-weight:700;color:var(--orange)}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="topbar-brand">⚡ Torre de Control</span>
+  <span class="topbar-ver">CPSL Lima — V110</span>
+  <div class="topbar-spacer"></div>
+  <div class="status-dot" id="statusDot"></div>
+  <span class="status-txt" id="statusTxt">Conectando...</span>
+  <span class="badge-live" id="liveBadge" style="display:none">LIVE</span>
+</div>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="search-wrap">
+      <input type="text" id="searchInput" placeholder="Buscar nombre o teléfono..." oninput="buscar(this.value)" oninput="renderLista()">
+    </div>
+    <div class="tabs">
+      <div class="tab active" data-tab="todos" onclick="setTab('todos',this)">Todos</div>
+      <div class="tab t-imo" data-tab="imo" onclick="setTab('imo',this)">IMO</div>
+      <div class="tab t-px" data-tab="px" onclick="setTab('px',this)">PX</div>
+      <div class="tab t-der" data-tab="der" onclick="setTab('der',this)">Derivados</div>
+      <div class="tab" data-tab="nuevo" onclick="setTab('nuevo',this)">Nuevos</div>
+    </div>
+    <div class="stats-bar">
+      <div class="stat"><div class="stat-n" id="sTotal">0</div><div class="stat-l">Total</div></div>
+      <div class="stat"><div class="stat-n unread" id="sUnread">0</div><div class="stat-l">No leídos</div></div>
+      <div class="stat"><div class="stat-n derivados" id="sDer">0</div><div class="stat-l">Derivados</div></div>
+    </div>
+    <div class="conv-list" id="convList"></div>
+    <button class="new-chat-btn" onclick="abrirNuevoChat()">✏ Nuevo Chat</button>
+  </div>
+
+  <!-- CHAT -->
+  <div class="chat-area">
+    <div class="chat-header" id="chatHeader">
+      <div class="chat-empty" style="width:100%;justify-content:center;flex-direction:row;gap:8px">
+        <span style="color:var(--txt3);font-size:12px">Selecciona una conversación</span>
+      </div>
+    </div>
+    <div class="chat-msgs" id="chatMsgs">
+      <div class="chat-empty">
+        <div class="chat-empty-icon">💬</div>
+        <span style="font-size:12px">Torre de Control activa</span>
+      </div>
+    </div>
+    <div class="chat-input-wrap">
+      <textarea class="chat-input" id="chatInput" rows="1" placeholder="Escribe un mensaje..." onkeydown="keyEnter(event)"></textarea>
+      <button class="btn-send" id="btnEnviar" onclick="enviarMsg()">Enviar</button>
+    </div>
+  </div>
+
+  <!-- PANEL DERECHO -->
+  <div class="right-panel">
+    <div class="rp-section">
+      <div class="rp-title">Coordinadoras</div>
+      <div id="ccList">
+        <div class="cc-item"><div class="cc-dot"></div><span class="cc-nombre">Diana Moscoso</span><span class="cc-count zero" id="cc-dmoscoso">0</span></div>
+        <div class="cc-item"><div class="cc-dot"></div><span class="cc-nombre">Joyce Marín</span><span class="cc-count zero" id="cc-jmarin">0</span></div>
+        <div class="cc-item"><div class="cc-dot"></div><span class="cc-nombre">Zuley Urteaga</span><span class="cc-count zero" id="cc-zurteaga">0</span></div>
+        <div class="cc-item"><div class="cc-dot"></div><span class="cc-nombre">Leyla Pasquel</span><span class="cc-count zero" id="cc-lpasquel">0</span></div>
+        <div class="cc-item"><div class="cc-dot"></div><span class="cc-nombre">Linid Valencia</span><span class="cc-count zero" id="cc-lvalencia">0</span></div>
+      </div>
+    </div>
+
+    <div class="rp-section" id="casosSection">
+      <div class="rp-title">Casos Derivados <span id="casosCount" style="color:var(--orange);font-size:11px;font-weight:700"></span></div>
+      <div id="casosList" style="max-height:180px;overflow-y:auto;margin-bottom:6px"></div>
+      <div class="btn-row">
+        <button class="btn-seg warn" onclick="followup12h()">⏰ Followup 12h</button>
+        <button class="btn-seg" onclick="verCasosCerrados()">📁 Cerrados</button>
+      </div>
+    </div>
+
+    <div class="rp-section">
+      <div class="rp-title">Seguimiento Autónomo</div>
+      <div class="seg-status" id="segStatus">Listo para iniciar</div>
+      <select class="seg-mode" id="segMode">
+        <option value="ambos">IMOs + PX</option>
+        <option value="imos">Solo IMOs</option>
+        <option value="px">Solo PX</option>
+      </select>
+      <div class="btn-row">
+        <button class="btn-seg primary" onclick="iniciarSeg()">▶ Iniciar</button>
+        <button class="btn-seg" onclick="verLog()">📋 Log</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn-seg warn" onclick="sinRespuesta()">🔍 Sin resp.</button>
+        <button class="btn-seg danger" onclick="reenviar()">↩ Reenviar</button>
+      </div>
+      <div class="btn-row" style="margin-top:4px">
+        <button class="btn-seg" style="color:var(--purple)" onclick="solicitarReportes()">📊 Pedir Reportes</button>
+      </div>
+    </div>
+
+    <div class="rp-section">
+      <div class="rp-title">Diagnóstico</div>
+      <div class="btn-row">
+        <button class="btn-seg" onclick="testToken()">🔑 Token</button>
+        <button class="btn-seg warn" onclick="testNotif()">🧪 Test CC</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn-seg danger" onclick="limpiarSesiones()">🗑 Limpiar sesiones</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// CONFIGURACIÓN
+// ══════════════════════════════════════════════════════════════
+const BOT = window.location.origin; // siempre el mismo origen
+const CCS_TELS = new Set(['51912379744','51933599903','51933599864','51919502385','51912379686']);
+const CCS_MAP  = {
+  'Diana':  'dmoscoso', 'diana':'dmoscoso',
+  'Joyce':  'jmarin',   'joyce':'jmarin',
+  'Zuley':  'zurteaga', 'zuley':'zurteaga',
+  'Leyla':  'lpasquel', 'leyla':'lpasquel',
+  'Linid':  'lvalencia','linid':'lvalencia',
+};
+
+// ══════════════════════════════════════════════════════════════
+// ESTADO
+// ══════════════════════════════════════════════════════════════
+let convs = {};        // tel → {tel, nombre, tipo, estado, cc, msgs, unread, ts}
+let tabActivo = 'todos';
+let telActivo = null;
+let syncTimer = null;
+
+// ══════════════════════════════════════════════════════════════
+// PROCESAMIENTO DEL HISTORIAL
+// ══════════════════════════════════════════════════════════════
+function procesarHistorial(data) {
+  let cambios = false;
+
+  for(const m of data) {
+    const tel = String(m.telefono||'');
+    if(!tel || tel.startsWith('SIM_') || CCS_TELS.has(tel)) continue;
+
+    // Crear conv si no existe
+    if(!convs[tel]) {
+      convs[tel] = {tel, nombre:'', tipo:'?', estado:'', cc:'', msgs:[], unread:0, ts:''};
+      cambios = true;
+    }
+    const c = convs[tel];
+
+    // ── NOMBRE COMPLETO ─────────────────────────────────────
+    // El historial tiene nombre en formato "(TIPO) Nombre Apellido"
+    // Queremos el nombre COMPLETO sin el prefijo (TIPO)
+    if(m.nombre) {
+      const nom_raw = String(m.nombre);
+      // Quitar prefijo (TIPO)
+      const nom_limpio = nom_raw.replace(/^\([^)]+\)\s*/, '').trim();
+      // Tomar el nombre más largo y descriptivo que encontremos
+      if(nom_limpio.length > 3 &&
+         !nom_limpio.includes('BOT') &&
+         !nom_limpio.includes('SIS') &&
+         !nom_limpio.includes('PANEL') &&
+         !nom_limpio.includes('TEST') &&
+         nom_limpio !== tel) {
+        // Preferir nombres con al menos 2 palabras (nombre + apellido)
+        const palabras = nom_limpio.split(' ').filter(x=>x.length>1);
+        if(palabras.length >= 2 || (palabras.length === 1 && c.nombre.split(' ').length < 2)) {
+          if(nom_limpio.length > c.nombre.length || c.nombre === '') {
+            c.nombre = nom_limpio;
+            cambios = true;
+          }
+        }
+      }
+
+      // ── TIPO desde el prefijo ──────────────────────────────
+      if(c.tipo === '?') {
+        const prefix = nom_raw.match(/^\(([^)]+)\)/);
+        if(prefix) {
+          const t = prefix[1].toUpperCase();
+          if(t.includes('IMO') || t.includes('GRAD'))           c.tipo = 'IMO';
+          else if(t.includes('PX') || t.includes('REZAG') ||
+                  t.includes('PROSP') || t.includes('PART'))    c.tipo = 'PX';
+          else if(t.includes('NUEVO') || t.includes('PROSP'))   c.tipo = 'NUEVO';
+          else                                                    c.tipo = 'EXT';
+          cambios = true;
+        }
+      }
+    }
+
+    // Si sigue sin tipo, el nombre sin prefijo da pistas
+    if(c.tipo === '?' && c.nombre) {
+      const n = c.nombre.toUpperCase();
+      if(n.includes('IMO'))      { c.tipo = 'IMO'; cambios=true; }
+      else if(n.includes('PX')) { c.tipo = 'PX';  cambios=true; }
+    }
+
+    // ── ESTADO: DERIVADO ────────────────────────────────────
+    if(m.tipo === 'out' && m.texto) {
+      const txt = m.texto;
+      // SOLO derivaciones explícitas — NO el menú general
+      const es_der = (
+        txt.includes('\u2705 Te derivo con') ||
+        txt.includes('\u2705 Derivado a Coordinaci') ||
+        txt.includes('\u2705 Mensaje entregado a tu coordinadora') ||
+        txt.includes('Puedes escribirle directamente')
+      );
+      const es_menu = (
+        txt.includes('Portal IMO') || txt.includes('Pendientes de C1') ||
+        txt.includes('dado de baja') || txt.includes('Bienvenido a CPSL') ||
+        txt.includes('Info Entrenamiento') || txt.includes('men\u00fa') ||
+        txt.includes('MENU para ver')
+      );
+      if(es_der && !es_menu) {
+        c.estado = 'DERIVADO';
+        // Detectar CC y reasignar Linid/Leyla → Diana/Joyce
+        const cc_map_der = {
+          'Diana':'dmoscoso','Joyce':'jmarin','Zuley':'zurteaga',
+          'Leyla':'jmarin','Linid':'dmoscoso'
+        };
+        for(const [nom,key] of Object.entries(cc_map_der)) {
+          if(txt.includes(nom)) { c.cc = key; break; }
+        }
+        cambios = true;
+      }
+    }
+
+    // ── MENSAJES ────────────────────────────────────────────
+    const key = `${m.hora}|${m.tipo}|${(m.texto||'').substring(0,30)}`;
+    const existe = c.msgs.some(x => x._key === key);
+    if(!existe) {
+      c.msgs.push({_key:key, tipo:m.tipo, texto:m.texto||'', hora:m.hora||''});
+      c.ts = m.hora||'';
+      if(m.tipo === 'in' && tel !== telActivo) {
+        c.unread++;
+        cambios = true;
+      }
+      cambios = true;
+    }
+  }
+
+  return cambios;
+}
+
+// ══════════════════════════════════════════════════════════════
+// RENDER
+// ══════════════════════════════════════════════════════════════
+function iniciales(nombre) {
+  const p = (nombre||'').trim().split(' ').filter(x=>x.length>1);
+  if(p.length >= 2) return (p[0][0]+p[p.length-1][0]).toUpperCase();
+  if(p.length === 1) return p[0].substring(0,2).toUpperCase();
+  return '?';
+}
+
+function setTab(tab, el) {
+  tabActivo = tab;
+  // Actualizar estilo de tabs
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  if(el) el.classList.add('active');
+  renderLista();
+}
+
+function abrirNuevoChat() {
+  const tel = prompt('Teléfono (ej: 51912345678):');
+  if(!tel || tel.trim().length < 9) return;
+  const tel_n = tel.trim().replace(/\D/g,'');
+  if(!convs[tel_n]) {
+    convs[tel_n] = {
+      tel: tel_n, nombre: tel_n, tipo: 'EXT',
+      estado: 'ACTIVO', unread: 0, ts: '', msgs: []
+    };
+  }
+  abrirConv(tel_n);
+}
+
+function renderLista() {
+  const q   = (document.getElementById('searchInput').value||'').toLowerCase();
+  const tab = tabActivo;
+
+  let lista = Object.values(convs).filter(c => {
+    const mq = !q ||
+      c.nombre.toLowerCase().includes(q) ||
+      c.tel.includes(q);
+    const mt =
+      tab === 'todos'  ? true :
+      tab === 'imo'    ? c.tipo === 'IMO' :
+      tab === 'px'     ? c.tipo === 'PX' :
+      tab === 'der'    ? c.estado === 'DERIVADO' :
+      tab === 'nuevo'  ? (c.tipo === 'NUEVO' || c.tipo === 'EXT' || c.tipo === '?') :
+      true;
+    return mq && mt;
+  });
+
+  // Ordenar: unread primero, luego por hora
+  lista.sort((a,b) => (b.unread - a.unread) || (b.ts > a.ts ? 1 : -1));
+
+  // Stats
+  const total = Object.keys(convs).length;
+  const unread = Object.values(convs).filter(c=>c.unread>0).length;
+  const der    = Object.values(convs).filter(c=>c.estado==='DERIVADO').length;
+  document.getElementById('sTotal').textContent  = total;
+  document.getElementById('sUnread').textContent = unread;
+  document.getElementById('sDer').textContent    = der;
+
+  // Carga por CC
+  const carga = {};
+  Object.values(convs).filter(c=>c.estado==='DERIVADO').forEach(c=>{
+    if(c.cc) carga[c.cc] = (carga[c.cc]||0)+1;
+  });
+  ['dmoscoso','jmarin','zurteaga','lpasquel','lvalencia'].forEach(k=>{
+    const el = document.getElementById('cc-'+k);
+    if(!el) return;
+    const n = carga[k]||0;
+    el.textContent = n;
+    el.className   = 'cc-count ' + (n===0?'zero':'');
+  });
+
+  // Renderizar items
+  const el = document.getElementById('convList');
+  if(!lista.length) {
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--txt3)">Sin resultados</div>';
+    return;
+  }
+
+  el.innerHTML = lista.map(c => {
+    const ini    = iniciales(c.nombre);
+    const activo = c.tel === telActivo ? ' active' : '';
+    const tipo_c = c.tipo==='IMO'?'imo':c.tipo==='PX'?'px':c.tipo==='NUEVO'?'nuevo':'ext';
+    const ultimo = c.msgs[c.msgs.length-1];
+    const preview= (ultimo?.texto||'').replace(/\*([^*]+)\*/g,'$1').replace(/\n/g,' ').substring(0,45);
+    const es_der = c.estado==='DERIVADO';
+    const badge_tipo = c.tipo==='IMO'?'<span class="tipo-badge imo">IMO</span>':
+                       c.tipo==='PX' ?'<span class="tipo-badge px">PX</span>':'';
+    const badge_der  = es_der ?'<span class="tipo-badge der">DER</span>':'';
+    const cc_tag     = es_der && c.cc ? `<span class="cc-tag">${c.cc}</span>`:'';
+    const unread_el  = c.unread>0?`<span class="conv-unread">${c.unread}</span>`:'';
+    const der_el     = es_der?'<span class="conv-der-badge">Derivado</span>':'';
+
+    return `<div class="conv-item${activo}" onclick="abrirConv('${c.tel}')">
+      <div class="conv-avatar ${tipo_c}">${ini}${badge_tipo}${badge_der}</div>
+      <div class="conv-body">
+        <div class="conv-nombre">${c.nombre||'+'+c.tel}${cc_tag}</div>
+        <div class="conv-preview${es_der?' der':''}">${es_der?'↗ Derivado — ':''} ${preview}</div>
+      </div>
+      <div class="conv-meta">
+        <span class="conv-hora">${(c.ts||'').replace(/\d{2}\/\d{2}\s/,'')}</span>
+        ${unread_el}${der_el}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════════
+// ABRIR CONVERSACIÓN
+// ══════════════════════════════════════════════════════════════
+function abrirConv(tel) {
+  telActivo = tel;
+  const c = convs[tel];
+  if(!c) return;
+  c.unread = 0;
+
+  // Header
+  const es_der = c.estado==='DERIVADO';
+  const cc_str = c.cc ? ` → ${c.cc}` : '';
+  const tipo_str = c.tipo==='IMO'?'IMO — Líder':c.tipo==='PX'?'Prospecto C1':c.tipo;
+  document.getElementById('chatHeader').innerHTML = `
+    <div class="conv-avatar ${c.tipo==='IMO'?'imo':c.tipo==='PX'?'px':'ext'}" style="width:38px;height:38px;font-size:13px">
+      ${iniciales(c.nombre)}
+    </div>
+    <div>
+      <div class="chat-header-name">${c.nombre||'+'+tel}</div>
+      <div class="chat-tel">+${tel} · ${tipo_str}${es_der?`<span class="chat-header-cc">↗ Derivado${cc_str}</span>`:''}</div>
+    </div>
+    <div class="chat-header-spacer"></div>
+    <a href="https://wa.me/${tel}" target="_blank" style="font-size:10px;color:var(--green);text-decoration:none">Abrir WA ↗</a>
+  `;
+
+  // Mensajes
+  renderMsgs(tel);
+  renderLista();
+}
+
+function renderMsgs(tel) {
+  const c = convs[tel];
+  if(!c) return;
+  const el = document.getElementById('chatMsgs');
+
+  if(!c.msgs.length) {
+    el.innerHTML = '<div class="chat-empty"><span>Sin mensajes</span></div>';
+    return;
+  }
+
+  el.innerHTML = c.msgs.map(m => `
+    <div class="msg-wrap ${m.tipo}">
+      <div class="msg-bubble ${m.tipo}">${(m.texto||'').replace(/\*([^*]+)\*/g,'<b>$1</b>').replace(/\n/g,'<br>')}</div>
+      <div class="msg-hora">${m.hora||''}</div>
+    </div>
+  `).join('');
+
+  // Scroll al final
+  el.scrollTop = el.scrollHeight;
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// GESTIÓN DE CASOS DERIVADOS
+// ══════════════════════════════════════════════════════════════
+let casosData = {};
+
+async function syncCasos() {
+  try {
+    const r = await fetch(BOT + '/api/casos');
+    if(!r.ok) return;
+    const d = await r.json();
+    casosData = d;
+    renderCasos(d);
+  } catch(e) {}
+}
+
+function renderCasos(d) {
+  const resumen = d.resumen || {};
+  const casos   = d.casos   || [];
+
+  // Contador badge
+  const total_act = (resumen.urgentes||0) + (resumen.abiertos||0) + (resumen.en_gestion||0);
+  const elCount = document.getElementById('casosCount');
+  if(elCount) elCount.textContent = total_act > 0 ? '(' + total_act + ')' : '';
+
+  // Actualizar stat de derivados con casos REALES del gestor
+  const elDer = document.getElementById('sDer');
+  if(elDer && total_act > 0) elDer.textContent = total_act;
+
+  // Carga por CC
+  const por_cc = resumen.por_cc || {};
+  ['dmoscoso','jmarin','zurteaga','lpasquel','lvalencia'].forEach(k => {
+    const el = document.getElementById('cc-' + k);
+    if(!el) return;
+    const n = por_cc[k] || 0;
+    el.textContent = n;
+    el.className = 'cc-count ' + (n === 0 ? 'zero' : '');
+  });
+
+  // Lista de casos en panel derecho
+  const elList = document.getElementById('casosList');
+  if(!elList) return;
+
+  if(!casos.length) {
+    elList.innerHTML = '<div style="font-size:10px;color:var(--txt3);padding:6px 0">Sin casos activos</div>';
+    return;
+  }
+
+  const CC_NOM = {dmoscoso:'Diana', jmarin:'Joyce', zurteaga:'Zuley'};
+  elList.innerHTML = casos.slice(0, 12).map(c => {
+    const emoji = c.estado === 'URGENTE' ? '🔴' : c.estado === 'EN_GESTION' ? '🔵' : '⏳';
+    const cls   = c.estado === 'URGENTE' ? 'urgente' : c.estado === 'EN_GESTION' ? 'gestion' : '';
+    const ccNom = CC_NOM[c.cc_key] || c.cc_key || '?';
+    const nom   = (c.nombre || c.tel_px || '?').substring(0, 22);
+    const asunto= (c.asunto || '').substring(0, 35);
+    const data = encodeURIComponent(JSON.stringify({tel:c.tel_px,nom:c.nombre,as:c.asunto,st:c.estado,cc:c.cc_key}));
+    return '<div class="caso-item ' + cls + '" onclick="abrirCasoData(this)" data-caso="' + data + '">' +
+      '<div class="caso-nombre">' + emoji + ' ' + nom + '</div>' +
+      '<div class="caso-info">' + asunto + '</div>' +
+      '<div class="caso-cc">' + ccNom + ' · ' + c.estado + '</div>' +
+      '</div>';
+  }).join('');
+}
+
+function abrirCasoData(el) {
+  const d = JSON.parse(decodeURIComponent(el.dataset.caso || '{}'));
+  verCaso(d.tel, d.nom, d.as, d.st, d.cc);
+}
+
+function verCaso(tel, nombre, asunto, estado, cc_key) {
+  const CC_NOM = {dmoscoso:'Diana Moscoso', jmarin:'Joyce Marín', zurteaga:'Zuley Urteaga'};
+  const cc_nom = CC_NOM[cc_key] || cc_key;
+  const accion = prompt(
+    'Caso: ' + nombre + '\nAsunto: ' + asunto + '\nCC: ' + cc_nom + '\nEstado: ' + estado +
+    '\n\n1 = En gestión\n2 = Cerrar caso\n3 = Cancelar', '3'
+  );
+  if(!accion || accion === '3') return;
+  if(accion === '1') {
+    const nota = prompt('Nota (opcional):', '') || '';
+    fetch(BOT + '/api/casos/' + tel + '/estado', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({estado: 'EN_GESTION', nota: nota})
+    }).then(() => { toast('Actualizado ✅', 'ok'); setTimeout(syncCasos, 500); });
+  } else if(accion === '2') {
+    const nota = prompt('Motivo de cierre:', 'Resuelto') || 'Cerrado desde panel';
+    fetch(BOT + '/api/casos/' + tel + '/cerrar', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({nota: nota})
+    }).then(() => { toast('Caso cerrado ✅', 'ok'); setTimeout(syncCasos, 500); });
+  }
+}
+
+async function followup12h() {
+  if(!confirm('¿Enviar recordatorio a coordinadoras por casos sin actualizar en 12h?')) return;
+  try {
+    toast('Enviando followup...', 'ok');
+    const r = await fetch(BOT + '/api/followup', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({horas: 12})
+    });
+    const d = await r.json();
+    toast('Followup enviado: ' + (d.enviados || 0) + ' casos', 'ok');
+    setTimeout(syncCasos, 1000);
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+async function verCasosCerrados() {
+  try {
+    const r = await fetch(BOT + '/api/casos');
+    const d = await r.json();
+    const cerrados = (d.casos || []).filter(c => c.estado === 'CERRADO');
+    if(!cerrados.length) { alert('No hay casos cerrados aún.'); return; }
+    const txt = cerrados.map(c =>
+      '✅ ' + c.nombre + '\n   ' + c.asunto + '\n   Cerrado: ' + (c.ts_cierre||'').substring(0,10)
+    ).join('\n\n');
+    alert('CASOS CERRADOS (' + cerrados.length + '):\n\n' + txt);
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+// ══════════════════════════════════════════════════════════════
+// SYNC
+// ══════════════════════════════════════════════════════════════
+async function sync() {
+  try {
+    const ctrl = new AbortController();
+    const tid  = setTimeout(()=>ctrl.abort(), 20000);
+    const r    = await fetch(BOT+'/api/historial?limit=3000', {signal:ctrl.signal});
+    clearTimeout(tid);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const data = await r.json();
+    const cambios = procesarHistorial(data);
+    if(cambios) { renderLista(); if(telActivo) renderMsgs(telActivo); }
+    setOnline(true);
+  } catch(e) {
+    setOnline(false, e.message?.includes('abort')?'Timeout':'Sin conexión');
+  }
+}
+
+function setOnline(ok, msg) {
+  const dot  = document.getElementById('statusDot');
+  const txt  = document.getElementById('statusTxt');
+  const live = document.getElementById('liveBadge');
+  dot.className  = 'status-dot' + (ok?' online':'');
+  txt.textContent = ok ? 'En línea' : (msg||'Sin conexión');
+  live.style.display = ok ? '' : 'none';
+}
+
+function iniciarSync() {
+  sync();
+  syncTimer = setInterval(sync, 7000);
+  // Sync carga CC cada 30s
+  setInterval(syncCC, 30000);
+  // Sync casos cada 15s — contador en tiempo real
+  syncCasos();
+  setInterval(syncCasos, 15000);
+  // Sync estado seguimiento cada 10s
+  setInterval(syncSeg, 10000);
+}
+
+async function syncCC() {
+  try {
+    const r = await fetch(BOT+'/api/carga_coordinadoras');
+    if(!r.ok) return;
+    const d = await r.json();
+    // No sobreescribir el contador de derivados — solo mostrar si hay datos del bot
+  } catch(e) {}
+}
+
+async function syncSeg() {
+  try {
+    const r = await fetch(BOT+'/api/seguimiento/estado');
+    if(!r.ok) return;
+    const d = await r.json();
+    const el = document.getElementById('segStatus');
+    if(d.corriendo) {
+      el.className = 'seg-status running';
+      el.textContent = `▶ ${d.ultimo||'Corriendo...'} (${d.ok}/${d.total})`;
+    } else if(d.ok > 0 || d.err > 0) {
+      el.className = 'seg-status';
+      el.textContent = `✅ ${d.ok} enviados / ${d.err} errores`;
+    } else {
+      el.className = 'seg-status';
+      el.textContent = 'Listo para iniciar';
+    }
+  } catch(e) {}
+}
+
+// ══════════════════════════════════════════════════════════════
+// ENVIAR MENSAJE
+// ══════════════════════════════════════════════════════════════
+async function enviarMsg() {
+  if(!telActivo) { toast('Selecciona una conversación','err'); return; }
+  const inp = document.getElementById('chatInput');
+  const msg = inp.value.trim();
+  if(!msg) return;
+  inp.value = '';
+  // Indicador visual de envío
+  const btn = document.getElementById('btnEnviar');
+  if(btn) { btn.disabled=true; btn.textContent='...'; }
+  try {
+    const r = await fetch(BOT+'/api/enviar',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({telefono:telActivo, mensaje:msg})
+    });
+    const d = await r.json();
+    if(r.ok && d.enviado) {
+      // Solo agregar al historial si Meta confirmó el envío
+      add_hist(telActivo,'TÚ',msg,'out');
+      renderMsgs(telActivo);
+      toast('✅ Enviado','ok');
+    } else {
+      // Error real — restaurar el mensaje y mostrar el error
+      inp.value = msg;
+      toast('❌ ' + (d.msg||'No llegó a WhatsApp — revisa token'), 'err');
+    }
+  } catch(e) {
+    inp.value = msg;
+    toast('❌ Error de red: '+e.message,'err');
+  } finally {
+    if(btn) { btn.disabled=false; btn.textContent='Enviar'; }
+  }
+}
+
+
+async function iniciarSeg() {
+  const modo = document.getElementById('segMode').value;
+  try {
+    const r = await fetch(BOT+'/api/seguimiento/iniciar',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({modo})
+    });
+    const d = await r.json();
+    if(d.error) { toast(d.error,'err'); return; }
+    toast('Seguimiento iniciado','ok');
+    syncSeg();
+  } catch(e) { toast('Error: '+e.message,'err'); }
+}
+
+async function verLog() {
+  try {
+    const r = await fetch(BOT+'/api/seguimiento/log');
+    const d = await r.json();
+    const logs = (Array.isArray(d)?d:[]).slice(-80).map(l=>`[${l.hora||''}] ${l.nivel||''}: ${l.msg||''}`).join('\n');
+    const w = window.open('','_blank','width=750,height=500');
+    w.document.write('<pre style="font:12px monospace;padding:16px;background:#111;color:#eee">'+(logs||'Sin log')+'</pre>');
+  } catch(e) { toast('Error: '+e.message,'err'); }
+}
+
+async function sinRespuesta() {
+  const horas = prompt('Ver contactos sin respuesta desde hace N horas:','48');
+  if(!horas) return;
+  try {
+    const r = await fetch(`${BOT}/api/seguimiento/detectar?horas=${horas}`);
+    const d = await r.json();
+    const rows = (d.contactos||[]).map(c=>`${c.tipo||'?'} | ${c.nombre||''} | +${c.tel} | ${Math.round(c.horas||0)}h sin respuesta`).join('\n');
+    const w = window.open('','_blank','width:750,height:500');
+    w.document.write(`<pre style="font:12px monospace;padding:16px;background:#111;color:#eee">Total: ${d.total||0}\n\n${rows||'Sin pendientes'}</pre>`);
+  } catch(e) { toast('Error: '+e.message,'err'); }
+}
+
+async function reenviar() {
+  const horas = prompt('Reenviar a quienes llevan más de N horas sin responder:','48');
+  if(!horas) return;
+  if(!confirm(`¿Reenviar a contactos con más de ${horas}h sin respuesta?`)) return;
+  try {
+    const r = await fetch(BOT+'/api/seguimiento/reenvio',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({horas_espera:parseInt(horas)})
+    });
+    const d = await r.json();
+    if(d.error) { toast(d.error,'err'); return; }
+    toast('Reenvío iniciado','ok');
+    syncSeg();
+  } catch(e) { toast('Error: '+e.message,'err'); }
+}
+
+async function solicitarReportes() {
+  if(!confirm('¿Solicitar reporte del día a Diana, Joyce y Zuley?')) return;
+  try {
+    const r = await fetch(BOT+'/api/solicitar_reporte',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({cc:'todas'})
+    });
+    const d = await r.json();
+    toast(`Reportes solicitados (${d.enviados?.filter(x=>x.enviado).length||0} enviados)`,'ok');
+  } catch(e) { toast('Error: '+e.message,'err'); }
+}
+
+// ══════════════════════════════════════════════════════════════
+// DIAGNÓSTICO
+// ══════════════════════════════════════════════════════════════
+async function testToken() {
+  try {
+    const r = await fetch(BOT+'/api/token_status');
+    const d = await r.json();
+    const msg = `Token: ${d.token_configurado?'✅':'❌'} (${d.token_len} chars)\nMeta API: ${d.meta_ok?'✅':'❌'} (${d.meta_resp})`;
+    alert(msg);
+  } catch(e) { toast('Error: '+e.message,'err'); }
+}
+
+async function testNotif() {
+  const cc = prompt('Clave CC (dmoscoso / jmarin / zurteaga):','dmoscoso');
+  if(!cc) return;
+  try {
+    const r = await fetch(BOT+'/api/test_notif',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({cc, msg:'🧪 Test desde panel Torre de Control V110'})
+    });
+    const d = await r.json();
+    if(d.enviado) toast(`✅ Enviado a ${d.cc}`,'ok');
+    else toast(`❌ ${d.error||'Falló'}`,'err');
+  } catch(e) { toast('Error: '+e.message,'err'); }
+}
+
+async function limpiarSesiones() {
+  if(!confirm('¿Limpiar todas las sesiones activas?')) return;
+  try {
+    const r = await fetch(BOT+'/api/clear_sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    const d = await r.json();
+    toast(`Sesiones limpias (${d.archivos_borrados||0} archivos)`,'ok');
+  } catch(e) { toast('Error: '+e.message,'err'); }
+}
+
+// ══════════════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════════════
+function toast(msg, tipo) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show ' + (tipo||'');
+  setTimeout(()=>el.classList.remove('show'), 2500);
+}
+
+// ══════════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════════
+iniciarSync();
+
+// ══════════════════════════════════════════════════════════════
+// TABS — TODOS / IMO / PX / DERIVADOS / NUEVOS
+// ══════════════════════════════════════════════════════════════
+function setTab(tab, el) {
+  tabActivo = tab;
+  // Actualizar clase activa
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  if(el) el.classList.add('active');
+  renderLista();
+}
+
+// ══════════════════════════════════════════════════════════════
+// BÚSQUEDA EN TIEMPO REAL
+// ══════════════════════════════════════════════════════════════
+function buscar(q) {
+  renderLista();
+}
+
+// ══════════════════════════════════════════════════════════════
+// NUEVO CHAT — abrir conversación con número nuevo
+// ══════════════════════════════════════════════════════════════
+function abrirNuevoChat() {
+  const tel = prompt('Número de teléfono (con código de país, ej: 51987654321):');
+  if(!tel) return;
+  const telLimpio = tel.replace(/\D/g,'');
+  if(telLimpio.length < 9) { toast('Número inválido','err'); return; }
+  // Crear conversación vacía si no existe
+  if(!convs[telLimpio]) {
+    convs[telLimpio] = {
+      tel: telLimpio,
+      nombre: telLimpio,
+      tipo: '?',
+      estado: 'NUEVO',
+      msgs: [],
+      unread: 0,
+      ts: new Date().toISOString(),
+      cc: ''
+    };
+    renderLista();
+  }
+  abrirConv(telLimpio);
+}
+
+// ══════════════════════════════════════════════════════════════
+// ABRIR CONVERSACIÓN
+// ══════════════════════════════════════════════════════════════
+function abrirConv(tel) {
+  telActivo = tel;
+  // Marcar como leído
+  if(convs[tel]) {
+    convs[tel].unread = 0;
+    renderLista();
+  }
+  renderMsgs(tel);
+  // Mostrar header de la conversación
+  const c = convs[tel] || {nombre: tel, tipo:'?', estado:'', cc:''};
+  const nom = c.nombre || tel;
+  const tipo_badge = c.tipo === 'IMO' ? '👑 IMO' : c.tipo === 'PX' ? '👤 PX' : '🔵 NUEVO';
+  const cc_str = c.cc ? ` · ${({'dmoscoso':'Diana','jmarin':'Joyce','zurteaga':'Zuley'}[c.cc]||c.cc)}` : '';
+  const es_der = c.estado === 'DERIVADO';
+  const header = document.getElementById('chatHeader');
+  if(header) {
+    header.innerHTML = `
+      <div class="chat-header-info">
+        <div class="chat-header-nom">${nom}</div>
+        <div class="chat-header-sub">
+          <span class="chat-header-badge">${tipo_badge}</span>
+          ${es_der ? `<span class="chat-header-cc">↗ Derivado${cc_str}</span>` : ''}
+          <a href="https://wa.me/${tel}" target="_blank" class="chat-header-wa">📱 WhatsApp</a>
+        </div>
+      </div>
+    `;
+  }
+  // Actualizar input placeholder
+  const inp = document.getElementById('chatInput');
+  if(inp) inp.placeholder = `Mensaje para ${nom.split(' ')[0]}...`;
+}
+
+// ══════════════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════════════
+function add_hist(tel, nom, texto, tipo) {
+  if(!convs[tel]) convs[tel] = {tel,nombre:nom||tel,tipo:'?',estado:'',msgs:[],unread:0,ts:'',cc:''};
+  const hora = new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
+  convs[tel].msgs.push({texto, tipo, hora, nombre: nom});
+  convs[tel].ts = new Date().toISOString();
+  if(tipo === 'in') convs[tel].unread = (convs[tel].unread||0)+1;
+}
+
+function syncCC() {
+  fetch(BOT+'/api/carga_coordinadoras')
+    .then(r=>r.json())
+    .then(d=>{
+      ['dmoscoso','jmarin','zurteaga','lpasquel','lvalencia'].forEach(k=>{
+        const el = document.getElementById('cc-'+k);
+        if(el) {
+          const n = d[k]||0;
+          el.textContent = n;
+          el.className = 'cc-count'+(n===0?' zero':'');
+        }
+      });
+    }).catch(()=>{});
+}
+
+</script>
+
+<!-- SECCIÓN BIENVENIDA E27 -->
+<div id="sec-bienvenida" style="display:none;">
+  <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+    <div id="bv-total"   style="background:#1e1b4b;border-radius:8px;padding:16px 24px;text-align:center;min-width:120px;">
+      <div style="font-size:28px;font-weight:700;color:#a78bfa" id="bv-n-total">-</div>
+      <div style="font-size:11px;color:#6b7280;margin-top:4px;">TOTAL</div>
+    </div>
+    <div id="bv-env"   style="background:#1e1b4b;border-radius:8px;padding:16px 24px;text-align:center;min-width:120px;">
+      <div style="font-size:28px;font-weight:700;color:#34d399" id="bv-n-env">-</div>
+      <div style="font-size:11px;color:#6b7280;margin-top:4px;">ENVIADOS</div>
+    </div>
+    <div id="bv-pend"  style="background:#1e1b4b;border-radius:8px;padding:16px 24px;text-align:center;min-width:120px;">
+      <div style="font-size:28px;font-weight:700;color:#fbbf24" id="bv-n-pend">-</div>
+      <div style="font-size:11px;color:#6b7280;margin-top:4px;">PENDIENTES</div>
+    </div>
+    <div id="bv-err"   style="background:#1e1b4b;border-radius:8px;padding:16px 24px;text-align:center;min-width:120px;">
+      <div style="font-size:28px;font-weight:700;color:#f87171" id="bv-n-err">-</div>
+      <div style="font-size:11px;color:#6b7280;margin-top:4px;">ERRORES</div>
+    </div>
+    <div style="flex:1;background:#1e1b4b;border-radius:8px;padding:12px 16px;min-width:200px;">
+      <div style="font-size:11px;color:#6b7280;margin-bottom:6px;">PROGRESO</div>
+      <div style="background:#374151;border-radius:4px;height:12px;overflow:hidden;">
+        <div id="bv-barra" style="height:100%;background:linear-gradient(90deg,#7c3aed,#34d399);width:0%;transition:width 0.5s;"></div>
+      </div>
+      <div style="font-size:11px;color:#a78bfa;margin-top:4px;" id="bv-pct">0%</div>
+    </div>
+  </div>
+  
+  <!-- Resumen por CC -->
+  <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;" id="bv-cc-resumen"></div>
+  
+  <!-- Estado del bot -->
+  <div style="background:#1e1b4b;border-radius:8px;padding:10px 16px;margin-bottom:12px;font-size:12px;color:#9ca3af;" id="bv-estado-bot">
+    Cargando estado...
+  </div>
+  
+  <!-- Filtros -->
+  <div style="display:flex;gap:8px;margin-bottom:10px;">
+    <button onclick="filtrarBV('TODOS')"    style="background:#374151;color:white;border:none;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px;">Todos</button>
+    <button onclick="filtrarBV('ENVIADO')"  style="background:#059669;color:white;border:none;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px;">✅ Enviados</button>
+    <button onclick="filtrarBV('PENDIENTE')" style="background:#d97706;color:white;border:none;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px;">⏳ Pendientes</button>
+    <button onclick="filtrarBV('ERROR')"    style="background:#dc2626;color:white;border:none;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:12px;">❌ Errores</button>
+    <input id="bv-search" placeholder="Buscar nombre..." oninput="filtrarBV('BUSCAR')"
+           style="flex:1;background:#374151;color:white;border:1px solid #4b5563;border-radius:4px;padding:5px 10px;font-size:12px;">
+  </div>
+  
+  <!-- Tabla -->
+  <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:12px;" id="bv-tabla">
+      <thead>
+        <tr style="background:#111827;">
+          <th style="padding:8px;text-align:left;color:#6b7280;font-weight:600;">N°</th>
+          <th style="padding:8px;text-align:left;color:#6b7280;font-weight:600;">NOMBRE</th>
+          <th style="padding:8px;text-align:left;color:#6b7280;font-weight:600;">CC</th>
+          <th style="padding:8px;text-align:left;color:#6b7280;font-weight:600;">ESTADO</th>
+          <th style="padding:8px;text-align:left;color:#6b7280;font-weight:600;">HORA</th>
+        </tr>
+      </thead>
+      <tbody id="bv-tbody"></tbody>
+    </table>
+  </div>
+</div>
+</body>
+</html>
