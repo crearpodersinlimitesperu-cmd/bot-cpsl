@@ -41,112 +41,159 @@ _reportes_hoy = {}  # key → {cc, hora, raw, parsed, enviado_a_jose}
 _reportes_lk  = threading.Lock()
 
 # ── PARSER DE REPORTES ─────────────────────────────────────────
+def _parsear_campos(bloque):
+    """Extrae dict {CAMPO: valor_int} de un bloque de texto.
+    Soporta: 'OK = 11', 'NC= 8', 'pendiente=15', '* Pendiente: 66'
+    """
+    campos = {}
+    for line in bloque.split('\n'):
+        line_clean = re.sub(r'[*•✅❌⏸🚫⏳🔄\u200b]', '', line).strip()
+        m = re.search(r'([A-Za-záéíóúñÑ]+)\s*[=:]\s*(\d+)', line_clean)
+        if m:
+            campos[m.group(1).upper()] = int(m.group(2))
+    return campos
+
+def _partir_secciones(texto):
+    """
+    Divide el reporte en secciones por encabezado.
+    Retorna dict {nombre_seccion_normalizado: bloque_texto}
+    """
+    # Limpiar asteriscos de formato WhatsApp del encabezado
+    texto_limpio = re.sub(r'\*([^*]+)\*', r'\1', texto)
+    # Partir por líneas que parecen encabezados: "Nuevos Cap 1:", "Rezagados Cap 1:", etc.
+    patron = r'\n(?=\s*(?:Nuevos|Rezagados|Aliados|FDS|GRAN)\s)'
+    partes = re.split(patron, '\n' + texto_limpio, flags=re.IGNORECASE)
+    secciones = {}
+    for parte in partes:
+        parte = parte.strip()
+        if not parte:
+            continue
+        lineas = parte.split('\n')
+        encabezado = lineas[0].strip().rstrip(':').lower()
+        contenido  = '\n'.join(lineas[1:])
+        # Normalizar clave
+        if re.search(r'nuevo', encabezado, re.IGNORECASE):
+            secciones['nuevos'] = contenido
+        elif re.search(r'rezagado', encabezado, re.IGNORECASE):
+            secciones['rezagados'] = contenido
+        elif re.search(r'aliado', encabezado, re.IGNORECASE):
+            secciones['aliados'] = contenido
+    return secciones
+
+
+
 def parsear_reporte(texto, cc_nom):
     """
     Parsea el texto libre del reporte de la coordinadora.
-    Soporta los formatos de Diana, Zuley y Linid.
+    Soporta el formato C1 E27: Nuevos Cap 1 + Rezagados Cap 1
+    con campos OK, SIG, NC, XC, NI, Pendiente, Total.
+    Tambien soporta el formato FDS por equipo de Linid.
     """
     r = {
-        "cc":       cc_nom,
-        "hora":     ahora().strftime("%d/%m/%Y %H:%M"),
-        "rezagados": {},
-        "aliados":   {},
-        "fds":       [],
+        "cc":        cc_nom,
+        "hora":      ahora().strftime("%d/%m/%Y %H:%M"),
+        "nuevos":    {},   # Nuevos Cap 1
+        "rezagados": {},   # Rezagados Cap 1
+        "fds":       [],   # Formato Linid por equipo
         "gran_total": "",
-        "raw":       texto.strip()
+        "notas":      "",
+        "raw":        texto.strip()
     }
 
+    tiene_nuevos    = bool(re.search(r'nuevo|Nuevo|NUEVO', texto))
     tiene_rezagados = bool(re.search(r'rezagado|Rezagado|REZAGADO', texto))
-    tiene_fds       = bool(re.search(r'FDS|fds|GRAN TOTAL', texto))
+    tiene_fds       = bool(re.search(r'FDS|fds|GRAN TOTAL', texto, re.IGNORECASE))
 
-    if tiene_rezagados:
-        # Formato Diana / Zuley
-        rez = re.search(r'[Rr]ezagados?[^:]*:(.*?)(?:✅|[Aa]liados|$)', texto, re.DOTALL)
-        if rez:
-            for line in rez.group(1).split('\n'):
-                m = re.search(r'[*•]?\s*(\w+)\s*[=:]\s*(\d+)', line)
-                if m:
-                    r["rezagados"][m.group(1).upper()] = int(m.group(2))
-
-        ali = re.search(r'[Aa]liados?[^:]*:(.*?)$', texto, re.DOTALL)
-        if ali:
-            for line in ali.group(1).split('\n'):
-                m = re.search(r'[*•]?\s*(\w+)\s*[=:]\s*(\d+)', line)
-                if m:
-                    r["aliados"][m.group(1).upper()] = int(m.group(2))
+    if tiene_nuevos or tiene_rezagados:
+        # Partir el reporte por secciones
+        secciones = _partir_secciones(texto)
+        if secciones.get('nuevos'):
+            r['nuevos'] = _parsear_campos(secciones['nuevos'])
+        if secciones.get('rezagados'):
+            r['rezagados'] = _parsear_campos(secciones['rezagados'])
+        if secciones.get('aliados'):
+            r['aliados'] = _parsear_campos(secciones['aliados'])
+        # Notas libres
+        notas_m = re.search(r'[Nn]ota[s]?\s*[:=]\s*(.+)', texto)
+        if notas_m:
+            r['notas'] = notas_m.group(1).strip()[:200]
 
     elif tiene_fds:
-        # Formato Linid - múltiples equipos
-        blocks = re.findall(r'(\d+)\s*FDS\s*(E\d+)(.*?)(?=\d+\s*FDS|GRAN\s*TOTAL|$)', texto, re.DOTALL|re.IGNORECASE)
+        # Formato Linid — FDS por equipo
+        blocks = re.findall(r'(\d+)\s*FDS\s*(E\d+)(.*?)(?=\d+\s*FDS|GRAN\s*TOTAL|$)',
+                             texto, re.DOTALL | re.IGNORECASE)
         for num, eq, blk in blocks:
-            fds_data = {"num": num, "equipo": eq}
+            fds_data = {'num': num, 'equipo': eq}
             for line in blk.split('\n'):
-                m = re.search(r'[*•]?\s*(PX|MNG|CAPI|TOTAL|NOTA)\s*[=:]\s*(.+)', line, re.IGNORECASE)
+                m = re.search(r'[*\u2022]?\s*(PX|MNG|CAPI|TOTAL|NOTA)\s*[=:]\s*(.+)',
+                               line, re.IGNORECASE)
                 if m:
                     fds_data[m.group(1).upper()] = m.group(2).strip()
-            r["fds"].append(fds_data)
-
+            r['fds'].append(fds_data)
         gt = re.search(r'GRAN\s*TOTAL\s*[:\s]*(\d+/\d+)', texto, re.IGNORECASE)
         if gt:
-            r["gran_total"] = gt.group(1)
+            r['gran_total'] = gt.group(1)
 
     else:
-        # Formato libre — intentar extraer números clave
-        numeros = re.findall(r'(\w+)\s*[:=]\s*(\d+)', texto)
-        for clave, val in numeros:
-            r["rezagados"][clave.upper()] = int(val)
+        # Formato libre — extraer todo lo que tenga KEY = Número
+        for line in texto.split('\n'):
+            m = re.search(r'[*\u2022]?\s*(\w+)\s*[=:]\s*(\d+)', line)
+            if m:
+                r['nuevos'][m.group(1).upper()] = int(m.group(2))
 
     return r
 
-def formatear_reporte(r, include_raw=True):
+def _fmt_bloque(titulo, d):
+    """Formatea un bloque de datos de reporte."""
+    if not d:
+        return ''
+    ok   = d.get('OK',0)
+    sig  = d.get('SIG',0)
+    nc   = d.get('NC',0)
+    xc   = d.get('XC',0)
+    ni   = d.get('NI',0)
+    pend = d.get('PENDIENTE', d.get('PEND', d.get('PENDIENTE', 0)))
+    tot  = d.get('TOTAL', ok+sig+nc+xc+ni+pend)
+    return (
+        f"\n{titulo}\n"
+        f"  ✅ OK: *{ok}*  🔄 SIG: *{sig}*  ❌ NC: *{nc}*\n"
+        f"  ⏸ XC: *{xc}*  🚫 NI: *{ni}*  ⏳ Pend: *{pend}*\n"
+        f"  Total: *{tot}*"
+    )
+
+def formatear_reporte(r, include_raw=False):
     """Genera el texto de resumen del reporte parseado."""
-    cc  = r.get("cc", "?")
-    hora = r.get("hora", "")
+    cc   = r.get('cc', '?')
+    hora = r.get('hora', '')
     lines = [f"📊 *Reporte {cc}* — {hora}"]
 
-    if r.get("rezagados"):
-        d = r["rezagados"]
-        ok   = d.get("OK", 0)
-        pend = d.get("PENDIENTE", d.get("PEND", 0))
-        nc   = d.get("NC", 0)
-        xc   = d.get("XC", 0)
-        sig  = d.get("SIG", 0)
-        ni   = d.get("NI", 0)
-        tot  = d.get("TOTAL", 0)
-        lines.append(
-            f"\n📉 *Rezagados C1:*\n"
-            f"  ✅ OK: {ok}  |  🔄 SIG: {sig}  |  ❌ NC: {nc}\n"
-            f"  ⏸ XC: {xc}  |  🚫 NI: {ni}  |  ⏳ Pendiente: {pend}\n"
-            f"  Total: {tot}"
-        )
+    blk_n = _fmt_bloque('🆕 *Nuevos Cap 1 (E27):*', r.get('nuevos',{}))
+    if blk_n:
+        lines.append(blk_n)
 
-    if r.get("aliados"):
-        d = r["aliados"]
-        ok   = d.get("OK", 0)
-        pend = d.get("PEND", d.get("PENDIENTE", 0))
-        nc   = d.get("NC", 0)
-        xc   = d.get("XC", 0)
-        ni   = d.get("NI", 0)
-        tot  = d.get("TOTAL", 0)
-        lines.append(
-            f"\n✅ *Aliados C1 E27:*\n"
-            f"  ✅ OK: {ok}  |  ❌ NC: {nc}  |  ⏸ XC: {xc}\n"
-            f"  🚫 NI: {ni}  |  ⏳ Pend: {pend}  |  Total: {tot}"
-        )
+    blk_r = _fmt_bloque('📉 *Rezagados Cap 1:*', r.get('rezagados',{}))
+    if blk_r:
+        lines.append(blk_r)
 
-    if r.get("fds"):
-        lines.append(f"\n📋 *FDS por equipo:*")
-        for fds in r["fds"]:
-            eq    = fds.get("equipo", "")
-            total = fds.get("TOTAL", "?")
-            px    = fds.get("PX", "")
-            nota  = fds.get("NOTA", "")
-            nota_str = f" ⚠️ {nota[:40]}" if nota and nota.strip() and nota.strip() != "(Vacío)" else ""
-            lines.append(f"  FDS {eq}: {total} (PX {px}){nota_str}")
-        if r.get("gran_total"):
-            lines.append(f"\n  🏆 *GRAN TOTAL: {r['gran_total']}*")
+    if r.get('fds'):
+        lines.append('\n📋 *FDS por equipo:*')
+        for fds in r['fds']:
+            eq    = fds.get('equipo', '')
+            total = fds.get('TOTAL', '?')
+            px    = fds.get('PX', '')
+            nota  = fds.get('NOTA', '')
+            nota_str = f' ⚠️ {nota[:40]}' if nota and nota.strip() not in ('','(Vacío)') else ''
+            lines.append(f'  FDS {eq}: {total} (PX {px}){nota_str}')
+        if r.get('gran_total'):
+            lines.append(f"  🏆 *GRAN TOTAL: {r['gran_total']}*")
 
-    return "\n".join(lines)
+    if r.get('notas'):
+        lines.append(f"\n📝 Nota: {r['notas']}")
+
+    if include_raw and r.get('raw'):
+        lines.append(f"\n_Mensaje original:_\n{r['raw'][:300]}")
+
+    return '\n'.join(lines)
 
 def consolidar_reportes():
     """Genera resumen consolidado de todas las CCs para José."""
