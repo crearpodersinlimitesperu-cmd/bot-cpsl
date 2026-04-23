@@ -24,9 +24,12 @@ import requests
 log = logging.getLogger("IAChain")
 
 # ── Tokens de IAs gratuitas (se cargan desde env vars) ─────────
-GEMINI_KEY  = os.environ.get("GOOGLE_AI_KEY","")      # Google AI Studio (gratis)
-GROQ_KEY    = os.environ.get("GROQ_API_KEY","")        # Groq (gratis)
-COHERE_KEY  = os.environ.get("COHERE_API_KEY","")      # Cohere (gratis)
+GEMINI_KEY    = os.environ.get("GOOGLE_AI_KEY","")      # 1. Google AI Studio (1500 req/day)
+GROQ_KEY      = os.environ.get("GROQ_API_KEY","")        # 2. Groq (Llama 3, 14k req/day)
+COHERE_KEY    = os.environ.get("COHERE_API_KEY","")      # 3. Cohere (Command, 1k/month)
+DEEPSEEK_KEY  = os.environ.get("DEEPSEEK_API_KEY","")    # 4. DeepSeek (free tier)
+MISTRAL_KEY   = os.environ.get("MISTRAL_API_KEY","")     # 5. Mistral (free tier)
+
 
 # ── Prompts de sistema por contexto ────────────────────────────
 _SYSTEM = {
@@ -160,14 +163,58 @@ def _cohere(prompt, system="", timeout=8):
         log.warning(f"Cohere exc: {e}")
     return None
 
-# ── Función principal: cadena de fallback ───────────────────────
+# ── DeepSeek (Free API) ─────────────────────────────────────────
+def _deepseek(prompt, system="", timeout=8):
+    if not DEEPSEEK_KEY:
+        return None
+    try:
+        r = requests.post(
+            "https://api.deepseek.com/chat/completions",
+            json={"model": "deepseek-chat", "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": prompt}
+            ], "max_tokens": 150, "temperature": 0.2},
+            headers={"Authorization": f"Bearer {DEEPSEEK_KEY}"},
+            timeout=timeout
+        )
+        if r.status_code == 200:
+            return r.json()["choices"][0]["message"]["content"].strip()
+    except Exception: pass
+    return None
+
+# ── Mistral (Free API) ─────────────────────────────────────────
+def _mistral(prompt, system="", timeout=8):
+    if not MISTRAL_KEY:
+        return None
+    try:
+        r = requests.post(
+            "https://api.mistral.ai/v1/chat/completions",
+            json={"model": "mistral-tiny", "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": prompt}
+            ], "max_tokens": 150, "temperature": 0.2},
+            headers={"Authorization": f"Bearer {MISTRAL_KEY}"},
+            timeout=timeout
+        )
+        if r.status_code == 200:
+            return r.json()["choices"][0]["message"]["content"].strip()
+    except Exception: pass
+    return None
+
+# ── Función principal: cadena de fallback (5 IAs) ───────────────
 def ia_responder(prompt, contexto="general", timeout=8):
     """
-    Intenta con Gemini → Groq → Cohere → None
-    Retorna el texto de respuesta o None si todo falla.
+    Intenta con 5 IAs gratuitas rotando hasta que una funcione.
     """
     system = _SYSTEM.get(contexto, "")
-    for fn, nombre in [(_gemini, "Gemini"), (_groq, "Groq"), (_cohere, "Cohere")]:
+    proveedores = [
+        (_gemini, "Gemini"),
+        (_groq, "Groq"),
+        (_deepseek, "DeepSeek"),
+        (_mistral, "Mistral"),
+        (_cohere, "Cohere")
+    ]
+    for fn, nombre in proveedores:
         try:
             resp = fn(prompt, system=system, timeout=timeout)
             if resp:
@@ -232,33 +279,48 @@ def _intent_a_estado(intent):
     return {"CERRAR_CASO": "RESUELTO", "ACTUALIZAR_CASO": "EN_GESTION",
             "SIN_CONTACTO": "SIN_CONTACTO"}.get(intent, "")
 
+import difflib
+
 def buscar_caso_por_nombre(nombre_buscado, mis_casos):
     """
-    Busca el caso más parecido al nombre dado usando fuzzy match simple.
+    Busca el caso más parecido al nombre dado usando fuzzy match (difflib).
+    Ideal para bases de datos de +3000 registros donde el CC escribe un nombre parcial.
     Retorna el caso o None.
     """
     if not nombre_buscado or not mis_casos:
         return None
 
     nombre_norm = nombre_buscado.lower().strip()
-    # Palabras del nombre buscado (filtrar cortas)
-    palabras = [p for p in nombre_norm.split() if len(p) > 2]
-    if not palabras:
+    # Eliminar ruido
+    nombre_norm = re.sub(r'\\b(el\\s+caso\\s+de|caso\\s+de|ejemplo|sr|sra|a|el|la)\\b', '', nombre_norm).strip()
+    
+    palabras_buscadas = [p for p in nombre_norm.split() if len(p) > 2]
+    if not palabras_buscadas:
         return None
 
     mejor_caso  = None
-    mejor_score = 0
+    mejor_score = 0.0
 
     for caso in mis_casos:
         nom_caso = (caso.get("nombre") or "").lower()
-        # Contar cuántas palabras del nombre buscado aparecen en el nombre del caso
-        score = sum(1 for p in palabras if p in nom_caso)
-        # Bonus: si empieza igual
-        if nom_caso.startswith(palabras[0]):
-            score += 0.5
-        if score > mejor_score:
-            mejor_score = score
+        score_total = 0.0
+        
+        # Evaluar cada palabra buscada contra el nombre del caso
+        for pb in palabras_buscadas:
+            # Buscar la mejor coincidencia de la palabra en el nombre completo
+            match = difflib.get_close_matches(pb, nom_caso.split(), n=1, cutoff=0.7)
+            if match:
+                score_total += 1.0
+            elif pb in nom_caso:
+                score_total += 0.8
+                
+        # Bonus: si el nombre del caso empieza exactamente igual a la búsqueda
+        if nom_caso.startswith(palabras_buscadas[0]):
+            score_total += 0.5
+            
+        if score_total > mejor_score:
+            mejor_score = score_total
             mejor_caso  = caso
 
-    # Solo retornar si hay al menos 1 palabra en común
-    return mejor_caso if mejor_score >= 1 else None
+    # Retorna si encontró al menos 1 palabra fuerte
+    return mejor_caso if mejor_score >= 0.8 else None
