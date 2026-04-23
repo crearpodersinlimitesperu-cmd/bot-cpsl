@@ -2194,7 +2194,7 @@ def api_bienvenida_preview():
 def api_bienvenida_plantilla_iniciar():
     """Inicia el envío masivo usando la PLANTILLA oficial."""
     import threading
-    d = request.json or {}
+    d = request.get_json(silent=True) or {}
     limite = min(int(d.get("limite", 50) or 50), 200)
     
     def _run():
