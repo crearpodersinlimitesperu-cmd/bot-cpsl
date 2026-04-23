@@ -2190,6 +2190,23 @@ def api_bienvenida_preview():
     )
     return jsonify({"mensaje": msg, "cc": cc["nombre"], "tel_cc": cc["tel"]}), 200
 
+@app.route("/api/bienvenida_plantilla/iniciar", methods=["POST"])
+def api_bienvenida_plantilla_iniciar():
+    """Inicia el envío masivo usando la PLANTILLA oficial."""
+    import threading
+    d = request.json or {}
+    limite = min(int(d.get("limite", 50) or 50), 200)
+    
+    def _run():
+        try:
+            from enviar_bienvenida_plantilla import ejecutar_masivo
+            ejecutar_masivo(limite=limite)
+        except Exception as e:
+            logger.error(f"bienvenida_plantilla_iniciar: {e}", exc_info=True)
+            
+    threading.Thread(target=_run, daemon=True, name="masivo_plantilla").start()
+    return jsonify({"ok": True, "msg": f"Envío masivo con plantilla iniciado ({limite} pxs)."}), 200
+
 @app.route("/api/bienvenida/v1/iniciar", methods=["POST"])
 def api_bienvenida_v1_iniciar():
     """Inicia la campaña de bienvenida E27 en background."""
