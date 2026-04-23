@@ -22,7 +22,30 @@ app    = Flask(__name__)
 TZ_LIMA  = timezone(timedelta(hours=-5))
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = "/data" if os.path.exists("/data") else BASE_DIR
+
+# ==========================================
+# CALENDARIO DE ENTRENAMIENTOS LIMA
+# ==========================================
+def _en_entrenamiento():
+    """Verifica si estamos en fechas de entrenamiento según el json del calendario."""
+    try:
+        import os, json
+        from datetime import datetime, timezone, timedelta
+        tz = timezone(timedelta(hours=-5))
+        hoy = datetime.now(tz).strftime("%Y-%m-%d")
+        cal_path = "/data/calendario_entrenamientos.json" if os.path.exists("/data") else "calendario_entrenamientos.json"
+        if os.path.exists(cal_path):
+            with open(cal_path, "r", encoding="utf-8") as f:
+                eventos = json.load(f)
+                for ev in eventos:
+                    if ev["inicio"] <= hoy <= ev["fin"]:
+                        return ev["nombre"]
+    except Exception as e:
+        pass
+    return None
+
 def ahora(): return datetime.now(TZ_LIMA)
+
 
 # ── STAFF ────────────────────────────────────────────────────
 STAFF = {
@@ -945,6 +968,17 @@ def flujo(tel, texto):
         if tel == "51919563284":
             _flujo_gerente(tel, up, texto)
             return
+
+        # ── AUTO-RESPUESTA DE ENTRENAMIENTO ────────────────────
+        p = s.get("p") or perfil_crm(tel)
+        s["p"] = p
+        
+        if p.get("tipo") in ("PX", "IMO", "NUEVO") and not s.get("notificado_entrenamiento"):
+            evento_actual = _en_entrenamiento()
+            if evento_actual:
+                wa(tel, f"⚠️ *Aviso automático:*\nActualmente todo el equipo se encuentra en el entrenamiento presencial *{evento_actual}*.\n\n_Nuestro tiempo de respuesta será mayor al habitual. Agradecemos tu paciencia. 🙏_", "SIS")
+                s["notificado_entrenamiento"] = True
+                set_s(tel, s)
 
 
         # ── Reset / primera vez ───────────────────────────────
