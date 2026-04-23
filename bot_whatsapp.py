@@ -703,6 +703,45 @@ def _flujo_cc(tel, up, texto, cc_info):
             s["st_cc"] = "MAIN"; set_s(tel, s)
         return
 
+    elif st == "CIERRE_RAPIDO":
+        JOSE_TEL = "51919563284"
+        if up in {"9","VOLVER","CANCELAR"}:
+            s["st_cc"] = "MAIN"; set_s(tel, s)
+            _menu_cc(tel, nom); return
+        import re as _re
+        tel_px_raw = _re.sub(r"\D","",texto)
+        if len(tel_px_raw) < 9:
+            wa(tel,
+               f"Numero invalido. Envia el numero con 51 al inicio\n"
+               f"Ej: 51987654321\n\n9\u20e3 Cancelar",
+               f"SIS\u2192{nom}")
+            return
+        tel_px = tel_px_raw if tel_px_raw.startswith("51") else "51"+tel_px_raw[-9:]
+        cerrar_caso(tel_px, f"Cierre rapido por {nom_full}")
+        wa(tel,
+           f"\u2705 *Caso cerrado: wa.me/{tel_px}*\n"
+           f"Registrado en el sistema.\n\n4\u20e3 Mis casos | 0\u20e3 Menu",
+           f"SIS\u2192{nom}")
+        wa(JOSE_TEL,
+           f"\u2705 *CIERRE RAPIDO* \u2014 Torre de Control\n"
+           f"CC: *{nom_full}*\nPX: wa.me/{tel_px}\n"
+           f"Hora: {ahora().strftime('%d/%m %H:%M')}",
+           "SIS\u2192GERENTE")
+        s["st_cc"] = "MAIN"; set_s(tel, s)
+        return
+
+    elif st == "NOTA_CASO":
+        tel_caso = s.get("caso_confirmando","")
+        if up in {"9","VOLVER","CANCELAR"}:
+            s["st_cc"] = "VER_CASOS"; set_s(tel, s)
+            _flujo_cc(tel, "VER", texto, cc_info); return
+        actualizar_caso(tel_caso, "ABIERTO", f"Nota de {nom_full}: {texto[:200]}")
+        wa(tel,
+           f"\ud83d\udcdd *Nota registrada.*\n\n0\u20e3 Menu | 4\u20e3 Mis casos",
+           f"SIS\u2192{nom}")
+        s["st_cc"] = "VER_CASOS"; set_s(tel, s)
+        return
+
     elif st == "ESPERANDO_REPORTE":
         if up in {"9","VOLVER"}:
             s["st_cc"] = "MAIN"; set_s(tel, s)
