@@ -87,18 +87,23 @@ def _extraer_nombre_local(texto):
     """
     Intenta extraer un nombre propio del texto usando heurística simple.
     """
+    # Pre-procesar para quitar ruido comun antes de extraer
+    t = re.sub(r'(?i)\b(el\s+caso\s+de|caso\s+de|a\s+la\s+sra|al\s+sr|a|el|la)\b', ' ', texto)
+    t = re.sub(r'\s+', ' ', t).strip()
+    
     patrones = [
-        r'(?:resolv[íi]|cerr[eé]|contact[eé]|habl[eé]\s+con(?:la\s+sra\s+|el\s+sr\s+)?|a)\s+([A-ZÁÉÍÓÚÑa-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑa-záéíóúñ]+){0,2})',
-        r'(?:caso\s+de|PX\s+|participante\s+|sra?\s+)([A-ZÁÉÍÓÚÑa-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑa-záéíóúñ]+){0,2})',
-        r'^([A-ZÁÉÍÓÚÑa-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑa-záéíóúñ]+){0,2})\s+(?:ya|resolv|confirm|contest)',
-        r'([A-ZÁÉÍÓÚÑa-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑa-záéíóúñ]+){0,2})\s+(?:fue|asisti|confirm)',
+        r'(?i)(?:resolv[íi]|cerr[eé]|contact[eé]|habl[eé]|contactar|gestionar)\s+([A-ZÁÉÍÓÚÑa-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑa-záéíóúñ]+){0,3})',
+        r'(?i)^([A-ZÁÉÍÓÚÑa-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑa-záéíóúñ]+){0,3})\s+(?:ya|resolv|confirm|contest)',
     ]
     for p in patrones:
-        m = re.search(p, texto, re.IGNORECASE)
+        m = re.search(p, t)
         if m:
             nombre = m.group(1).strip().title()
-            if len(nombre) >= 3 and nombre.lower() not in ('que', 'con', 'para', 'una', 'del', 'pero', 'mas'):
+            if len(nombre) >= 3 and nombre.lower() not in ('que', 'con', 'para', 'una', 'del', 'pero', 'mas', 'por', 'favor'):
                 return nombre
+    # Fallback más agresivo si no capturó nada y hay nombre en mayúsculas
+    m = re.search(r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})', texto)
+    if m: return m.group(1).strip()
     return ""
 
 # ── GEMINI Flash (Google AI Studio — gratis) ────────────────────

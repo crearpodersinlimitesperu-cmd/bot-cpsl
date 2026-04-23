@@ -2190,7 +2190,7 @@ def api_bienvenida_preview():
     )
     return jsonify({"mensaje": msg, "cc": cc["nombre"], "tel_cc": cc["tel"]}), 200
 
-@app.route("/api/bienvenida_plantilla/iniciar", methods=["POST"])
+@app.route("/api/bienvenida_plantilla/iniciar", methods=["GET", "POST"])
 def api_bienvenida_plantilla_iniciar():
     """Inicia el envío masivo usando la PLANTILLA oficial."""
     import threading
