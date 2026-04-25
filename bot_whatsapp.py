@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 import requests as req_lib
 from ia_chain import ia_detect_intent_cc, buscar_caso_por_nombre
 from filelock import FileLock, Timeout as FileLockTimeout
+from crm_bridge import push_reporte_crm, push_gestion_individual, push_reporte_jose
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("CPSL")
@@ -591,9 +592,15 @@ def _flujo_cc(tel, up, texto, cc_info):
                     cerrar_caso(tel_caso, f"Resuelto por {nom_full} (Detectado IA)")
                     wa(tel, f"🤖 *Entendido {nom}.*\nHe cerrado el caso de *{caso_target['nombre']}* como RESUELTO. ✅", f"SIS→{nom}")
                     wa(JOSE_TEL, f"✅ *Caso cerrado* por {nom_full} (Vía IA)\nPX: wa.me/{tel_caso}", f"SIS→JOSE")
+                    # ── PUENTE CRM ──
+                    try: push_gestion_individual(nom_full, caso_target['nombre'], 'RESUELTO')
+                    except: pass
                 else:
                     actualizar_caso(tel_caso, estado_nuevo, f"Actualizado por {nom_full} (Detectado IA)")
                     wa(tel, f"🤖 *Entendido {nom}.*\nHe actualizado el caso de *{caso_target['nombre']}* a {estado_nuevo}.", f"SIS→{nom}")
+                    # ── PUENTE CRM ──
+                    try: push_gestion_individual(nom_full, caso_target['nombre'], estado_nuevo)
+                    except: pass
                 
                 # Volver al menú
                 s["st_cc"] = "MAIN"
@@ -919,6 +926,12 @@ def _flujo_cc(tel, up, texto, cc_info):
         add_hist(tel, f"CC/{nom}", texto, "in")
         # Usar el parser de reportes
         resumen_parsed, parsed = registrar_reporte(tel, texto)
+        # ── PUENTE CRM: Enviar reporte al CRM en la nube ──
+        try:
+            push_reporte_crm(nom_full, parsed, texto)
+            logger.info(f"CRM_Bridge: Reporte de {nom_full} enviado al CRM")
+        except Exception as crm_e:
+            logger.warning(f"CRM_Bridge: No se pudo enviar reporte: {crm_e}")
         # Confirmar a la CC con el resumen parseado
         wa(tel,
            f"✅ *Reporte registrado* — {hora_s}\n\n"
@@ -1995,6 +2008,7 @@ def _flujo_gerente(tel, up, texto):
            f"5️⃣ Activar modo ENTRENAMIENTO\n"
            f"6️⃣ Desactivar modo ENTRENAMIENTO\n"
            f"7️⃣ Bienvenida E27 — estado/iniciar\n"
+           f"8️⃣ 📊 Pegar reporte de CC al CRM\n"
            f"0️⃣ Salir",
            "GERENTE")
         s["st_jose"] = "MENU"; set_s(tel, s)
@@ -2014,6 +2028,29 @@ def _flujo_gerente(tel, up, texto):
                     enviados += 1
                 time.sleep(1)
             wa(tel, f"✅ Mensaje enviado a {enviados} coordinadoras.\n\nEscribe un número para otra opción.", "GERENTE")
+        s["st_jose"] = "MENU"; set_s(tel, s)
+        return
+
+    # Sub-estado PEGAR_REPORTE — espera el reporte pegado
+    if st == "PEGAR_REPORTE":
+        if up == "0":
+            wa(tel, "❌ Cancelado.", "GERENTE")
+        else:
+            # IA detecta de qué CC es el reporte
+            cc_detectada, exito = push_reporte_jose(texto)
+            if exito:
+                wa(tel,
+                   f"✅ *Reporte registrado en el CRM*\n"
+                   f"CC detectada: *{cc_detectada}*\n\n"
+                   f"_El CRM ya puede ver estos datos en el Buscador 360°._\n\n"
+                   f"Escribe un número para otra opción.",
+                   "GERENTE")
+            else:
+                wa(tel,
+                   f"⚠️ No pude enviar el reporte al CRM.\n"
+                   f"CC detectada: *{cc_detectada}*\n\n"
+                   f"Verifica que GOOGLE_CREDENTIALS esté configurado en Render.",
+                   "GERENTE")
         s["st_jose"] = "MENU"; set_s(tel, s)
         return
 
@@ -2128,6 +2165,17 @@ def _flujo_gerente(tel, up, texto):
         _th.Thread(target=_b, daemon=True).start()
         wa(tel, "📤 Bienvenida E27 iniciada — 50 mensajes en cola (45s/msg).", "GERENTE")
         s["st_jose"] = "MENU"; set_s(tel, s)
+        return
+
+    if up == "8":
+        s["st_jose"] = "PEGAR_REPORTE"; set_s(tel, s)
+        wa(tel,
+           "📊 *Pegar Reporte al CRM*\n\n"
+           "Pega aquí el reporte de cualquier coordinadora.\n"
+           "La IA detectará automáticamente de quién es (Diana, Joyce o Zuley) "
+           "basado en el contenido, y lo enviará directo al CRM.\n\n"
+           "_O escribe 0 para cancelar._",
+           "GERENTE")
         return
 
     if up == "0":
