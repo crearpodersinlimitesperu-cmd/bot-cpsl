@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 import requests as req_lib
 from ia_chain import ia_detect_intent_cc, buscar_caso_por_nombre
 from filelock import FileLock, Timeout as FileLockTimeout
-from crm_bridge import push_reporte_crm, push_gestion_individual, push_reporte_jose
+from crm_bridge import push_reporte_crm, push_gestion_individual, push_reporte_jose, kpi_consolidado_whatsapp
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("CPSL")
@@ -2136,21 +2136,20 @@ def _flujo_gerente(tel, up, texto):
         s["st_jose"] = "MENU"; set_s(tel, s)
         return
 
-    if up == "3":
-        consolidado = consolidar_reportes()
-        pendientes  = [p["nombre"] for p in reportes_pendientes()]
-        if consolidado:
-            wa(tel, consolidado + "\n\n_Escribe un número para otra opción._", "GERENTE")
-        else:
-            pend_txt = ", ".join(pendientes) if pendientes else "Todas"
-            wa(tel,
-               f"📋 *Reporte consolidado*\n"
-               f"Sin reportes recibidos hoy.\n"
-               f"Pendientes: {pend_txt}\n\n"
-               f"_Escribe un número para otra opción._",
-               "GERENTE")
-        s["st_jose"] = "MENU"; set_s(tel, s)
-        return
+    if up == "3":
+        # Consolidado CRM real desde Google Sheets
+        try:
+            kpi_msg = kpi_consolidado_whatsapp()
+            wa(tel, kpi_msg, "GERENTE")
+        except Exception as e:
+            logger.error(f"KPI consolidado: {e}")
+            consolidado = consolidar_reportes()
+            if consolidado:
+                wa(tel, consolidado, "GERENTE")
+            else:
+                wa(tel, "Sin datos de consolidado.", "GERENTE")
+        s["st_jose"] = "MENU"; set_s(tel, s)
+        return
 
     if up == "4":
         s["st_jose"] = "AVISO_MASIVO"; set_s(tel, s)

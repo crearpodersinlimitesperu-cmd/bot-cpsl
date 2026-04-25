@@ -217,3 +217,146 @@ def push_reporte_jose(texto_raw):
     except Exception as e:
         log.error(f"CRM_Bridge push_reporte_jose: {e}")
         return cc, False
+
+
+def kpi_consolidado_whatsapp():
+    """
+    Lee datos reales del Google Sheets y genera un resumen ejecutivo
+    para enviar por WhatsApp a José.
+    
+    Retorna un string formateado listo para WhatsApp.
+    """
+    tok = _get_sheets_token()
+    if not tok:
+        return "⚠️ Sin acceso al CRM. Verifica credenciales."
+    
+    hdr = {"Authorization": f"Bearer {tok}"}
+    ahora_s = datetime.now(TZ).strftime("%d/%m/%Y %H:%M")
+    
+    try:
+        # 1. Leer MASTER (Hoja 1) — nombres y coordinadores
+        r1 = req_lib.get(
+            f"https://sheets.googleapis.com/v4/spreadsheets/{CRM_SHEET_ID}/values/Hoja%201!A:N",
+            headers=hdr, timeout=15
+        )
+        master_rows = r1.json().get("values", []) if r1.status_code == 200 else []
+        
+        # 2. Leer PRODUCTIVIDAD
+        r2 = req_lib.get(
+            f"https://sheets.googleapis.com/v4/spreadsheets/{CRM_SHEET_ID}/values/PRODUCTIVIDAD!A:N",
+            headers=hdr, timeout=15
+        )
+        prod_rows = r2.json().get("values", []) if r2.status_code == 200 else []
+        
+        # 3. Leer REPORTES_BOT (últimos reportes de WhatsApp)
+        r3 = req_lib.get(
+            f"https://sheets.googleapis.com/v4/spreadsheets/{CRM_SHEET_ID}/values/REPORTES_BOT!A:L",
+            headers=hdr, timeout=15
+        )
+        bot_rows = r3.json().get("values", []) if r3.status_code == 200 else []
+        
+    except Exception as e:
+        log.error(f"CRM KPI: {e}")
+        return f"⚠️ Error leyendo datos: {e}"
+    
+    # ── Procesar Master ──
+    total_master = max(len(master_rows) - 1, 0)
+    cc_count = {"DIANA": 0, "JOYCE": 0, "ZULEY": 0, "SIN_CC": 0}
+    if master_rows:
+        headers_m = [h.upper().strip() for h in master_rows[0]]
+        idx_cc = next((i for i, h in enumerate(headers_m) if "COORDINADOR" in h), -1)
+        idx_est = next((i for i, h in enumerate(headers_m) if "ESTATUS" in h and "C1" in h), -1)
+        
+        ok_c1 = 0
+        for row in master_rows[1:]:
+            cc_val = row[idx_cc].upper().strip() if idx_cc >= 0 and idx_cc < len(row) else ""
+            est_val = row[idx_est].upper().strip() if idx_est >= 0 and idx_est < len(row) else ""
+            
+            if "DIANA" in cc_val:
+                cc_count["DIANA"] += 1
+            elif "JOYCE" in cc_val:
+                cc_count["JOYCE"] += 1
+            elif "ZULEY" in cc_val:
+                cc_count["ZULEY"] += 1
+            else:
+                cc_count["SIN_CC"] += 1
+            
+            if est_val in ("OK", "CONFIRMADO", "SENTADO", "ASISTIO"):
+                ok_c1 += 1
+    else:
+        ok_c1 = 0
+    
+    # ── Procesar Productividad ──
+    prod_por_cc = {"DIANA": {"OK": 0, "NC": 0, "TOTAL": 0},
+                   "JOYCE": {"OK": 0, "NC": 0, "TOTAL": 0},
+                   "ZULEY": {"OK": 0, "NC": 0, "TOTAL": 0}}
+    if prod_rows and len(prod_rows) > 1:
+        headers_p = [h.upper().strip() for h in prod_rows[0]]
+        idx_cc_p = next((i for i, h in enumerate(headers_p) if "CC_REPORTADA" in h), -1)
+        idx_res = next((i for i, h in enumerate(headers_p) if "RESULTADO" in h), -1)
+        
+        for row in prod_rows[1:]:
+            cc_p = row[idx_cc_p].upper().strip() if idx_cc_p >= 0 and idx_cc_p < len(row) else ""
+            res_p = row[idx_res].upper().strip() if idx_res >= 0 and idx_res < len(row) else ""
+            
+            for cc_k in prod_por_cc:
+                if cc_k in cc_p:
+                    prod_por_cc[cc_k]["TOTAL"] += 1
+                    if "OK" in res_p or "CONFIRM" in res_p or "ASIST" in res_p:
+                        prod_por_cc[cc_k]["OK"] += 1
+                    elif "NC" in res_p or "NO CONTEST" in res_p:
+                        prod_por_cc[cc_k]["NC"] += 1
+                    break
+    
+    total_gestiones = sum(d["TOTAL"] for d in prod_por_cc.values())
+    total_ok = sum(d["OK"] for d in prod_por_cc.values())
+    total_nc = sum(d["NC"] for d in prod_por_cc.values())
+    
+    # ── Procesar Reportes Bot ──
+    n_reportes_bot = max(len(bot_rows) - 1, 0) if bot_rows else 0
+    
+    # ── META C1 ──
+    META = 325
+    pct = round((ok_c1 / META) * 100, 1) if META > 0 else 0
+    faltan = max(META - ok_c1, 0)
+    
+    # ── Construir mensaje ──
+    msg = (
+        f"📊 *CONSOLIDADO CRM — Torre de Control*\n"
+        f"_{ahora_s}_\n\n"
+        f"{'━' * 30}\n"
+        f"🎯 *META C1 E27: {ok_c1}/{META}* ({pct}%)\n"
+        f"{'█' * min(int(pct/5), 20)}{'░' * max(20 - int(pct/5), 0)} {pct}%\n"
+        f"Faltan: *{faltan}* confirmados\n"
+        f"{'━' * 30}\n\n"
+        f"👥 *Base Total:* {total_master} participantes\n"
+        f"📞 *Gestiones Productividad:* {total_gestiones}\n"
+        f"✅ OK/Confirmados: {total_ok}\n"
+        f"❌ No Contesta: {total_nc}\n\n"
+        f"{'─' * 30}\n"
+        f"*POR COORDINADORA:*\n\n"
+    )
+    
+    for cc_name in ["DIANA", "JOYCE", "ZULEY"]:
+        asig = cc_count.get(cc_name, 0)
+        ok_p = prod_por_cc[cc_name]["OK"]
+        nc_p = prod_por_cc[cc_name]["NC"]
+        tot_p = prod_por_cc[cc_name]["TOTAL"]
+        pct_ok = round((ok_p / tot_p) * 100) if tot_p > 0 else 0
+        
+        emoji = "🟢" if pct_ok >= 60 else "🟡" if pct_ok >= 40 else "🔴"
+        msg += (
+            f"{emoji} *{cc_name}*\n"
+            f"   Asignados: {asig} | Gestiones: {tot_p}\n"
+            f"   ✅ OK: {ok_p} | ❌ NC: {nc_p} | Efect: {pct_ok}%\n\n"
+        )
+    
+    msg += (
+        f"{'─' * 30}\n"
+        f"📱 Reportes vía Bot: {n_reportes_bot}\n"
+        f"🔄 Sin coordinador: {cc_count.get('SIN_CC', 0)}\n\n"
+        f"_Escribe un número para otra opción._"
+    )
+    
+    return msg
+
