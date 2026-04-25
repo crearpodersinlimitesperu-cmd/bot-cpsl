@@ -28,18 +28,44 @@ CRM_TAB      = "REPORTES_BOT"
 
 # Patrones para detectar a qué CC pertenece un reporte pegado
 _CC_PATTERNS = {
-    "DIANA": [r"diana", r"dmoscoso", r"moscoso", r"equipo\s*26"],
+    "DIANA": [r"diana", r"dmoscoso", r"moscoso", r"equipo\s*26", r"equipo\s*1[4-9]"],
     "JOYCE": [r"joyce", r"jmarin", r"mar[ií]n", r"equipo\s*2[0125]"],
     "ZULEY": [r"zuley", r"zurteaga", r"urteaga", r"equipo\s*2[34]"],
 }
 
 def _detectar_cc(texto):
-    """Detecta a qué coordinadora pertenece un reporte usando patrones."""
+    """
+    Detecta a qué coordinadora pertenece un reporte.
+    Cascada: 1) Regex rápido  2) IA (Gemini/Groq)  3) DESCONOCIDA
+    """
     t = texto.lower()
+    # 1. Regex
     for cc, patterns in _CC_PATTERNS.items():
         for p in patterns:
             if re.search(p, t, re.IGNORECASE):
                 return cc
+
+    # 2. IA — preguntar a Gemini/Groq quién envió el reporte
+    try:
+        from ia_chain import ia_responder
+        prompt = (
+            f'Analiza este reporte de productividad de coordinadoras de Lima:\n'
+            f'"""{texto[:500]}"""\n\n'
+            f'Las coordinadoras son: DIANA (equipos 14-19,26), JOYCE (equipos 20-22,25), ZULEY (equipos 23-24).\n'
+            f'Equipo 27 es el equipo actual de la campaña C1.\n'
+            f'¿De cuál coordinadora es este reporte? Responde SOLO con el nombre: DIANA, JOYCE o ZULEY.\n'
+            f'Si no puedes determinarlo, responde DESCONOCIDA.'
+        )
+        resp = ia_responder(prompt, contexto="general", timeout=5)
+        if resp:
+            resp_upper = resp.strip().upper()
+            for nombre in ["DIANA", "JOYCE", "ZULEY"]:
+                if nombre in resp_upper:
+                    log.info(f"CRM_Bridge: IA detectó CC={nombre}")
+                    return nombre
+    except Exception as e:
+        log.warning(f"CRM_Bridge IA detección: {e}")
+
     return "DESCONOCIDA"
 
 def _get_sheets_token():

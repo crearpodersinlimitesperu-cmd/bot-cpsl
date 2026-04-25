@@ -2034,23 +2034,66 @@ def _flujo_gerente(tel, up, texto):
     # Sub-estado PEGAR_REPORTE — espera el reporte pegado
     if st == "PEGAR_REPORTE":
         if up == "0":
-            wa(tel, "❌ Cancelado.", "GERENTE")
+            wa(tel, "\u274c Cancelado.", "GERENTE")
+            s["st_jose"] = "MENU"; set_s(tel, s)
+            return
+        # IA detecta de qué CC es el reporte
+        cc_detectada, exito = push_reporte_jose(texto)
+        if cc_detectada == "DESCONOCIDA":
+            s["_reporte_pendiente"] = texto
+            s["st_jose"] = "CONFIRMAR_CC"
+            set_s(tel, s)
+            wa(tel,
+               f"\U0001f916 *No pude detectar de qu\u00e9 coordinadora es.*\n\n"
+               f"\u00bfDe qui\u00e9n es este reporte?\n\n"
+               f"1\ufe0f\u20e3 Diana Moscoso\n"
+               f"2\ufe0f\u20e3 Joyce Mar\u00edn\n"
+               f"3\ufe0f\u20e3 Zuley Urteaga\n"
+               f"0\ufe0f\u20e3 Cancelar",
+               "GERENTE")
+            return
+        if exito:
+            wa(tel,
+               f"\u2705 *Reporte registrado en el CRM*\n"
+               f"CC detectada: *{cc_detectada}*\n\n"
+               f"_El CRM ya puede ver estos datos en el Buscador 360\u00b0._\n\n"
+               f"Escribe un n\u00famero para otra opci\u00f3n.",
+               "GERENTE")
         else:
-            # IA detecta de qué CC es el reporte
-            cc_detectada, exito = push_reporte_jose(texto)
-            if exito:
-                wa(tel,
-                   f"✅ *Reporte registrado en el CRM*\n"
-                   f"CC detectada: *{cc_detectada}*\n\n"
-                   f"_El CRM ya puede ver estos datos en el Buscador 360°._\n\n"
-                   f"Escribe un número para otra opción.",
-                   "GERENTE")
+            wa(tel,
+               f"\u26a0\ufe0f No pude enviar el reporte al CRM.\n"
+               f"CC detectada: *{cc_detectada}*\n\n"
+               f"Verifica que GOOGLE_CREDENTIALS est\u00e9 configurado en Render.",
+               "GERENTE")
+        s["st_jose"] = "MENU"; set_s(tel, s)
+        return
+
+    # Sub-estado CONFIRMAR_CC — José elige la CC manualmente
+    if st == "CONFIRMAR_CC":
+        cc_map = {"1": "DIANA", "2": "JOYCE", "3": "ZULEY"}
+        if up in cc_map:
+            cc_nombre = cc_map[up]
+            texto_pend = s.pop("_reporte_pendiente", "")
+            if texto_pend:
+                from reportes_cc import parsear_reporte
+                parsed = parsear_reporte(texto_pend, cc_nombre)
+                exito = push_reporte_crm(cc_nombre, parsed, texto_pend)
+                if exito:
+                    wa(tel,
+                       f"\u2705 *Reporte de {cc_nombre} registrado en el CRM*\n\n"
+                       f"_El CRM ya puede ver estos datos._\n\n"
+                       f"Escribe un n\u00famero para otra opci\u00f3n.",
+                       "GERENTE")
+                else:
+                    wa(tel, f"\u26a0\ufe0f Error al enviar el reporte de {cc_nombre}.", "GERENTE")
             else:
-                wa(tel,
-                   f"⚠️ No pude enviar el reporte al CRM.\n"
-                   f"CC detectada: *{cc_detectada}*\n\n"
-                   f"Verifica que GOOGLE_CREDENTIALS esté configurado en Render.",
-                   "GERENTE")
+                wa(tel, "\u26a0\ufe0f Reporte perdido. Intenta de nuevo con opci\u00f3n 8.", "GERENTE")
+        elif up == "0":
+            s.pop("_reporte_pendiente", None)
+            wa(tel, "\u274c Cancelado.", "GERENTE")
+        else:
+            wa(tel, "Responde 1\ufe0f\u20e3 Diana, 2\ufe0f\u20e3 Joyce, 3\ufe0f\u20e3 Zuley o 0\ufe0f\u20e3 Cancelar", "GERENTE")
+            return
         s["st_jose"] = "MENU"; set_s(tel, s)
         return
 
