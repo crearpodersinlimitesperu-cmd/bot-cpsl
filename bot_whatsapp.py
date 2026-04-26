@@ -12,6 +12,7 @@ from flask import Flask, request, jsonify
 from datetime import datetime, timedelta, timezone
 import requests as req_lib
 from ia_chain import ia_detect_intent_cc, buscar_caso_por_nombre
+from ia_multimodelo import ia_clasificar, ia_respuesta_px, ia_respuesta_imo, ia_respuesta_nuevo, guardar_feedback, estado_ias
 from filelock import FileLock, Timeout as FileLockTimeout
 from crm_bridge import push_reporte_crm, push_gestion_individual, push_reporte_jose, kpi_consolidado_whatsapp
 
@@ -1260,13 +1261,22 @@ def _imo(tel, up, texto, s, p):
         elif up == "0":
             del_s(tel); wa(tel,"Hasta pronto. Escribe HOLA para volver. 🌟",nom)
         else:
-            # IMO: detectar confirmaciones en texto libre
-            if any(w in up for w in ["CONFIRMA","VA ASISTIR","VA A SENTARSE","ASISTIRA","ASISTIRÁ","SI VA"]):
+            # IMO: IA procesa texto libre inteligentemente
+            cat = ia_clasificar(texto)
+            if cat == "CONFIRMA" or any(w in up for w in ["CONFIRMA","VA ASISTIR","VA A SENTARSE","ASISTIRA","ASISTIRÁ","SI VA"]):
                 nom_cc = notif_cc(p, "IMO reporta confirmación en texto libre", f"Mensaje: '{texto[:150]}'")
                 wa(tel,
                    f"✅ Recibido. Tu mensaje fue enviado a *{nom_cc}* para procesarlo.\n\n"
                    f"Si deseas confirmar formalmente, usa la opción *1* → *1*.\n\n9️⃣ Volver", nom)
                 reg(tel, nom, "IMO", f"Texto libre: {texto[:100]}", "CONF_TEXTO", dir_="SYS", staff=nom_cc)
+            elif len(texto.strip()) > 15:
+                # Usar IA para responder inteligentemente
+                resp_ia = ia_respuesta_imo(nom, texto, len(pend))
+                if resp_ia:
+                    wa(tel, f"{resp_ia}\n\n_Escribe *0* para menú o *5* para coordinación._", nom)
+                    guardar_feedback("IMO", texto, resp_ia)
+                else:
+                    _menu_main(tel, p)
             else:
                 _menu_main(tel, p)
 
@@ -1330,16 +1340,37 @@ def _px(tel, up, texto, s, p):
         elif up == "0":
             del_s(tel); wa(tel,"Hasta pronto. Escribe HOLA para volver. 🌟",nom)
         else:
-            # PX: si escriben texto largo probablemente necesitan CC
-            if len(texto.strip()) > 20:
-                nom_cc2 = notif_cc(p, "PX escribe mensaje libre (posible consulta)", f"Mensaje: '{texto[:150]}'")
+            # PX: IA procesa texto libre inteligentemente
+            cat = ia_clasificar(texto)
+            if cat == "CONFIRMA":
+                # Auto-confirmar
+                nom_cc2 = notif_cc(p, "PX CONFIRMA asistencia (detectado por IA)", f"Mensaje: '{texto[:100]}'")
+                reg(tel, p.get("nombre_full",nom), "PX", f"Confirma (IA): {texto[:80]}", "CONFIRMA", dir_="SYS", staff=nom_cc2)
                 wa(tel,
-                   f"Recibido. Tu mensaje fue enviado a *{nom_cc2}*.\n\n"
-                   f"Mientras tanto, estas son tus opciones:\n\n"
-                   f"1️⃣ Confirmar asistencia\n"
-                   f"2️⃣ Fechas\n"
-                   f"4️⃣ Hablar con coordinadora\n"
-                   f"0️⃣ Salir", nom)
+                   f"¡Confirmado {nom}! ✅\n\n"
+                   f"📍 *{Cfg.LUGAR}*\n"
+                   f"🗓 {Cfg.FECHA}\n"
+                   f"⏰ {Cfg.REGISTRO}\n\n"
+                   f"Tu coordinadora *{nom_cc2}* recibirá tu confirmación. 💪", nom)
+                guardar_feedback("PX", texto, "CONFIRMA_AUTO")
+                del_s(tel)
+            elif cat == "PREGUNTA_FECHA":
+                wa(tel, FECHAS_MSG + "\n\n9️⃣ Volver", nom)
+            elif cat == "PREGUNTA_PAGO":
+                wa(tel,
+                   "💳 *Inversión y Pagos*\n\nBCP — Creación Cuántica E.I.R.L.\n"
+                   "Cuenta Soles: *1934218307060*\n\n9️⃣ Volver", nom)
+            elif len(texto.strip()) > 15:
+                # Texto largo: IA genera respuesta + notifica CC solo si necesario
+                resp_ia = ia_respuesta_px(nom, texto, nom_cc)
+                if resp_ia:
+                    wa(tel, f"{resp_ia}\n\n_Escribe *0* para menú o *4* para tu coordinadora._", nom)
+                    guardar_feedback("PX", texto, resp_ia)
+                    # Solo notifica CC si es queja o consulta compleja
+                    if cat in ("QUEJA", "CONSULTA_GENERAL"):
+                        notif_cc(p, f"PX escribió (IA respondió): {cat}", f"Msg: '{texto[:100]}'")
+                else:
+                    _menu_main(tel, p)
             else:
                 _menu_main(tel, p)
 
@@ -1377,7 +1408,16 @@ def _nuevo(tel, up, texto, s, p):
         elif up == "0":
             del_s(tel); wa(tel,"Hasta pronto. Escribe HOLA cuando quieras. 🌟","Sistema")
         else:
-            _menu_main(tel,p)
+            # NUEVO: IA responde a texto libre de prospectos
+            if len(texto.strip()) > 10:
+                resp_ia = ia_respuesta_nuevo(texto)
+                if resp_ia:
+                    wa(tel, f"{resp_ia}\n\n_Escribe *2* para info o *0* para salir._", "Sistema")
+                    guardar_feedback("NUEVO", texto, resp_ia)
+                else:
+                    _menu_main(tel, p)
+            else:
+                _menu_main(tel,p)
 
     elif st == "NVO_NUM":
         k = cc_libre(); cc_add(k)
@@ -1818,6 +1858,23 @@ def solicitar_reporte():
         logger.info(f"Solicitud de reporte enviada a {cc['nombre']}")
 
     return jsonify({"ok": True, "enviados": enviados}), 200
+
+@app.route("/api/ia/estado")
+def api_ia_estado():
+    """Estado de las 20 IAs configuradas."""
+    ias = estado_ias()
+    activas = sum(1 for ia in ias if ia["activa"])
+    return jsonify({"total": len(ias), "activas": activas, "detalle": ias})
+
+@app.route("/api/ia/test", methods=["POST"])
+def api_ia_test():
+    """Prueba rápida de IA: envía un prompt y ve qué responde."""
+    data = request.json or {}
+    texto = data.get("texto", "Hola, quiero información del C1")
+    ctx = data.get("contexto", "px_respuesta")
+    from ia_multimodelo import ia_responder as ia20
+    resp = ia20(texto, contexto=ctx, timeout=10)
+    return jsonify({"respuesta": resp, "contexto": ctx})
 
 @app.route("/api/clear_sessions", methods=["POST"])
 def clear_sessions():
