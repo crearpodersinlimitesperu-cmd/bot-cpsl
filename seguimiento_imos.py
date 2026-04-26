@@ -23,8 +23,12 @@ CC_CONTACTO = {
 
 # WhatsApp API config (misma del bot)
 WA_TOKEN = os.environ.get("WA_TOKEN", "")
-WA_PHONE_ID = os.environ.get("WA_PHONE_ID", "")
-WA_API = f"https://graph.facebook.com/v18.0/{WA_PHONE_ID}/messages"
+WA_PHONE_ID = os.environ.get("WA_PHONE_ID", "1085205258006361")
+WA_API = f"https://graph.facebook.com/v19.0/{WA_PHONE_ID}/messages"
+
+# Template config
+TEMPLATE_IMO_NAME = os.environ.get("WA_TEMPLATE_IMO", "seguimiento_imo_nc")
+TEMPLATE_APROBADA = os.environ.get("TEMPLATE_IMO_APROBADA", "false").lower() == "true"
 
 # Estado de envios (persistente)
 ENVIO_LOG = os.path.join(DATA_DIR, "imo_envios.json")
@@ -51,33 +55,62 @@ def _guardar_envios(data):
     except: pass
 
 
-def _enviar_whatsapp(tel, mensaje):
-    """Envia mensaje WhatsApp via API de Meta."""
+def _enviar_whatsapp_template(tel, imo_nombre, px_lista_txt, total, cc_nombre, cc_tel):
+    """Envia mensaje WhatsApp usando TEMPLATE aprobada por Meta (primer contacto)."""
     if not WA_TOKEN or not WA_PHONE_ID:
-        log.warning("[IMO-WA] Sin WA_TOKEN o WA_PHONE_ID configurado")
+        log.warning("[IMO-WA] Sin WA_TOKEN o WA_PHONE_ID")
         return False
-    # Asegurar formato 51XXXXXXXXX
     tel = re.sub(r'[^\d]', '', str(tel))
-    if not tel.startswith("51"):
-        tel = "51" + tel
-    headers = {
-        "Authorization": f"Bearer {WA_TOKEN}",
-        "Content-Type": "application/json"
-    }
+    if not tel.startswith("51"): tel = "51" + tel
+
     payload = {
         "messaging_product": "whatsapp",
         "to": tel,
-        "type": "text",
-        "text": {"body": mensaje}
+        "type": "template",
+        "template": {
+            "name": TEMPLATE_IMO_NAME,
+            "language": {"code": "es"},
+            "components": [{
+                "type": "body",
+                "parameters": [
+                    {"type": "text", "text": imo_nombre},
+                    {"type": "text", "text": px_lista_txt},
+                    {"type": "text", "text": str(total)},
+                    {"type": "text", "text": cc_nombre},
+                    {"type": "text", "text": cc_tel},
+                ]
+            }]
+        }
     }
+    try:
+        r = req_lib.post(WA_API, json=payload, timeout=15,
+                         headers={"Authorization": f"Bearer {WA_TOKEN}", "Content-Type": "application/json"})
+        if r.status_code in (200, 201):
+            log.info(f"[IMO-WA] Template enviado a {tel[:6]}***")
+            return True
+        log.error(f"[IMO-WA] Template error {r.status_code}: {r.text[:200]}")
+        return False
+    except Exception as e:
+        log.error(f"[IMO-WA] Template error: {e}")
+        return False
+
+
+def _enviar_whatsapp(tel, mensaje):
+    """Envia mensaje WhatsApp texto libre (follow-up dentro de ventana 24h)."""
+    if not WA_TOKEN or not WA_PHONE_ID:
+        log.warning("[IMO-WA] Sin WA_TOKEN o WA_PHONE_ID configurado")
+        return False
+    tel = re.sub(r'[^\d]', '', str(tel))
+    if not tel.startswith("51"): tel = "51" + tel
+    headers = {"Authorization": f"Bearer {WA_TOKEN}", "Content-Type": "application/json"}
+    payload = {"messaging_product": "whatsapp", "to": tel, "type": "text", "text": {"body": mensaje}}
     try:
         r = req_lib.post(WA_API, headers=headers, json=payload, timeout=15)
         if r.status_code in (200, 201):
-            log.info(f"[IMO-WA] Enviado a {tel[:6]}***")
+            log.info(f"[IMO-WA] Texto enviado a {tel[:6]}***")
             return True
-        else:
-            log.error(f"[IMO-WA] Error {r.status_code}: {r.text[:200]}")
-            return False
+        log.error(f"[IMO-WA] Error {r.status_code}: {r.text[:200]}")
+        return False
     except Exception as e:
         log.error(f"[IMO-WA] Error: {e}")
         return False
@@ -229,19 +262,29 @@ def enviar_seguimiento_diario(sheets_client, sheet_id):
                 # Determinar si es primera vez
                 es_primera = f"{imo_nombre}_first" not in envios
 
-                msg = generar_mensaje_imo(imo_nombre.split()[-1], px_list, cc_alias, es_primera)
-                ok = _enviar_whatsapp(tel, msg)
+                # Primera vez + template aprobada = enviar template
+                if es_primera and TEMPLATE_APROBADA:
+                    px_txt = "\n".join(f"{i+1}. {p}" for i, p in enumerate(px_list[:10]))
+                    ok = _enviar_whatsapp_template(
+                        tel, imo_nombre.split()[-1], px_txt, len(px_list),
+                        cc_info["nombre"], cc_info["tel"]
+                    )
+                else:
+                    # Follow-up o sin template: mensaje texto libre
+                    msg = generar_mensaje_imo(imo_nombre.split()[-1], px_list, cc_alias, es_primera)
+                    ok = _enviar_whatsapp(tel, msg)
 
                 if ok:
                     envios[clave] = {"fecha": hoy, "px_count": len(px_list), "cc": cc_alias}
                     if es_primera:
                         envios[f"{imo_nombre}_first"] = hoy
                     enviados += 1
-
-                    # Registrar en Sheets
                     try:
                         guardar_envio_sheets(sheets_client, sheet_id, imo_nombre, tel, cc_alias, len(px_list))
                     except: pass
+
+                # Pausa anti-spam Meta (25s entre mensajes)
+                import time; time.sleep(25)
 
     _guardar_envios(envios)
     log.info(f"[IMO] {enviados} mensajes enviados")
