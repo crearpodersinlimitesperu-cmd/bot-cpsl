@@ -2460,6 +2460,33 @@ def api_imo_pendientes(cc):
         return jsonify({"error": str(e)}), 500
 
 
+# API: trigger manual del seguimiento IMO
+@app.route("/api/imo/trigger", methods=["POST"])
+def api_imo_trigger():
+    """Dispara manualmente el envio de mensajes a IMOs."""
+    def _run():
+        _enviar_mensajes_imos()
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({"ok": True, "msg": "Seguimiento IMO disparado"}), 200
+
+
+# API: forzar envio de seguimiento diario
+@app.route("/api/imo/force-send", methods=["POST"])
+def api_imo_force_send():
+    """Fuerza envio aunque ya se haya enviado hoy."""
+    try:
+        from seguimiento_imos import enviar_seguimiento_diario
+        from sync_cloud import conectar_sheets
+        SHEET_ID = os.environ.get("CRM_SHEET_ID", "1IoCYs1qfOTdn3XWyeK64jsUfAXOFgv3Wa6uJBM-lR2Y")
+        c = conectar_sheets()
+        if not c:
+            return jsonify({"error": "Sin conexion Sheets"}), 500
+        n = enviar_seguimiento_diario(c, SHEET_ID)
+        return jsonify({"ok": True, "enviados": n}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # Iniciar scheduler IMO en un thread
 threading.Thread(target=_scheduler_imos, daemon=True, name="imo_scheduler").start()
 
