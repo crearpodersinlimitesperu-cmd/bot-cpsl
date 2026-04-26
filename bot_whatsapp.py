@@ -2401,40 +2401,24 @@ def _scheduler_imos():
 
 
 def _enviar_mensajes_imos():
-    """Envia mensajes a IMOs sobre participantes NC."""
+    """Envia mensajes a IMOs sobre participantes NC via WhatsApp."""
     try:
-        from seguimiento_imos import (obtener_nc_por_imo, generar_mensaje_imo,
-                                       en_horario, CC_CONTACTO)
+        from seguimiento_imos import enviar_seguimiento_diario, en_horario
         if not en_horario():
             logger.info("[IMO] Fuera de horario (9-17h)")
             return
 
-        # Leer NC desde Sheets
         from sync_cloud import conectar_sheets
         SHEET_ID = os.environ.get("CRM_SHEET_ID", "1IoCYs1qfOTdn3XWyeK64jsUfAXOFgv3Wa6uJBM-lR2Y")
         c = conectar_sheets()
         if not c:
+            logger.error("[IMO] Sin conexion Sheets")
             return
 
-        nc_data = obtener_nc_por_imo(c, SHEET_ID)
-        if not nc_data:
-            logger.info("[IMO] Sin NC pendientes")
-            return
-
-        enviados = 0
-        for cc_alias, data in nc_data.items():
-            px_list = data.get("participantes", [])
-            if not px_list:
-                continue
-            # Generar mensaje para la CC sobre sus NC
-            msg = generar_mensaje_imo("Equipo", px_list, cc_alias, es_primera_vez=False)
-            cc_info = CC_CONTACTO.get(cc_alias, {})
-            logger.info(f"[IMO] {cc_alias}: {len(px_list)} NC pendientes")
-            enviados += 1
-
-        logger.info(f"[IMO] {enviados} CCs notificadas")
+        n = enviar_seguimiento_diario(c, SHEET_ID)
+        logger.info(f"[IMO] Seguimiento completado: {n} mensajes enviados")
     except Exception as e:
-        logger.error(f"[IMO] Error enviando: {e}")
+        logger.error(f"[IMO] Error: {e}", exc_info=True)
 
 
 # API endpoint para recibir respuestas de IMOs

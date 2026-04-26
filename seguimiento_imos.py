@@ -1,203 +1,314 @@
 """
 seguimiento_imos.py — Seguimiento automatico de IMOs para px NC
 ================================================================
-- Lee GESTION_LLAMADAS cada 30 min
-- Identifica px que NO CONTESTAN
-- Genera mensajes para IMOs con lista de px NC + datos CC
-- Registra respuestas IMO en pestaña RESPUESTAS_IMO
+Envia mensajes WhatsApp a IMOs sobre px que no contestan.
+Registra respuestas. Rutea a CCs.
 """
-import logging, re
+import os, csv, logging, re, json
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import requests as req_lib
 
 log = logging.getLogger("CPSL.IMO")
 TZ = ZoneInfo("America/Lima")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = "/data" if os.path.exists("/data") else BASE_DIR
 
-# Contacto de cada CC para que el IMO pueda llamar directo
+# ── Contactos CCs (extraidos de E27_participantes_limpio.csv) ──
 CC_CONTACTO = {
-    "DIANA": {"nombre": "Diana Moscoso", "tel": "51XXXXXXXXX"},
-    "JOYCE": {"nombre": "Joyce Marin", "tel": "51XXXXXXXXX"},
-    "ZULEY": {"nombre": "Zuley Urteaga", "tel": "51XXXXXXXXX"},
+    "DIANA": {"nombre": "Diana Moscoso", "tel": "51912379744", "user": "dmoscoso"},
+    "JOYCE": {"nombre": "Joyce Marin", "tel": "51933599903", "user": "jmarin"},
+    "ZULEY": {"nombre": "Zuley Urteaga", "tel": "51933599864", "user": "zurteaga"},
 }
+
+# WhatsApp API config (misma del bot)
+WA_TOKEN = os.environ.get("WA_TOKEN", "")
+WA_PHONE_ID = os.environ.get("WA_PHONE_ID", "")
+WA_API = f"https://graph.facebook.com/v18.0/{WA_PHONE_ID}/messages"
+
+# Estado de envios (persistente)
+ENVIO_LOG = os.path.join(DATA_DIR, "imo_envios.json")
 
 def ahora():
     return datetime.now(TZ)
 
 def en_horario():
-    """Solo entre 9am y 5pm Lima."""
     h = ahora().hour
     return 9 <= h < 17
 
+def _cargar_envios():
+    try:
+        if os.path.exists(ENVIO_LOG):
+            with open(ENVIO_LOG) as f:
+                return json.load(f)
+    except: pass
+    return {}
+
+def _guardar_envios(data):
+    try:
+        with open(ENVIO_LOG, "w") as f:
+            json.dump(data, f, indent=2)
+    except: pass
+
+
+def _enviar_whatsapp(tel, mensaje):
+    """Envia mensaje WhatsApp via API de Meta."""
+    if not WA_TOKEN or not WA_PHONE_ID:
+        log.warning("[IMO-WA] Sin WA_TOKEN o WA_PHONE_ID configurado")
+        return False
+    # Asegurar formato 51XXXXXXXXX
+    tel = re.sub(r'[^\d]', '', str(tel))
+    if not tel.startswith("51"):
+        tel = "51" + tel
+    headers = {
+        "Authorization": f"Bearer {WA_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": tel,
+        "type": "text",
+        "text": {"body": mensaje}
+    }
+    try:
+        r = req_lib.post(WA_API, headers=headers, json=payload, timeout=15)
+        if r.status_code in (200, 201):
+            log.info(f"[IMO-WA] Enviado a {tel[:6]}***")
+            return True
+        else:
+            log.error(f"[IMO-WA] Error {r.status_code}: {r.text[:200]}")
+            return False
+    except Exception as e:
+        log.error(f"[IMO-WA] Error: {e}")
+        return False
+
+
+def cargar_imos_con_telefono():
+    """Carga mapa IMO->telefono desde E27_participantes_limpio.csv"""
+    imos = {}
+    csv_path = os.path.join(BASE_DIR, "E27_participantes_limpio.csv")
+    if not os.path.exists(csv_path):
+        log.warning(f"[IMO] CSV no encontrado: {csv_path}")
+        return imos
+    try:
+        with open(csv_path, encoding="utf-8-sig") as f:
+            for r in csv.DictReader(f):
+                imo = r.get("Nombre_IMO", "").strip()
+                tel = r.get("Telefono_IMO", "").strip()
+                cc = r.get("CC_Asignada", "").upper().strip()
+                if imo and tel:
+                    imos[imo] = {"tel": tel, "cc": cc}
+    except Exception as e:
+        log.error(f"[IMO] Error leyendo CSV: {e}")
+    return imos
+
+
 def obtener_nc_por_imo(sheets_client, sheet_id):
     """
-    Lee GESTION_LLAMADAS y agrupa los NC por IMO.
-    Retorna: {imo_tel: {nombre_imo, cc_alias, participantes: [{nombre, equipo}]}}
+    Lee GESTION_LLAMADAS y agrupa NC por CC+IMO.
+    Retorna: {cc_alias: {imo_nombre: [px_nombres]}}
     """
     try:
         sh = sheets_client.open_by_key(sheet_id)
         ws = sh.worksheet("GESTION_LLAMADAS")
         rows = ws.get_all_records()
     except Exception as e:
-        log.error(f"IMO: Error leyendo GESTION_LLAMADAS: {e}")
+        log.error(f"[IMO] Error leyendo Sheets: {e}")
         return {}
 
-    nc_por_imo = {}
+    resultado = {}
     for r in rows:
         primera = str(r.get("Primera_Llamada", "")).upper().strip()
         if primera != "NO CONTESTAN":
             continue
-
         cc = str(r.get("CC_Alias", "")).upper().strip()
         nombres = str(r.get("Nombres", "")).strip()
         apellidos = str(r.get("Apellidos", "")).strip()
-        equipo = str(r.get("Equipo", "")).strip()
-        # El IMO se infiere del coordinador asignado
-        coordinador = str(r.get("Coordinador", "")).strip()
-
         if not nombres:
             continue
+        px = f"{nombres} {apellidos}".strip()
+        coord = str(r.get("Coordinador", "")).strip()
 
-        px_nombre = f"{nombres} {apellidos}".strip()
+        if cc not in resultado:
+            resultado[cc] = {}
+        # Agrupamos por coordinador como proxy de IMO asignado
+        if coord not in resultado[cc]:
+            resultado[cc][coord] = []
+        resultado[cc][coord].append(px)
 
-        # Agrupar por CC (cada CC tiene sus NC)
-        if cc not in nc_por_imo:
-            nc_por_imo[cc] = {"participantes": [], "equipo": equipo}
-        nc_por_imo[cc]["participantes"].append({
-            "nombre": px_nombre,
-            "equipo": equipo,
-        })
-
-    return nc_por_imo
+    return resultado
 
 
-def generar_mensaje_imo(imo_nombre, participantes_nc, cc_alias, es_primera_vez=False):
-    """
-    Genera el mensaje para enviar al IMO.
-    - Primera vez: formato template
-    - Siguientes: mensaje libre conversacional
-    """
-    cc_info = CC_CONTACTO.get(cc_alias, {})
-    cc_nombre = cc_info.get("nombre", cc_alias)
-    cc_tel = cc_info.get("tel", "")
+def generar_mensaje_imo(imo_nombre, px_nc_list, cc_alias, es_primera_vez=False):
+    """Genera mensaje para IMO con lista de px NC + datos CC."""
+    cc = CC_CONTACTO.get(cc_alias, {})
+    cc_nom = cc.get("nombre", cc_alias)
+    cc_tel = cc.get("tel", "")
 
-    px_list = "\n".join(f"  {i+1}. {p['nombre']}" for i, p in enumerate(participantes_nc[:15]))
-    n = len(participantes_nc)
+    px_txt = "\n".join(f"  {i+1}. {p}" for i, p in enumerate(px_nc_list[:15]))
+    n = len(px_nc_list)
     if n > 15:
-        px_list += f"\n  ... y {n-15} mas"
+        px_txt += f"\n  ... y {n-15} mas"
 
     if es_primera_vez:
-        # Template formal
-        msg = (
+        return (
             f"Hola {imo_nombre},\n\n"
-            f"Somos del equipo CREAR Lima. Te contactamos porque los siguientes "
-            f"enrolados tuyos *no contestan* nuestras llamadas para el C1 E27:\n\n"
-            f"{px_list}\n\n"
+            f"Somos del equipo CREAR Lima. Los siguientes enrolados tuyos "
+            f"*no contestan* las llamadas para el C1 E27:\n\n"
+            f"{px_txt}\n\n"
             f"Total: *{n} participantes*\n\n"
-            f"Tu coordinadora es *{cc_nombre}*.\n"
-            f"Contactala directamente: {cc_tel}\n\n"
-            f"Por favor, responde con el nombre del participante y su situacion. "
-            f"Ejemplo: _\"Juan Perez - ya confirmo, asistira\"_\n\n"
-            f"Gracias por tu apoyo.\n"
-            f"-- Equipo CREAR Lima"
+            f"Tu coordinadora: *{cc_nom}*\n"
+            f"WhatsApp CC: wa.me/{cc_tel}\n\n"
+            f"Responde con el nombre y situacion de cada uno.\n"
+            f"Ej: _\"Juan Perez - ya confirmo\"_\n\n"
+            f"Gracias! -- CREAR Lima"
         )
     else:
-        # Mensaje libre conversacional
-        msg = (
-            f"Hola {imo_nombre}, buen dia.\n\n"
-            f"Seguimos sin contactar a estos enrolados tuyos:\n\n"
-            f"{px_list}\n\n"
-            f"Necesitamos tu ayuda para confirmarlos.\n"
-            f"CC: *{cc_nombre}* ({cc_tel})\n\n"
-            f"Responde con el nombre y estado de cada uno."
+        hora = ahora().strftime("%H:%M")
+        saludos = ["Buen dia", "Hola", "Saludos"]
+        saludo = saludos[ahora().day % len(saludos)]
+        return (
+            f"{saludo} {imo_nombre},\n\n"
+            f"Seguimos sin contactar a {n} enrolados tuyos:\n\n"
+            f"{px_txt}\n\n"
+            f"Ayudanos a confirmarlos.\n"
+            f"CC: *{cc_nom}* (wa.me/{cc_tel})\n\n"
+            f"Responde con nombre + estado de cada uno."
         )
 
-    return msg
+
+def enviar_seguimiento_diario(sheets_client, sheet_id):
+    """
+    Funcion principal: lee NC, cruza con IMOs, envia mensajes.
+    Se ejecuta 1x al dia a las 10am.
+    """
+    if not en_horario():
+        log.info("[IMO] Fuera de horario")
+        return 0
+
+    nc_data = obtener_nc_por_imo(sheets_client, sheet_id)
+    if not nc_data:
+        log.info("[IMO] Sin NC pendientes")
+        return 0
+
+    imos_tel = cargar_imos_con_telefono()
+    envios = _cargar_envios()
+    hoy = ahora().strftime("%Y-%m-%d")
+    enviados = 0
+
+    # Recorrer NC agrupados por CC
+    for cc_alias, imos_dict in nc_data.items():
+        cc_info = CC_CONTACTO.get(cc_alias, {})
+        if not cc_info:
+            continue
+
+        # Para cada grupo de px NC
+        for coord_name, px_list in imos_dict.items():
+            if not px_list:
+                continue
+
+            # Buscar IMOs que tengan esos px
+            for imo_nombre, imo_data in imos_tel.items():
+                # Verificar que el IMO corresponde a esta CC
+                imo_cc = imo_data.get("cc", "").upper()
+                # Mapear user -> alias
+                cc_alias_map = {"JMARIN": "JOYCE", "DMOSCOSO": "DIANA", "ZURTEAGA": "ZULEY"}
+                imo_cc_alias = cc_alias_map.get(imo_cc, imo_cc)
+                if imo_cc_alias != cc_alias:
+                    continue
+
+                tel = imo_data.get("tel", "")
+                if not tel:
+                    continue
+
+                # Verificar si ya enviamos hoy a este IMO
+                clave = f"{imo_nombre}_{hoy}"
+                if clave in envios:
+                    continue
+
+                # Determinar si es primera vez
+                es_primera = f"{imo_nombre}_first" not in envios
+
+                msg = generar_mensaje_imo(imo_nombre.split()[-1], px_list, cc_alias, es_primera)
+                ok = _enviar_whatsapp(tel, msg)
+
+                if ok:
+                    envios[clave] = {"fecha": hoy, "px_count": len(px_list), "cc": cc_alias}
+                    if es_primera:
+                        envios[f"{imo_nombre}_first"] = hoy
+                    enviados += 1
+
+                    # Registrar en Sheets
+                    try:
+                        guardar_envio_sheets(sheets_client, sheet_id, imo_nombre, tel, cc_alias, len(px_list))
+                    except: pass
+
+    _guardar_envios(envios)
+    log.info(f"[IMO] {enviados} mensajes enviados")
+    return enviados
+
+
+def guardar_envio_sheets(sheets_client, sheet_id, imo, tel, cc, n_px):
+    """Registra envio en pestaña SEGUIMIENTO_ENVIOS."""
+    try:
+        sh = sheets_client.open_by_key(sheet_id)
+        tabs = [w.title for w in sh.worksheets()]
+        if "SEGUIMIENTO_ENVIOS" not in tabs:
+            ws = sh.add_worksheet(title="SEGUIMIENTO_ENVIOS", rows=2000, cols=6)
+            ws.update("A1:F1", [["Fecha", "IMO", "Tel", "CC", "Px_NC", "Estado"]])
+        else:
+            ws = sh.worksheet("SEGUIMIENTO_ENVIOS")
+        ws.append_row([ahora().strftime("%d/%m/%Y %H:%M"), imo, tel, cc, n_px, "ENVIADO"])
+    except Exception as e:
+        log.error(f"[IMO] Error guardando envio: {e}")
 
 
 def parsear_respuesta_imo(texto, participantes_nc):
-    """
-    Usa patrones para detectar sobre cual px responde el IMO.
-    Retorna lista de {px_nombre, respuesta, detectado}
-    """
+    """Detecta sobre cual px responde el IMO."""
     resultados = []
-    lineas = texto.strip().split("\n")
-
-    for linea in lineas:
+    for linea in texto.strip().split("\n"):
         linea = linea.strip()
-        if not linea:
-            continue
-
-        mejor_match = None
-        mejor_score = 0
-
+        if not linea: continue
+        mejor, score_max = None, 0
         for px in participantes_nc:
-            nombre_parts = px["nombre"].upper().split()
-            score = sum(1 for part in nombre_parts if part in linea.upper())
-            if score > mejor_score and score >= 1:
-                mejor_score = score
-                mejor_match = px
-
-        if mejor_match:
-            # Extraer la parte de respuesta (despues del nombre)
-            respuesta = linea
-            for part in mejor_match["nombre"].split():
-                respuesta = re.sub(re.escape(part), "", respuesta, flags=re.IGNORECASE)
-            respuesta = re.sub(r'^[\s\-:,]+', '', respuesta).strip()
-
-            resultados.append({
-                "px_nombre": mejor_match["nombre"],
-                "respuesta": respuesta or linea,
-                "detectado": True,
-            })
+            parts = px.upper().split()
+            score = sum(1 for p in parts if p in linea.upper())
+            if score > score_max and score >= 1:
+                score_max, mejor = score, px
+        if mejor:
+            resp = linea
+            for p in mejor.split():
+                resp = re.sub(re.escape(p), "", resp, flags=re.IGNORECASE)
+            resp = re.sub(r'^[\s\-:,]+', '', resp).strip()
+            resultados.append({"px": mejor, "respuesta": resp or linea, "ok": True})
         else:
-            resultados.append({
-                "px_nombre": "NO_DETECTADO",
-                "respuesta": linea,
-                "detectado": False,
-            })
-
+            resultados.append({"px": "?", "respuesta": linea, "ok": False})
     return resultados
 
 
-def guardar_respuesta_imo(sheets_client, sheet_id, imo_nombre, imo_tel,
-                          px_nombre, respuesta, cc_alias):
-    """Guarda la respuesta del IMO en pestaña RESPUESTAS_IMO."""
+def guardar_respuesta_imo(sheets_client, sheet_id, imo, imo_tel, px, respuesta, cc):
+    """Guarda respuesta IMO en pestaña RESPUESTAS_IMO."""
     try:
         sh = sheets_client.open_by_key(sheet_id)
         tabs = [w.title for w in sh.worksheets()]
         if "RESPUESTAS_IMO" not in tabs:
-            ws = sh.add_worksheet(title="RESPUESTAS_IMO", rows=2000, cols=8)
-            ws.update("A1:G1", [["Fecha", "IMO", "Tel_IMO", "Participante",
-                                  "Respuesta", "CC", "Estado"]])
+            ws = sh.add_worksheet(title="RESPUESTAS_IMO", rows=2000, cols=7)
+            ws.update("A1:G1", [["Fecha","IMO","Tel_IMO","Participante","Respuesta","CC","Estado"]])
         else:
             ws = sh.worksheet("RESPUESTAS_IMO")
-
-        fila = [
-            ahora().strftime("%d/%m/%Y %H:%M"),
-            imo_nombre,
-            imo_tel,
-            px_nombre,
-            respuesta[:200],
-            cc_alias,
-            "PENDIENTE_CC",
-        ]
-        ws.append_row(fila, value_input_option="RAW")
-        log.info(f"IMO: Respuesta guardada - {imo_nombre} sobre {px_nombre}")
+        ws.append_row([ahora().strftime("%d/%m/%Y %H:%M"), imo, imo_tel, px, respuesta[:200], cc, "PENDIENTE_CC"])
         return True
     except Exception as e:
-        log.error(f"IMO: Error guardando respuesta: {e}")
+        log.error(f"[IMO] Error: {e}")
         return False
 
 
-def obtener_respuestas_pendientes_cc(sheets_client, sheet_id, cc_alias):
-    """Lee respuestas IMO pendientes para una CC especifica."""
+def obtener_respuestas_pendientes_cc(sheets_client, sheet_id, cc):
+    """Lee respuestas pendientes para una CC."""
     try:
         sh = sheets_client.open_by_key(sheet_id)
         ws = sh.worksheet("RESPUESTAS_IMO")
         rows = ws.get_all_records()
-        pendientes = [r for r in rows
-                      if r.get("CC", "").upper() == cc_alias.upper()
-                      and r.get("Estado", "").upper() == "PENDIENTE_CC"]
-        return pendientes
+        return [r for r in rows if r.get("CC","").upper()==cc and r.get("Estado","").upper()=="PENDIENTE_CC"]
     except:
         return []
