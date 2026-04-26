@@ -994,9 +994,46 @@ def _flujo_cc(tel, up, texto, cc_info):
 STOP_W  = {"STOP","BAJA","DETENER","NO MAS"}
 RESET_W = {"HOLA","MENU","MENÚ","0","INICIO","START","HI"}
 
+# Patrones de intención negativa (PX que no quiere asistir)
+_NEG_PATTERNS = [
+    "NO QUIERO", "NO DESEO", "NO PUEDO", "NO ME INTERESA", "DEVUELVAN",
+    "NO VOY", "NO ASIST", "IMPOSIBLE", "NO ESTOY INTERESADO", "OCUPADO",
+    "DE VIAJE", "POR SALUD", "DELICAD", "NO ESTÁ EN MIS PLANES",
+    "OTRA ACTIVIDAD", "TENGO OTRO", "FERIADO", "TRABAJO ESE",
+]
+
+# Patrones de auto-responder de negocios (ignorar)
+_AUTORESPONDER = [
+    "GRACIAS POR COMUNICARTE CON", "FUERA DEL HORARIO",
+    "TE RESPONDEREMOS TAN PRONTO", "HORARIO DISPONIBLE",
+    "MENSAJE AUTOMÁTICO", "NUESTRO HORARIO",
+]
+
+def _es_autoresponder(txt):
+    return any(p in txt for p in _AUTORESPONDER)
+
+def _detectar_negativa(txt):
+    return any(p in txt for p in _NEG_PATTERNS)
+
+def _limpiar_input(txt):
+    """Limpia caracteres basura de inputs numéricos (ej: '9}' → '9')"""
+    limpio = re.sub(r'[^\w\s]', '', txt).strip()
+    if limpio in ('0','1','2','3','4','5','6','7','8','9'):
+        return limpio
+    return txt
+
 def flujo(tel, texto):
     try:
         up = texto.strip().upper()
+        # Limpiar inputs numéricos con typos ("9}" → "9")
+        up_clean = _limpiar_input(up)
+        if up_clean != up and up_clean in ('0','1','2','3','4','5','6','7','8','9'):
+            up = up_clean
+
+        # Ignorar auto-responders de negocios
+        if _es_autoresponder(up):
+            logger.info(f"[AUTO-RESP] Ignorado de {tel}: {texto[:60]}")
+            return
 
         # ── STOP ─────────────────────────────────────────────
         if up in STOP_W:
@@ -1060,9 +1097,22 @@ def flujo(tel, texto):
         sb = s.get("sb")  # sub-estado
 
         # ── Volver siempre ────────────────────────────────────
-        if up in {"9","VOLVER"}:
+        if up in {"9","VOLVER","REGRESAR","ATRAS","ATRÁS"}:
             s["st"]="MAIN"; s["sb"]=None; set_s(tel,s)
             _menu_main(tel,p); return
+
+        # ── Detectar intención negativa en texto libre ────────
+        if _detectar_negativa(up) and p.get("tipo") in ("PX", "IMO"):
+            nom_full = p.get("nombre_full") or p.get("nombre","")
+            nom_cc = notif_cc(p, f"⚠️ PX expresa NEGATIVA/NO ASISTE", f"Mensaje: '{texto[:150]}'")
+            reg(tel, nom_full, p.get("tipo",""), texto[:100], "NEGATIVA", dir_="SYS", staff=nom_cc)
+            wa(tel,
+               f"Entendido. Tu mensaje ha sido enviado a tu coordinadora *{nom_cc}*.\n\n"
+               f"Si cambias de parecer, escribe *HOLA* en cualquier momento.\n\n"
+               f"_STOP para darte de baja._",
+               p.get("nombre",""))
+            del_s(tel)
+            return
 
         # ── Estado DERIVADO ───────────────────────────────────
         if st == "DER":
@@ -1210,7 +1260,15 @@ def _imo(tel, up, texto, s, p):
         elif up == "0":
             del_s(tel); wa(tel,"Hasta pronto. Escribe HOLA para volver. 🌟",nom)
         else:
-            _menu_main(tel,p)
+            # IMO: detectar confirmaciones en texto libre
+            if any(w in up for w in ["CONFIRMA","VA ASISTIR","VA A SENTARSE","ASISTIRA","ASISTIRÁ","SI VA"]):
+                nom_cc = notif_cc(p, "IMO reporta confirmación en texto libre", f"Mensaje: '{texto[:150]}'")
+                wa(tel,
+                   f"✅ Recibido. Tu mensaje fue enviado a *{nom_cc}* para procesarlo.\n\n"
+                   f"Si deseas confirmar formalmente, usa la opción *1* → *1*.\n\n9️⃣ Volver", nom)
+                reg(tel, nom, "IMO", f"Texto libre: {texto[:100]}", "CONF_TEXTO", dir_="SYS", staff=nom_cc)
+            else:
+                _menu_main(tel, p)
 
     elif st == "IMO_PEND":
         if up == "1":
@@ -1272,7 +1330,18 @@ def _px(tel, up, texto, s, p):
         elif up == "0":
             del_s(tel); wa(tel,"Hasta pronto. Escribe HOLA para volver. 🌟",nom)
         else:
-            _menu_main(tel,p)
+            # PX: si escriben texto largo probablemente necesitan CC
+            if len(texto.strip()) > 20:
+                nom_cc2 = notif_cc(p, "PX escribe mensaje libre (posible consulta)", f"Mensaje: '{texto[:150]}'")
+                wa(tel,
+                   f"Recibido. Tu mensaje fue enviado a *{nom_cc2}*.\n\n"
+                   f"Mientras tanto, estas son tus opciones:\n\n"
+                   f"1️⃣ Confirmar asistencia\n"
+                   f"2️⃣ Fechas\n"
+                   f"4️⃣ Hablar con coordinadora\n"
+                   f"0️⃣ Salir", nom)
+            else:
+                _menu_main(tel, p)
 
     elif st == "PX_PAGO":
         if up == "1":
