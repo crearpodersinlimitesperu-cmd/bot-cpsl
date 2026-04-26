@@ -2425,7 +2425,15 @@ def _keepalive_loop():
                 for caso in activos[:20]:  # máximo 20 por ciclo
                     tel_px = caso.get("tel_px","")
                     _nom_raw = caso.get("nombre_full","") or caso.get("nombre","")
-                    nom_px = _nom_raw.strip().title() if _nom_raw else ""
+                    if _nom_raw:
+                        _nom_raw = _nom_raw.strip()
+                        _p = _nom_raw.split()
+                        if _nom_raw.isupper() and len(_p) >= 3:
+                            nom_px = " ".join(w.title() for w in _p[2:] + _p[:2])
+                        else:
+                            nom_px = _nom_raw.title()
+                    else:
+                        nom_px = ""
                     if tel_px:
                         wa(tel_px,
                             f"Hola {nom_px} — te escribimos desde Crear Poder Sin Límites Perú.\n"

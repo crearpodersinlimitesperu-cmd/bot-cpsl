@@ -36,6 +36,14 @@ ENVIO_LOG = os.path.join(DATA_DIR, "imo_envios.json")
 def ahora():
     return datetime.now(TZ)
 
+def formatear_nombre_peruano(nombre_crudo):
+    if not nombre_crudo: return ""
+    crudo = nombre_crudo.strip()
+    partes = crudo.split()
+    if crudo.isupper() and len(partes) >= 3:
+        return " ".join(p.title() for p in partes[2:] + partes[:2])
+    return crudo.title()
+
 def en_horario():
     h = ahora().hour
     return 9 <= h < 17
@@ -276,21 +284,21 @@ def enviar_seguimiento_diario(sheets_client, sheet_id):
                 # 1ra vez -> Plantilla 1 (seguimiento_imo)
                 if count == 0:
                     if TEMPLATE_APROBADA:
-                        ok = _enviar_whatsapp_template(tel, imo_nombre.title(), px_txt, len(px_list), cc_info["nombre"], cc_info["tel"])
+                        ok = _enviar_whatsapp_template(tel, formatear_nombre_peruano(imo_nombre), px_txt, len(px_list), cc_info["nombre"], cc_info["tel"])
                     else:
-                        msg = generar_mensaje_imo(imo_nombre.title(), px_list, cc_alias, True)
+                        msg = generar_mensaje_imo(formatear_nombre_peruano(imo_nombre), px_list, cc_alias, True)
                         ok = _enviar_whatsapp(tel, msg)
                 
                 # 2da vez -> Plantilla 2 (seguimiento_imo_nc) - Pendiente de aprobación, usamos la 1 o free text
                 elif count == 1:
                     # Idealmente usar _enviar_whatsapp_template_nc() aquí, por ahora reusamos la 1 si se fuerza plantilla
                     # Asumimos que la API permite seguimiento_imo o usamos texto libre
-                    msg = generar_mensaje_imo(imo_nombre.title(), px_list, cc_alias, False)
+                    msg = generar_mensaje_imo(formatear_nombre_peruano(imo_nombre), px_list, cc_alias, False)
                     ok = _enviar_whatsapp(tel, msg)
                 
                 # 3ra+ vez -> Texto Libre en ventana de 24h
                 else:
-                    msg = generar_mensaje_imo(imo_nombre.title(), px_list, cc_alias, False)
+                    msg = generar_mensaje_imo(formatear_nombre_peruano(imo_nombre), px_list, cc_alias, False)
                     ok = _enviar_whatsapp(tel, msg)
 
                 if ok:
