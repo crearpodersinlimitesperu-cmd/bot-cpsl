@@ -99,6 +99,8 @@ def cc_por_equipo(equipo):
 
 # ── CONFIG ────────────────────────────────────────────────────
 class Cfg:
+
+
     TOKEN     = os.environ.get("WA_TOKEN","")
     PHONE_ID  = os.environ.get("WA_PHONE_ID","")
     VER_TOKEN = os.environ.get("WA_VERIFY_TOKEN","cpsl2026")
@@ -1476,6 +1478,36 @@ def _nuevo(tel, up, texto, s, p):
 
 
 # ── ENDPOINTS ─────────────────────────────────────────────────
+@app.route("/")
+def index():
+    return "<h1>🤖 Bot CPSL IA — Torre de Control Activa</h1><p>API Endpoint: /api/interactions</p>"
+
+@app.route("/dashboard")
+def dashboard():
+    """Página web con tabla de interacciones (ver todas, sin perder avance)."""
+    import io
+    html_path = os.path.join(BASE_DIR, "dashboard.html")
+    if os.path.exists(html_path):
+        with open(html_path, "r", encoding="utf-8") as f:
+            return f.read()
+    return "Dashboard no encontrado", 404
+
+@app.route("/api/interactions")
+def api_interactions():
+    """Devuelve JSON con historial de chats (últimas 3000 interacciones)."""
+    date_filter = request.args.get('date')
+    hist_path = Cfg.HIST if os.path.exists(Cfg.HIST) else Cfg.HIST_ALT
+    try:
+        with open(hist_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except Exception:
+        return jsonify({"ok": False, "msg": "Historial no disponible", "interacciones": []}), 500
+    
+    if date_filter:
+        data = [d for d in data if d.get('ts', '').startswith(date_filter)]
+    data = data[-3000:]
+    return jsonify({"ok": True, "interacciones": data}), 200
+
 @app.route("/webhook", methods=["GET"])
 def wh_get():
     if request.args.get("hub.verify_token")==Cfg.VER_TOKEN:
