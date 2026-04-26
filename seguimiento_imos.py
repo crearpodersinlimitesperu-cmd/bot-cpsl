@@ -254,30 +254,41 @@ def enviar_seguimiento_diario(sheets_client, sheet_id):
                 if not tel:
                     continue
 
-                # Verificar si ya enviamos hoy a este IMO
-                clave = f"{imo_nombre}_{hoy}"
-                if clave in envios:
-                    continue
-
-                # Determinar si es primera vez
-                es_primera = f"{imo_nombre}_first" not in envios
-
-                # Primera vez + template aprobada = enviar template
-                if es_primera and TEMPLATE_APROBADA:
-                    px_txt = "\n".join(f"{i+1}. {p}" for i, p in enumerate(px_list[:10]))
-                    ok = _enviar_whatsapp_template(
-                        tel, imo_nombre.split()[-1], px_txt, len(px_list),
-                        cc_info["nombre"], cc_info["tel"]
-                    )
+                # Determinar cuando fue el ultimo envio
+                last_sent_str = envios.get(f"{imo_nombre}_last_sent")
+                if last_sent_str:
+                    from datetime import datetime
+                    last_sent = datetime.strptime(last_sent_str, "%Y-%m-%dT%H:%M:%S")
+                    hours_passed = (ahora() - last_sent).total_seconds() / 3600
+                    if hours_passed < 23:
+                        continue  # No han pasado 23 horas
+                
+                count = envios.get(f"{imo_nombre}_count", 0)
+                px_txt = "\n".join(f"{i+1}. {p}" for i, p in enumerate(px_list[:10]))
+                
+                # 1ra vez -> Plantilla 1 (seguimiento_imo)
+                if count == 0:
+                    if TEMPLATE_APROBADA:
+                        ok = _enviar_whatsapp_template(tel, imo_nombre.split()[-1], px_txt, len(px_list), cc_info["nombre"], cc_info["tel"])
+                    else:
+                        msg = generar_mensaje_imo(imo_nombre.split()[-1], px_list, cc_alias, True)
+                        ok = _enviar_whatsapp(tel, msg)
+                
+                # 2da vez -> Plantilla 2 (seguimiento_imo_nc) - Pendiente de aprobación, usamos la 1 o free text
+                elif count == 1:
+                    # Idealmente usar _enviar_whatsapp_template_nc() aquí, por ahora reusamos la 1 si se fuerza plantilla
+                    # Asumimos que la API permite seguimiento_imo o usamos texto libre
+                    msg = generar_mensaje_imo(imo_nombre.split()[-1], px_list, cc_alias, False)
+                    ok = _enviar_whatsapp(tel, msg)
+                
+                # 3ra+ vez -> Texto Libre en ventana de 24h
                 else:
-                    # Follow-up o sin template: mensaje texto libre
-                    msg = generar_mensaje_imo(imo_nombre.split()[-1], px_list, cc_alias, es_primera)
+                    msg = generar_mensaje_imo(imo_nombre.split()[-1], px_list, cc_alias, False)
                     ok = _enviar_whatsapp(tel, msg)
 
                 if ok:
-                    envios[clave] = {"fecha": hoy, "px_count": len(px_list), "cc": cc_alias}
-                    if es_primera:
-                        envios[f"{imo_nombre}_first"] = hoy
+                    envios[f"{imo_nombre}_last_sent"] = ahora().strftime("%Y-%m-%dT%H:%M:%S")
+                    envios[f"{imo_nombre}_count"] = count + 1
                     enviados += 1
                     try:
                         guardar_envio_sheets(sheets_client, sheet_id, imo_nombre, tel, cc_alias, len(px_list))
