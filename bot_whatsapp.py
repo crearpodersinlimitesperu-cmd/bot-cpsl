@@ -2425,10 +2425,7 @@ def _keepalive_loop():
                 for caso in activos[:20]:  # máximo 20 por ciclo
                     tel_px = caso.get("tel_px","")
                     _nom_raw = caso.get("nombre_full","") or caso.get("nombre","")
-                    _partes  = _nom_raw.strip().split()
-                    # Tomar primer token que parezca nombre (no sea todo mayúsculas ni sea número)
-                    nom_px   = next((p.capitalize() for p in _partes if not p.isupper() and not p.isdigit()), 
-                                    _partes[0].capitalize() if _partes else "")
+                    nom_px = _nom_raw.strip().title() if _nom_raw else ""
                     if tel_px:
                         wa(tel_px,
                             f"Hola {nom_px} — te escribimos desde Crear Poder Sin Límites Perú.\n"
