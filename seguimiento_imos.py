@@ -215,6 +215,13 @@ def enviar_seguimiento_diario(sheets_client, sheet_id):
     Funcion principal: lee NC, cruza con IMOs, envia mensajes.
     Se ejecuta 1x al dia a las 10am.
     """
+    # Límite de campaña: 9 PM del día anterior al C1 (E27 empieza el 1 de mayo)
+    from datetime import datetime
+    limite_campana = datetime.strptime("2026-04-30T21:00:00", "%Y-%m-%dT%H:%M:%S")
+    if ahora() > limite_campana:
+        log.info("[IMO] Campaña C1 finalizada (pasó límite 9pm día anterior). No más seguimientos automáticos.")
+        return 0
+
     if not en_horario():
         log.info("[IMO] Fuera de horario")
         return 0
