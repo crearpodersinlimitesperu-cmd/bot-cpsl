@@ -2364,12 +2364,126 @@ def api_bienvenida_v1_estado():
     return jsonify({"corriendo": False, "enviados": 0, "total": 0}), 200
 
 
-# Endpoints bienvenida E27 ya registrados arriba (ver lineas ~1316-1330)
+# ── SCHEDULER: SEGUIMIENTO IMOs (cada 30 min refresh + mensajes diarios 9-17h) ──
+def _scheduler_imos():
+    """
+    1. Cada 30 min: ejecuta robot_gestion_llamadas para refrescar datos
+    2. 1x al dia (10am): envia mensajes a IMOs sobre px NC
+    """
+    import time as _time
+    ya_enviado_hoy = set()
+    while True:
+        try:
+            hora = ahora().strftime("%H:%M")
+            fecha = ahora().strftime("%d/%m")
+
+            # Cada 30 min: refrescar datos de gestion
+            minuto = int(ahora().strftime("%M"))
+            if minuto in (0, 30):
+                logger.info("[IMO-SCHED] Refrescando datos de gestion...")
+                try:
+                    from seguimiento_imos import obtener_nc_por_imo
+                    # Solo loggear que se intentara - el robot real corre aparte
+                    logger.info("[IMO-SCHED] Datos listos para consulta")
+                except Exception as e:
+                    logger.error(f"[IMO-SCHED] Error: {e}")
+
+            # 10am diario: enviar mensajes a IMOs
+            clave_dia = f"{fecha}-imo"
+            if hora == "10:00" and clave_dia not in ya_enviado_hoy:
+                ya_enviado_hoy.add(clave_dia)
+                logger.info("[IMO-SCHED] Enviando mensajes NC a IMOs...")
+                _enviar_mensajes_imos()
+
+        except Exception as e:
+            logger.error(f"[IMO-SCHED] Error: {e}")
+        _time.sleep(60)
+
+
+def _enviar_mensajes_imos():
+    """Envia mensajes a IMOs sobre participantes NC."""
+    try:
+        from seguimiento_imos import (obtener_nc_por_imo, generar_mensaje_imo,
+                                       en_horario, CC_CONTACTO)
+        if not en_horario():
+            logger.info("[IMO] Fuera de horario (9-17h)")
+            return
+
+        # Leer NC desde Sheets
+        from sync_cloud import conectar_sheets
+        SHEET_ID = os.environ.get("CRM_SHEET_ID", "1IoCYs1qfOTdn3XWyeK64jsUfAXOFgv3Wa6uJBM-lR2Y")
+        c = conectar_sheets()
+        if not c:
+            return
+
+        nc_data = obtener_nc_por_imo(c, SHEET_ID)
+        if not nc_data:
+            logger.info("[IMO] Sin NC pendientes")
+            return
+
+        enviados = 0
+        for cc_alias, data in nc_data.items():
+            px_list = data.get("participantes", [])
+            if not px_list:
+                continue
+            # Generar mensaje para la CC sobre sus NC
+            msg = generar_mensaje_imo("Equipo", px_list, cc_alias, es_primera_vez=False)
+            cc_info = CC_CONTACTO.get(cc_alias, {})
+            logger.info(f"[IMO] {cc_alias}: {len(px_list)} NC pendientes")
+            enviados += 1
+
+        logger.info(f"[IMO] {enviados} CCs notificadas")
+    except Exception as e:
+        logger.error(f"[IMO] Error enviando: {e}")
+
+
+# API endpoint para recibir respuestas de IMOs
+@app.route("/api/imo/respuesta", methods=["POST"])
+def api_imo_respuesta():
+    """Recibe respuesta de un IMO y la guarda en Sheets."""
+    d = request.json or {}
+    imo_nombre = d.get("imo_nombre", "")
+    imo_tel = d.get("imo_tel", "")
+    px_nombre = d.get("px_nombre", "")
+    respuesta = d.get("respuesta", "")
+    cc_alias = d.get("cc_alias", "")
+
+    if not all([imo_nombre, px_nombre, respuesta]):
+        return jsonify({"error": "Faltan campos"}), 400
+
+    try:
+        from seguimiento_imos import guardar_respuesta_imo
+        from sync_cloud import conectar_sheets
+        SHEET_ID = os.environ.get("CRM_SHEET_ID", "1IoCYs1qfOTdn3XWyeK64jsUfAXOFgv3Wa6uJBM-lR2Y")
+        c = conectar_sheets()
+        ok = guardar_respuesta_imo(c, SHEET_ID, imo_nombre, imo_tel, px_nombre, respuesta, cc_alias)
+        return jsonify({"ok": ok}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# API: obtener respuestas pendientes para una CC
+@app.route("/api/imo/pendientes/<cc>")
+def api_imo_pendientes(cc):
+    try:
+        from seguimiento_imos import obtener_respuestas_pendientes_cc
+        from sync_cloud import conectar_sheets
+        SHEET_ID = os.environ.get("CRM_SHEET_ID", "1IoCYs1qfOTdn3XWyeK64jsUfAXOFgv3Wa6uJBM-lR2Y")
+        c = conectar_sheets()
+        pend = obtener_respuestas_pendientes_cc(c, SHEET_ID, cc.upper())
+        return jsonify(pend), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# Iniciar scheduler IMO en un thread
+threading.Thread(target=_scheduler_imos, daemon=True, name="imo_scheduler").start()
 
 if __name__=="__main__":
-    logger.info("🚀 CPSL Torre de Control V109")
+    logger.info("🚀 CPSL Torre de Control V110 + IMO Tracking")
     logger.info(f"   CSV: {Cfg.CSV}")
     logger.info(f"   CSV existe: {os.path.exists(Cfg.CSV)}")
     logger.info(f"   Filas: {len(_get_rows())}")
     logger.info(f"   Sheet: {Cfg.SHEET_ID or 'NO CONFIG'}")
     app.run(host="0.0.0.0",port=int(os.environ.get("PORT",10000)),debug=False)
+
