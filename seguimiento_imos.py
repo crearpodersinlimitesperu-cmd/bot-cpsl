@@ -28,7 +28,7 @@ WA_API = f"https://graph.facebook.com/v19.0/{WA_PHONE_ID}/messages"
 
 # Template config
 TEMPLATE_IMO_NAME = os.environ.get("WA_TEMPLATE_IMO", "seguimiento_imo_nc")
-TEMPLATE_APROBADA = os.environ.get("TEMPLATE_IMO_APROBADA", "false").lower() == "true"
+TEMPLATE_APROBADA = os.environ.get("TEMPLATE_IMO_APROBADA", "true").lower() == "true"
 
 # Estado de envios (persistente)
 ENVIO_LOG = os.path.join(DATA_DIR, "imo_envios.json")
@@ -46,7 +46,7 @@ def formatear_nombre_peruano(nombre_crudo):
 
 def en_horario():
     h = ahora().hour
-    return 9 <= h < 17
+    return 7 <= h <= 20
 
 def _cargar_envios():
     try:
@@ -225,7 +225,7 @@ def enviar_seguimiento_diario(sheets_client, sheet_id):
     """
     # Límite de campaña: 9 PM del día anterior al C1 (E27 empieza el 1 de mayo)
     from datetime import datetime
-    limite_campana = datetime.strptime("2026-04-30T21:00:00", "%Y-%m-%dT%H:%M:%S")
+    limite_campana = datetime.strptime("2026-04-30T21:00:00", "%Y-%m-%dT%H:%M:%S").replace(tzinfo=TZ)
     if ahora() > limite_campana:
         log.info("[IMO] Campaña C1 finalizada (pasó límite 9pm día anterior). No más seguimientos automáticos.")
         return 0
