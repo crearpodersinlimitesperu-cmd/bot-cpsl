@@ -2659,22 +2659,30 @@ def api_imo_force_send():
 
 
 
+
 # ── DEBUG: LOG VIEWER ────────────────────────────────────────
 @app.route("/api/debug/logs")
 def api_debug_logs():
-    log_path = os.path.join(DATA_DIR, "bot.log")
-    if not os.path.exists(log_path):
-        return "Log file not found", 404
-    with open(log_path, "r", encoding="utf-8") as f:
-        lines = f.readlines()
-        return "<pre>" + "".join(lines[-200:]) + "</pre>"
+    try:
+        log_path = os.path.join(DATA_DIR, "bot.log")
+        if not os.path.exists(log_path):
+            return "Log file not found", 404
+        with open(log_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+            return "<pre>" + "".join(lines[-200:]) + "</pre>"
+    except Exception as e:
+        return str(e), 500
 
 
-# Iniciar scheduler IMO en un thread
-threading.Thread(target=_scheduler_imos, daemon=True, name="imo_scheduler").start()
+@app.before_first_request
+def start_background_tasks():
+    """Inicia el scheduler de IMOs de forma segura."""
+    logger.info("🚀 Iniciando tareas de fondo (Scheduler IMO)...")
+    threading.Thread(target=_scheduler_imos, daemon=True, name="imo_scheduler").start()
+
 
 if __name__=="__main__":
-    logger.info("🚀 CPSL Torre de Control V111 + IMO Tracking")
+    logger.info("🚀 CPSL Torre de Control V112 + IMO Tracking")
     logger.info(f"   CSV: {Cfg.CSV}")
     logger.info(f"   CSV existe: {os.path.exists(Cfg.CSV)}")
     logger.info(f"   Filas: {len(_get_rows())}")
