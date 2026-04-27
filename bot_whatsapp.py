@@ -2674,11 +2674,19 @@ def api_debug_logs():
         return str(e), 500
 
 
-@app.before_first_request
-def start_background_tasks():
-    """Inicia el scheduler de IMOs de forma segura."""
-    logger.info("🚀 Iniciando tareas de fondo (Scheduler IMO)...")
-    threading.Thread(target=_scheduler_imos, daemon=True, name="imo_scheduler").start()
+_scheduler_started = False
+_scheduler_lock = threading.Lock()
+
+@app.before_request
+def start_background_tasks_once():
+    """Inicia el scheduler de IMOs de forma segura en la primera petición (Flask 3.0 compatible)."""
+    global _scheduler_started
+    if not _scheduler_started:
+        with _scheduler_lock:
+            if not _scheduler_started:
+                logger.info("🚀 Iniciando tareas de fondo (Scheduler IMO)...")
+                threading.Thread(target=_scheduler_imos, daemon=True, name="imo_scheduler").start()
+                _scheduler_started = True
 
 
 if __name__=="__main__":
