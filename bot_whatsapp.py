@@ -18,6 +18,14 @@ from crm_bridge import push_reporte_crm, push_gestion_individual, push_reporte_j
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("CPSL")
+# Configurar logging a archivo para debug remoto
+log_path = os.path.join("/data" if os.path.exists("/data") else os.path.dirname(os.path.abspath(__file__)), "bot.log")
+fh = logging.FileHandler(log_path)
+fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+logger.addHandler(fh)
+logger.setLevel(logging.INFO)
+
+logger.info("Bot iniciado - Logger configurado")
 app    = Flask(__name__)
 
 # ── ZONA HORARIA ─────────────────────────────────────────────
@@ -2661,3 +2669,13 @@ if __name__=="__main__":
     logger.info(f"   Sheet: {Cfg.SHEET_ID or 'NO CONFIG'}")
     app.run(host="0.0.0.0",port=int(os.environ.get("PORT",10000)),debug=False)
 
+
+# ── DEBUG: LOG VIEWER ────────────────────────────────────────
+@app.route("/api/debug/logs")
+def api_debug_logs():
+    log_path = os.path.join(DATA_DIR, "bot.log")
+    if not os.path.exists(log_path):
+        return "Log file not found", 404
+    with open(log_path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+        return "<pre>" + "".join(lines[-200:]) + "</pre>"
