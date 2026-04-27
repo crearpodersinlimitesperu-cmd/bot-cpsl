@@ -2658,17 +2658,6 @@ def api_imo_force_send():
         return jsonify({"error": str(e)}), 500
 
 
-# Iniciar scheduler IMO en un thread
-threading.Thread(target=_scheduler_imos, daemon=True, name="imo_scheduler").start()
-
-if __name__=="__main__":
-    logger.info("🚀 CPSL Torre de Control V110 + IMO Tracking")
-    logger.info(f"   CSV: {Cfg.CSV}")
-    logger.info(f"   CSV existe: {os.path.exists(Cfg.CSV)}")
-    logger.info(f"   Filas: {len(_get_rows())}")
-    logger.info(f"   Sheet: {Cfg.SHEET_ID or 'NO CONFIG'}")
-    app.run(host="0.0.0.0",port=int(os.environ.get("PORT",10000)),debug=False)
-
 
 # ── DEBUG: LOG VIEWER ────────────────────────────────────────
 @app.route("/api/debug/logs")
@@ -2679,3 +2668,15 @@ def api_debug_logs():
     with open(log_path, "r", encoding="utf-8") as f:
         lines = f.readlines()
         return "<pre>" + "".join(lines[-200:]) + "</pre>"
+
+
+# Iniciar scheduler IMO en un thread
+threading.Thread(target=_scheduler_imos, daemon=True, name="imo_scheduler").start()
+
+if __name__=="__main__":
+    logger.info("🚀 CPSL Torre de Control V111 + IMO Tracking")
+    logger.info(f"   CSV: {Cfg.CSV}")
+    logger.info(f"   CSV existe: {os.path.exists(Cfg.CSV)}")
+    logger.info(f"   Filas: {len(_get_rows())}")
+    logger.info(f"   Sheet: {Cfg.SHEET_ID or 'NO CONFIG'}")
+    app.run(host="0.0.0.0",port=int(os.environ.get("PORT",10000)),debug=False)
