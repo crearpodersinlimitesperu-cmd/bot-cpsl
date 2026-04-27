@@ -262,7 +262,8 @@ def enviar_seguimiento_diario(sheets_client, sheet_id):
     imos_tel = cargar_imos_con_telefono()
     envios = _cargar_envios()
     hoy = ahora().strftime("%Y-%m-%d")
-    enviados = 0
+    log.info(f"[IMO] Iniciando proceso para {len(nc_data)} CCs")
+    log_to_sheets(sheets_client, sheet_id, f"Iniciando seguimiento para {len(nc_data)} coordinaciones")
 
     # Recorrer NC agrupados por CC
     for cc_alias, imos_dict in nc_data.items():
@@ -309,6 +310,8 @@ def enviar_seguimiento_diario(sheets_client, sheet_id):
             if count == 0:
                 if TEMPLATE_APROBADA:
                     ok = _enviar_whatsapp_template(tel, formatear_nombre_peruano(imo_nombre), px_txt, len(px_list), cc_info["nombre"], cc_info["tel"])
+                    if not ok:
+                        log_to_sheets(sheets_client, sheet_id, f"Error enviando template {TEMPLATE_IMO_NAME} a {imo_nombre} ({tel})")
                 else:
                     msg = generar_mensaje_imo(formatear_nombre_peruano(imo_nombre), px_list, cc_alias, True)
                     ok = _enviar_whatsapp(tel, msg)
@@ -340,6 +343,19 @@ def enviar_seguimiento_diario(sheets_client, sheet_id):
     log.info(f"[IMO] {enviados} mensajes enviados")
     return enviados
 
+
+def log_to_sheets(sheets_client, sheet_id, msg):
+    """Escribe un log en la pestaña LOGS_BOT."""
+    try:
+        sh = sheets_client.open_by_key(sheet_id)
+        tabs = [w.title for w in sh.worksheets()]
+        if "LOGS_BOT" not in tabs:
+            ws = sh.add_worksheet(title="LOGS_BOT", rows=1000, cols=2)
+            ws.update("A1:B1", [["Fecha", "Mensaje"]])
+        else:
+            ws = sh.worksheet("LOGS_BOT")
+        ws.append_row([ahora().strftime("%d/%m/%Y %H:%M:%S"), msg])
+    except: pass
 
 def guardar_envio_sheets(sheets_client, sheet_id, imo, tel, cc, n_px):
     """Registra envio en pestaña SEGUIMIENTO_ENVIOS."""
