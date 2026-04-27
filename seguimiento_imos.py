@@ -146,7 +146,8 @@ def cargar_imos_con_telefono():
 
 def obtener_nc_por_imo(sheets_client, sheet_id):
     """
-    Lee GESTION_LLAMADAS y agrupa NC por CC+IMO.
+    Lee GESTION_LLAMADAS, filtra los "NO CONTESTAN" y busca a su IMO Asignado 
+    usando la base de datos CSV.
     Retorna: {cc_alias: {imo_nombre: [px_nombres]}}
     """
     try:
@@ -156,26 +157,45 @@ def obtener_nc_por_imo(sheets_client, sheet_id):
     except Exception as e:
         log.error(f"[IMO] Error leyendo Sheets: {e}")
         return {}
+        
+    # Cargar el mapeo de PX -> IMO desde el CSV
+    px_a_imo = {}
+    csv_path = os.path.join(BASE_DIR, "E27_participantes_limpio.csv")
+    if os.path.exists(csv_path):
+        import csv
+        with open(csv_path, encoding="utf-8-sig") as f:
+            for r in csv.DictReader(f):
+                px_nom = str(r.get("Nombres", "")).strip().upper()
+                px_ape = str(r.get("Apellidos", "")).strip().upper()
+                imo_nom = r.get("Nombre_IMO", "").strip()
+                if px_nom and imo_nom:
+                    px_a_imo[f"{px_nom} {px_ape}"] = imo_nom
 
     resultado = {}
     for r in rows:
         primera = str(r.get("Primera_Llamada", "")).upper().strip()
         if primera != "NO CONTESTAN":
             continue
+            
         cc = str(r.get("CC_Alias", "")).upper().strip()
         nombres = str(r.get("Nombres", "")).strip()
         apellidos = str(r.get("Apellidos", "")).strip()
         if not nombres:
             continue
+            
         px = f"{nombres} {apellidos}".strip()
-        coord = str(r.get("Coordinador", "")).strip()
+        px_key = f"{nombres.upper()} {apellidos.upper()}".strip()
+        
+        # Encontrar IMO Real
+        imo_real = px_a_imo.get(px_key, "")
+        if not imo_real:
+            continue # Si no tiene IMO, no hay a quien avisar
 
         if cc not in resultado:
             resultado[cc] = {}
-        # Agrupamos por coordinador como proxy de IMO asignado
-        if coord not in resultado[cc]:
-            resultado[cc][coord] = []
-        resultado[cc][coord].append(px)
+        if imo_real not in resultado[cc]:
+            resultado[cc][imo_real] = []
+        resultado[cc][imo_real].append(px)
 
     return resultado
 
@@ -250,67 +270,71 @@ def enviar_seguimiento_diario(sheets_client, sheet_id):
         if not cc_info:
             continue
 
-        # Para cada grupo de px NC
-        for coord_name, px_list in imos_dict.items():
+        # Para cada IMO con px NC en esta CC
+        for imo_nc_nombre, px_list in imos_dict.items():
             if not px_list:
                 continue
 
-            # Buscar IMOs que tengan esos px
-            for imo_nombre, imo_data in imos_tel.items():
-                # Verificar que el IMO corresponde a esta CC
-                imo_cc = imo_data.get("cc", "").upper()
-                # Mapear user -> alias
-                cc_alias_map = {"JMARIN": "JOYCE", "DMOSCOSO": "DIANA", "ZURTEAGA": "ZULEY"}
-                imo_cc_alias = cc_alias_map.get(imo_cc, imo_cc)
-                if imo_cc_alias != cc_alias:
-                    continue
+            # Buscar el teléfono de ESTE IMO específico en la base general
+            imo_data_encontrada = None
+            for i_nom, i_data in imos_tel.items():
+                if i_nom.strip().upper() == imo_nc_nombre.strip().upper():
+                    imo_data_encontrada = i_data
+                    break
+            
+            if not imo_data_encontrada:
+                log.warning(f"[IMO] Teléfono no encontrado para IMO: {imo_nc_nombre}")
+                continue
+                
+            imo_nombre = imo_nc_nombre
+            imo_data = imo_data_encontrada
 
-                tel = imo_data.get("tel", "")
-                if not tel:
-                    continue
+            tel = imo_data.get("tel", "")
+            if not tel:
+                continue
 
-                # Determinar cuando fue el ultimo envio
-                last_sent_str = envios.get(f"{imo_nombre}_last_sent")
-                if last_sent_str:
-                    from datetime import datetime
-                    last_sent = datetime.strptime(last_sent_str, "%Y-%m-%dT%H:%M:%S")
-                    hours_passed = (ahora() - last_sent).total_seconds() / 3600
-                    if hours_passed < 23:
-                        continue  # No han pasado 23 horas
-                
-                count = envios.get(f"{imo_nombre}_count", 0)
-                px_txt = "\n".join(f"{i+1}. {p}" for i, p in enumerate(px_list[:10]))
-                
-                # 1ra vez -> Plantilla 1 (seguimiento_imo)
-                if count == 0:
-                    if TEMPLATE_APROBADA:
-                        ok = _enviar_whatsapp_template(tel, formatear_nombre_peruano(imo_nombre), px_txt, len(px_list), cc_info["nombre"], cc_info["tel"])
-                    else:
-                        msg = generar_mensaje_imo(formatear_nombre_peruano(imo_nombre), px_list, cc_alias, True)
-                        ok = _enviar_whatsapp(tel, msg)
-                
-                # 2da vez -> Plantilla 2 (seguimiento_imo_nc) - Pendiente de aprobación, usamos la 1 o free text
-                elif count == 1:
-                    # Idealmente usar _enviar_whatsapp_template_nc() aquí, por ahora reusamos la 1 si se fuerza plantilla
-                    # Asumimos que la API permite seguimiento_imo o usamos texto libre
-                    msg = generar_mensaje_imo(formatear_nombre_peruano(imo_nombre), px_list, cc_alias, False)
-                    ok = _enviar_whatsapp(tel, msg)
-                
-                # 3ra+ vez -> Texto Libre en ventana de 24h
+            # Determinar cuando fue el ultimo envio
+            last_sent_str = envios.get(f"{imo_nombre}_last_sent")
+            if last_sent_str:
+                from datetime import datetime
+                last_sent = datetime.strptime(last_sent_str, "%Y-%m-%dT%H:%M:%S")
+                hours_passed = (ahora() - last_sent).total_seconds() / 3600
+                if hours_passed < 23:
+                    continue  # No han pasado 23 horas
+            
+            count = envios.get(f"{imo_nombre}_count", 0)
+            px_txt = "\\n".join(f"{i+1}. {p}" for i, p in enumerate(px_list[:10]))
+            
+            # 1ra vez -> Plantilla 1 (seguimiento_imo)
+            if count == 0:
+                if TEMPLATE_APROBADA:
+                    ok = _enviar_whatsapp_template(tel, formatear_nombre_peruano(imo_nombre), px_txt, len(px_list), cc_info["nombre"], cc_info["tel"])
                 else:
-                    msg = generar_mensaje_imo(formatear_nombre_peruano(imo_nombre), px_list, cc_alias, False)
+                    msg = generar_mensaje_imo(formatear_nombre_peruano(imo_nombre), px_list, cc_alias, True)
                     ok = _enviar_whatsapp(tel, msg)
+            
+            # 2da vez -> Plantilla 2 (seguimiento_imo_nc) - Pendiente de aprobación, usamos la 1 o free text
+            elif count == 1:
+                # Idealmente usar _enviar_whatsapp_template_nc() aquí, por ahora reusamos la 1 si se fuerza plantilla
+                # Asumimos que la API permite seguimiento_imo o usamos texto libre
+                msg = generar_mensaje_imo(formatear_nombre_peruano(imo_nombre), px_list, cc_alias, False)
+                ok = _enviar_whatsapp(tel, msg)
+            
+            # 3ra+ vez -> Texto Libre en ventana de 24h
+            else:
+                msg = generar_mensaje_imo(formatear_nombre_peruano(imo_nombre), px_list, cc_alias, False)
+                ok = _enviar_whatsapp(tel, msg)
 
-                if ok:
-                    envios[f"{imo_nombre}_last_sent"] = ahora().strftime("%Y-%m-%dT%H:%M:%S")
-                    envios[f"{imo_nombre}_count"] = count + 1
-                    enviados += 1
-                    try:
-                        guardar_envio_sheets(sheets_client, sheet_id, imo_nombre, tel, cc_alias, len(px_list))
-                    except: pass
+            if ok:
+                envios[f"{imo_nombre}_last_sent"] = ahora().strftime("%Y-%m-%dT%H:%M:%S")
+                envios[f"{imo_nombre}_count"] = count + 1
+                enviados += 1
+                try:
+                    guardar_envio_sheets(sheets_client, sheet_id, imo_nombre, tel, cc_alias, len(px_list))
+                except: pass
 
-                # Pausa anti-spam Meta (25s entre mensajes)
-                import time; time.sleep(25)
+            # Pausa anti-spam Meta (25s entre mensajes)
+            import time; time.sleep(25)
 
     _guardar_envios(envios)
     log.info(f"[IMO] {enviados} mensajes enviados")
