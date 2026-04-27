@@ -27,7 +27,7 @@ WA_PHONE_ID = os.environ.get("WA_PHONE_ID", "1085205258006361")
 WA_API = f"https://graph.facebook.com/v19.0/{WA_PHONE_ID}/messages"
 
 # Template config
-TEMPLATE_IMO_NAME = os.environ.get("WA_TEMPLATE_IMO", "seguimiento_imo_nc")
+TEMPLATE_IMO_NAME = os.environ.get("WA_TEMPLATE_IMO", "seguimiento_imo")
 TEMPLATE_APROBADA = os.environ.get("TEMPLATE_IMO_APROBADA", "true").lower() == "true"
 
 # Estado de envios (persistente)
