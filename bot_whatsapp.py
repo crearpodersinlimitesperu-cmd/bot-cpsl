@@ -2624,7 +2624,7 @@ def api_imo_pendientes(cc):
 
 
 # API: trigger manual del seguimiento IMO
-@app.route("/api/imo/trigger", methods=["POST"])
+@app.route("/api/imo/trigger", methods=["GET", "POST"])
 def api_imo_trigger():
     """Dispara manualmente el envio de mensajes a IMOs."""
     def _run():
@@ -2634,7 +2634,7 @@ def api_imo_trigger():
 
 
 # API: forzar envio de seguimiento diario
-@app.route("/api/imo/force-send", methods=["POST"])
+@app.route("/api/imo/force-send", methods=["GET", "POST"])
 def api_imo_force_send():
     """Fuerza envio aunque ya se haya enviado hoy."""
     try:
