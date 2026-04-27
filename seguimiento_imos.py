@@ -264,6 +264,7 @@ def enviar_seguimiento_diario(sheets_client, sheet_id):
     hoy = ahora().strftime("%Y-%m-%d")
     log.info(f"[IMO] Iniciando proceso para {len(nc_data)} CCs")
     log_to_sheets(sheets_client, sheet_id, f"Iniciando seguimiento para {len(nc_data)} coordinaciones")
+    enviados = 0
 
     # Recorrer NC agrupados por CC
     for cc_alias, imos_dict in nc_data.items():
