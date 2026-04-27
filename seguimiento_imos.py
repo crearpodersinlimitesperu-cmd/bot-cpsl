@@ -27,7 +27,7 @@ WA_PHONE_ID = os.environ.get("WA_PHONE_ID", "1085205258006361")
 WA_API = f"https://graph.facebook.com/v19.0/{WA_PHONE_ID}/messages"
 
 # Template config
-TEMPLATE_IMO_NAME = os.environ.get("WA_TEMPLATE_IMO", "seguimiento_imo")
+TEMPLATE_IMO_NAME = os.environ.get("WA_TEMPLATE_IMO", "seguimiento_imo_nc")
 TEMPLATE_APROBADA = os.environ.get("TEMPLATE_IMO_APROBADA", "true").lower() == "true"
 
 # Estado de envios (persistente)
@@ -77,7 +77,7 @@ def _enviar_whatsapp_template(tel, imo_nombre, px_lista_txt, total, cc_nombre, c
         "type": "template",
         "template": {
             "name": TEMPLATE_IMO_NAME,
-            "language": {"code": "es"},
+            "language": {"code": "es_PE"},
             "components": [{
                 "type": "body",
                 "parameters": [
