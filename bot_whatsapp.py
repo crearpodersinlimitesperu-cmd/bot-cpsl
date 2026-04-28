@@ -11,10 +11,14 @@ import os, re, json, time, csv, base64, random, logging, threading, queue
 from flask import Flask, request, jsonify
 from datetime import datetime, timedelta, timezone
 import requests as req_lib
+from dotenv import load_dotenv
 from ia_chain import ia_detect_intent_cc, buscar_caso_por_nombre
 from ia_multimodelo import ia_clasificar, ia_respuesta_px, ia_respuesta_imo, ia_respuesta_nuevo, guardar_feedback, estado_ias
 from filelock import FileLock, Timeout as FileLockTimeout
 from crm_bridge import push_reporte_crm, push_gestion_individual, push_reporte_jose, kpi_consolidado_whatsapp
+
+# Cargar variables de entorno desde .env
+load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("CPSL")
@@ -2883,7 +2887,13 @@ def start_background_tasks_once():
                 threading.Thread(target=_scheduler_imos, daemon=True, name="imo_scheduler").start()
                 _scheduler_started = True
 
-
+# ── Sincronizador CrearPSL Global ──
+try:
+    from sync_crearpsl import iniciar_thread as iniciar_sync_crearpsl
+    iniciar_sync_crearpsl()
+    logger.info("✅ Sync CrearPSL iniciado — cada 30 min")
+except Exception as e:
+    logger.warning(f"⚠ Sync CrearPSL no inició: {e}")
 if __name__=="__main__":
     logger.info("🚀 CPSL Torre de Control V112 + IMO Tracking")
     logger.info(f"   CSV: {Cfg.CSV}")
