@@ -2737,6 +2737,21 @@ def api_imo_force_send():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/imo/force-recordatorio", methods=["GET", "POST"])
+def api_imo_force_recordatorio():
+    """Fuerza el envio de recordatorios a IMOs (texto libre)."""
+    try:
+        from seguimiento_imos import enviar_recordatorios_imos
+        from sync_cloud import conectar_sheets
+        SHEET_ID = os.environ.get("CRM_SHEET_ID", "1IoCYs1qfOTdn3XWyeK64jsUfAXOFgv3Wa6uJBM-lR2Y")
+        c = conectar_sheets()
+        if not c:
+            return jsonify({"error": "Sin conexion Sheets"}), 500
+        n = enviar_recordatorios_imos(c, SHEET_ID)
+        return jsonify({"ok": True, "recordatorios_enviados": n}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 
 # ── CRM DATA CACHE ──────────────────────────────────────────
