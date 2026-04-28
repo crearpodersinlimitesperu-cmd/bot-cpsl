@@ -36,10 +36,53 @@ def push_to_sheet(client, sh, sheet_name, df):
     except gspread.exceptions.WorksheetNotFound:
         ws = sh.add_worksheet(title=sheet_name, rows=1000, cols=30)
     
-    ws.clear()
+    # Obtener data existente para cruzar timestamps
+    try:
+        existing_data = ws.get_all_records()
+        if existing_data:
+            df_old = pd.DataFrame(existing_data)
+        else:
+            df_old = pd.DataFrame()
+    except Exception as e:
+        df_old = pd.DataFrame()
+
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
     if not df.empty:
-        # Convert all to string and handle NaN
         df = df.fillna("").astype(str)
+        # Añadir columna de fecha por defecto
+        df['Fecha_Actualizacion'] = now_str
+        
+        if not df_old.empty and 'Fecha_Actualizacion' in df_old.columns and len(df_old) > 0:
+            # Crear claves de comparación asumiendo que NombreCompleto y ApellidoCompleto o DNI existen
+            # o podemos concatenar todas las columnas excepto Fecha_Actualizacion
+            cols_to_compare = [c for c in df.columns if c != 'Fecha_Actualizacion' and c in df_old.columns]
+            
+            # Convertimos ambos a string para asegurar el merge
+            df_old = df_old.fillna("").astype(str)
+            
+            if 'NombreCompleto' in df.columns:
+                pk = 'NombreCompleto'
+            elif 'Nombres' in df.columns:
+                pk = 'Nombres'
+            else:
+                pk = df.columns[0] # Fallback a la primera columna
+                
+            # Mergear para rescatar el timestamp viejo
+            merged = df.merge(df_old[[pk, 'Fecha_Actualizacion'] + [c for c in cols_to_compare if c != pk]], on=pk, how='left', suffixes=('', '_old'))
+            
+            # Revisar si hay cambios en las columnas de gestion (Ultima Gestion, Comentario, etc) o cualquier otra
+            for i, row in merged.iterrows():
+                changed = False
+                for c in cols_to_compare:
+                    if c != pk and f"{c}_old" in merged.columns:
+                        if row[c] != row[f"{c}_old"]:
+                            changed = True
+                            break
+                if not changed and pd.notna(row.get('Fecha_Actualizacion_old')) and str(row.get('Fecha_Actualizacion_old')).strip() != "nan" and str(row.get('Fecha_Actualizacion_old')).strip() != "":
+                    df.at[i, 'Fecha_Actualizacion'] = row['Fecha_Actualizacion_old']
+            
+        ws.clear()
         ws.update([df.columns.values.tolist()] + df.values.tolist())
     print(f"✅ Uploaded {len(df)} rows to {sheet_name}")
 
