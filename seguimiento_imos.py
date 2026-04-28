@@ -87,6 +87,17 @@ def _enviar_whatsapp_template(tel, imo_nombre, px_lista_txt, total, cc_nombre, c
     tel = re.sub(r'[^\d]', '', str(tel))
     if not tel.startswith("51"): tel = "51" + tel
 
+    # Sanitizar parámetros: Meta rechaza caracteres especiales y strings muy largos
+    def _sanitize(txt, max_len=1024):
+        txt = str(txt).strip()
+        txt = re.sub(r'[^\w\s.,;:!?¡¿\-()/@#\n]', '', txt)  # Quitar chars raros
+        return txt[:max_len] if len(txt) > max_len else txt
+
+    imo_nombre = _sanitize(imo_nombre, 100)
+    px_lista_txt = _sanitize(px_lista_txt, 900)
+    cc_nombre = _sanitize(cc_nombre, 100)
+    cc_tel = _sanitize(str(cc_tel), 20)
+
     payload = {
         "messaging_product": "whatsapp",
         "to": tel,
@@ -316,12 +327,13 @@ def enviar_seguimiento_diario(sheets_client, sheet_id):
             if last_sent_str:
                 from datetime import datetime
                 last_sent = datetime.strptime(last_sent_str, "%Y-%m-%dT%H:%M:%S")
+                last_sent = last_sent.replace(tzinfo=TZ)  # Fix: hacer timezone-aware
                 hours_passed = (ahora() - last_sent).total_seconds() / 3600
                 if hours_passed < 23:
                     continue  # No han pasado 23 horas
             
             count = envios.get(f"{imo_nombre}_count", 0)
-            px_txt = "\\n".join(f"{i+1}. {p}" for i, p in enumerate(px_list[:10]))
+            px_txt = "\n".join(f"{i+1}. {p}" for i, p in enumerate(px_list[:10]))
             
             # 1ra vez -> Plantilla 1 (seguimiento_imo)
             if count == 0:
