@@ -2593,9 +2593,19 @@ def _scheduler_imos():
         try:
             hora = ahora().strftime("%H:%M")
             fecha = ahora().strftime("%d/%m")
+            minuto = int(ahora().strftime("%M"))
+
+            # Cada 15 min: doble chequeo de confirmaciones
+            if minuto in (0, 15, 30, 45):
+                logger.info("[IMO-SCHED] Ejecutando doble chequeo de confirmaciones...")
+                try:
+                    script_auditoria = r"C:\Users\josem\Downloads\CONTROL_SISTEMA_CREARLIMA\robot_doble_chequeo.py"
+                    if os.path.exists(script_auditoria):
+                        subprocess.Popen(["python", script_auditoria], cwd=os.path.dirname(script_auditoria))
+                except Exception as e:
+                    logger.error(f"[IMO-SCHED] Error ejecutando auditoria: {e}")
 
             # Cada 30 min: refrescar datos de gestion
-            minuto = int(ahora().strftime("%M"))
             if minuto in (0, 30):
                 logger.info("[IMO-SCHED] Refrescando datos de gestion...")
                 try:
