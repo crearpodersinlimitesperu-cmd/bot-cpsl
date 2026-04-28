@@ -2595,9 +2595,16 @@ def _scheduler_imos():
             fecha = ahora().strftime("%d/%m")
             minuto = int(ahora().strftime("%M"))
 
-            # Cada 15 min: doble chequeo de confirmaciones
+            # Cada 15 min: vigilancia IA + doble chequeo
             if minuto in (0, 15, 30, 45):
-                logger.info("[IMO-SCHED] Ejecutando doble chequeo de confirmaciones...")
+                # Vigilante IA: audita todo y alerta al gerente por WhatsApp
+                try:
+                    from vigilante_ia import ejecutar_vigilancia
+                    ejecutar_vigilancia()
+                except Exception as e:
+                    logger.error(f"[VIGILANTE] Error: {e}")
+
+                # Doble chequeo local (solo funciona en PC local)
                 try:
                     script_auditoria = r"C:\Users\josem\Downloads\CONTROL_SISTEMA_CREARLIMA\robot_doble_chequeo.py"
                     if os.path.exists(script_auditoria):
