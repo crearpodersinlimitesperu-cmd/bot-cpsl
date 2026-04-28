@@ -22,7 +22,7 @@ WA_API = f"https://graph.facebook.com/v19.0/{WA_PHONE_ID}/messages"
 SHEET_ID = os.environ.get("CRM_SHEET_ID", "1IoCYs1qfOTdn3XWyeK64jsUfAXOFgv3Wa6uJBM-lR2Y")
 
 # Teléfono del gerente (Jose Sanchez)
-GERENTE_TEL = os.environ.get("GERENTE_TEL", "513116024515")
+GERENTE_TEL = os.environ.get("GERENTE_TEL", "573116024515")
 GERENTE_NOMBRE = "Jose"
 
 # Archivo de estado persistente
