@@ -199,13 +199,44 @@ _cargar_graduados()
 # ── NORMALIZACIÓN ─────────────────────────────────────────────
 def _d(s): return re.sub(r'\D','',str(s or ''))
 def n9(t):  return _d(t)[-9:]
-def np(s):  # primer nombre
-    """CSV de IMOs tiene formato APELLIDO1 APELLIDO2 NOMBRE → tomar 3er token."""
-    p = [x for x in str(s or '').strip().split() if len(x)>2]
-    if not p: return str(s).strip().title()
-    if len(p) >= 3: return p[2].title()   # APELLIDO1 APELLIDO2 NOMBRE → NOMBRE
-    if len(p) == 2: return p[1].title()   # APELLIDO NOMBRE → NOMBRE
-    return p[0].title()
+
+def formatear_nombre_empatia(texto, solo_nombre=False):
+    """
+    Normaliza nombres peruanos de 'APELLIDO APELLIDO NOMBRE' a 'Nombre Apellido'.
+    Heurística: si hay 3+ tokens, los 2 primeros suelen ser apellidos.
+    """
+    if not texto: return ""
+    texto = str(texto).strip()
+    
+    # Si tiene coma, ya viene como "Apellidos, Nombres"
+    if "," in texto:
+        partes = [p.strip() for p in texto.split(",")]
+        if len(partes) >= 2:
+            nom, ape = partes[1], partes[0]
+            if solo_nombre: return nom.split()[0].title()
+            return f"{nom.title()} {ape.title()}"
+
+    tokens = [t for t in texto.split() if len(t) > 1]
+    if not tokens: return texto.title()
+
+    # Caso APELLIDO APELLIDO NOMBRE (3+)
+    if len(tokens) >= 3:
+        # Los 2 primeros son apellidos, el resto nombres
+        nombres = " ".join(tokens[2:])
+        apellidos = " ".join(tokens[:2])
+        if solo_nombre: return tokens[2].title()
+        return f"{nombres.title()} {apellidos.title()}"
+    
+    # Caso APELLIDO NOMBRE (2)
+    if len(tokens) == 2:
+        if solo_nombre: return tokens[1].title()
+        return f"{tokens[1].title()} {tokens[0].title()}"
+
+    return tokens[0].title()
+
+def np(s): 
+    """Retorna el primer nombre usando la lógica de empatía."""
+    return formatear_nombre_empatia(s, solo_nombre=True)
 
 # ── PERFIL CRM ────────────────────────────────────────────────
 def perfil_crm(tel):
@@ -244,11 +275,9 @@ def perfil_crm(tel):
     if imo_rows:
         p["tipo"]       = "IMO"
         p["nombre"]     = np(imo_rows[0].get("IMO",""))
-        p["imo_nombre"] = str(imo_rows[0].get("IMO","")).strip()
+        p["imo_nombre"] = formatear_nombre_empatia(imo_rows[0].get("IMO",""))
         p["pendientes"] = [
-            f"• {r.get('Nombre','').strip().title()} "
-            f"{r.get('Apellido','').strip().title()} "
-            f"({r.get('Equipo','')})"
+            f"• {formatear_nombre_empatia(f'{r.get('Apellido','')} {r.get('Nombre','')}')} ({r.get('Equipo','')})"
             for r in imo_rows
         ]
 
@@ -1240,7 +1269,7 @@ def _imo(tel, up, texto, s, p):
             todos = []
             for r in rows:
                 if n9(r.get("Tel. IMO","")) == t9:
-                    nom_px = f"{r.get('Nombre','').strip().title()} {r.get('Apellido','').strip().title()}"
+                    nom_px = formatear_nombre_empatia(f"{r.get('Apellido','')} {r.get('Nombre','')}")
                     eq     = r.get("Equipo","")
                     c1     = str(r.get("C1","")).strip().upper()
                     st_px  = "✅ Sentado" if c1=="SI" else "⏳ Pendiente"
@@ -2535,14 +2564,31 @@ def api_bienvenida_v1_estado():
     return jsonify({"corriendo": False, "enviados": 0, "total": 0}), 200
 
 
-# ── SCHEDULER: SEGUIMIENTO IMOs (cada 30 min refresh + mensajes diarios 9-17h) ──
+def _disparar_recordatorios_imos():
+    """Ejecuta el envío del recordatorio a los IMOs a las 10:00 AM usando texto libre (anti-spam)."""
+    logger.info("🚀 Iniciando envío de recordatorios a IMOs (Texto libre)...")
+    try:
+        from seguimiento_imos import enviar_recordatorios_imos
+        from sync_cloud import conectar_sheets
+        c = conectar_sheets()
+        if c:
+            enviar_recordatorios_imos(c, os.environ.get("CRM_SHEET_ID", "1IoCYs1qfOTdn3XWyeK64jsUfAXOFgv3Wa6uJBM-lR2Y"))
+            logger.info("✅ Recordatorios enviados a IMOs correctamente.")
+        else:
+            logger.error("❌ Sin conexión a Sheets para enviar recordatorios IMO.")
+    except Exception as e:
+        logger.error(f"Error en _disparar_recordatorios_imos: {e}")
+
+# ── SCHEDULER: SEGUIMIENTO IMOs Y RECORDATORIOS ──
 def _scheduler_imos():
     """
     1. Cada 30 min: ejecuta robot_gestion_llamadas para refrescar datos
-    2. 1x al dia (10am): envia mensajes a IMOs sobre px NC
+    2. Horarios fijos: IMOs Plantilla (7:30am) y Recordatorios Texto Libre (10:00am). Día previo C1 (30/04) todo a las 18:00.
     """
     import time as _time
+    import subprocess
     ya_enviado_hoy = set()
+    
     while True:
         try:
             hora = ahora().strftime("%H:%M")
@@ -2553,21 +2599,34 @@ def _scheduler_imos():
             if minuto in (0, 30):
                 logger.info("[IMO-SCHED] Refrescando datos de gestion...")
                 try:
-                    from seguimiento_imos import obtener_nc_por_imo
-                    # Solo loggear que se intentara - el robot real corre aparte
-                    logger.info("[IMO-SCHED] Datos listos para consulta")
+                    script_path = r"C:\Users\josem\Downloads\CONTROL_SISTEMA_CREARLIMA\robot_gestion_llamadas.py"
+                    if os.path.exists(script_path):
+                        subprocess.Popen(["python", script_path], cwd=os.path.dirname(script_path))
+                        logger.info("[IMO-SCHED] Ejecutando robot_gestion_llamadas.py en segundo plano...")
                 except Exception as e:
-                    logger.error(f"[IMO-SCHED] Error: {e}")
+                    logger.error(f"[IMO-SCHED] Error ejecutando robot: {e}")
 
-            # 10am diario: enviar mensajes a IMOs
-            clave_dia = f"{fecha}-imo"
-            if hora == "10:00" and clave_dia not in ya_enviado_hoy:
-                ya_enviado_hoy.add(clave_dia)
-                logger.info("[IMO-SCHED] Enviando mensajes NC a IMOs...")
+            # ── REGLAS DE HORARIOS ──
+            # Día previo al C1: 30 de abril
+            es_dia_previo = (fecha == "30/04")
+            
+            hora_imos = "18:00" if es_dia_previo else "07:30"
+            hora_recordatorios = "18:00" if es_dia_previo else "10:00"
+
+            clave_imo = f"{fecha}-imo"
+            if hora == hora_imos and clave_imo not in ya_enviado_hoy:
+                ya_enviado_hoy.add(clave_imo)
+                logger.info(f"[IMO-SCHED] Enviando mensajes principales a IMOs ({hora_imos})...")
                 _enviar_mensajes_imos()
 
+            clave_rec = f"{fecha}-rec"
+            if hora == hora_recordatorios and clave_rec not in ya_enviado_hoy:
+                ya_enviado_hoy.add(clave_rec)
+                logger.info(f"[RECORDATORIOS] Enviando recordatorios a IMOs ({hora_recordatorios})...")
+                _disparar_recordatorios_imos()
+
         except Exception as e:
-            logger.error(f"[IMO-SCHED] Error: {e}")
+            logger.error(f"[IMO-SCHED] Error general: {e}")
         _time.sleep(60)
 
 
@@ -2659,8 +2718,127 @@ def api_imo_force_send():
 
 
 
+# ── CRM DATA CACHE ──────────────────────────────────────────
+_CRM_CACHE = {"last_refresh": 0, "data": None, "otros": {}, "stats": ""}
 
-# ── DEBUG: LOG VIEWER ────────────────────────────────────────
+def refresh_crm_cache(force=False):
+    """Refresca la caché de datos del CRM desde Google Sheets (Múltiples pestañas)."""
+    import time
+    now = time.time()
+    if not force and _CRM_CACHE["data"] is not None and (now - _CRM_CACHE["last_refresh"] < 300):
+        return _CRM_CACHE["data"], _CRM_CACHE.get("otros", {})
+
+    try:
+        from sync_cloud import (
+            load_master_cloud, load_productividad_cloud, 
+            load_asignaciones_cloud, load_gestion_llamadas_cloud
+        )
+        df = load_master_cloud()
+        df_prod = load_productividad_cloud()
+        df_asig = load_asignaciones_cloud()
+        df_llamas = load_gestion_llamadas_cloud()
+        
+        otros = {
+            "productividad": df_prod,
+            "asignaciones": df_asig,
+            "gestion_llamadas": df_llamas
+        }
+
+        if not df.empty:
+            _CRM_CACHE["data"] = df
+            _CRM_CACHE["otros"] = otros
+            _CRM_CACHE["last_refresh"] = now
+            
+            # Generar estadísticas base para el prompt
+            total = len(df)
+            sentados = df['Estatus C1'].apply(lambda x: "SI" in str(x).upper() or "SENTADO" in str(x).upper()).sum() if 'Estatus C1' in df.columns else 0
+            graduados = df['Participación'].str.contains('GRADUADO', case=False, na=False).sum() if 'Participación' in df.columns else 0
+            
+            # Extra stats
+            prod_gestiones = len(df_prod) if not df_prod.empty else 0
+            asig_total = len(df_asig) if not df_asig.empty else 0
+            
+            _CRM_CACHE["stats"] = (
+                f"Total Base (Hoja 1): {total}. Sentados C1: {sentados}. Graduados: {graduados}. Meta C1: 325.\n"
+                f"Gestiones de Productividad: {prod_gestiones}. Asignaciones registradas: {asig_total}."
+            )
+            logger.info("Caché de CRM refrescada (Múltiples Pestañas) ✅")
+        return df, otros
+    except Exception as e:
+        logger.error(f"Error refrescando caché CRM: {e}")
+        return _CRM_CACHE["data"], _CRM_CACHE.get("otros", {})
+
+# API: Chat con el Cerebro (desde el CRM Web)
+@app.route("/api/chat", methods=["POST"])
+def api_chat():
+    """Recibe mensaje de la web, procesa con IA y responde."""
+    d = request.json or {}
+    msg = d.get("message", "")
+    source = d.get("source", "web")
+    
+    if not msg:
+        return jsonify({"reply": "No recibí ningún mensaje."}), 400
+
+    try:
+        from ia_chain import ia_responder
+        df, otros = refresh_crm_cache()
+        stats_txt = _CRM_CACHE["stats"]
+        
+        search_results = ""
+        msg_norm = msg.upper().strip()
+        
+        # Búsqueda robusta en Maestro y Productividad si el msj tiene más de 3 letras
+        if len(msg_norm) > 3 and df is not None:
+            cols = {c.strip().upper(): c for c in df.columns}
+            c_nom = cols.get('NOMBRES', 'Nombres')
+            c_ape = cols.get('APELLIDOS', 'Apellidos')
+            c_dni = cols.get('DNI', 'DNI')
+            c_tel = cols.get('TELÉFONO', cols.get('TELEFONO', 'Teléfono'))
+            c_est = cols.get('ESTATUS C1', 'Estatus C1')
+            c_coo = cols.get('COORDINADOR', 'Coordinador')
+
+            matches = []
+            try:
+                mask = (df[c_nom].astype(str).str.upper().str.contains(msg_norm, na=False) | 
+                        df[c_ape].astype(str).str.upper().str.contains(msg_norm, na=False) |
+                        df[c_dni].astype(str).str.contains(msg_norm, na=False) |
+                        df[c_tel].astype(str).str.contains(msg_norm, na=False))
+                results = df[mask].head(3)
+                for _, r in results.iterrows():
+                    info = f"- {r.get(c_nom)} {r.get(c_ape)} (DNI: {r.get(c_dni)}) -> C1: {r.get(c_est)}, CC: {r.get(c_coo)}"
+                    
+                    # Buscar si hay historial en Productividad
+                    df_prod = otros.get("productividad")
+                    if df_prod is not None and not df_prod.empty:
+                        prod_mask = df_prod['NombreCompleto'].astype(str).str.upper().str.contains(str(r.get(c_nom)).upper(), na=False)
+                        if prod_mask.any():
+                            last_gest = df_prod[prod_mask].iloc[-1]
+                            info += f" | Última Gestión: {last_gest.get('Resultado Gestión')} ({last_gest.get('Fecha Gestión')})"
+                    matches.append(info)
+            except Exception as se:
+                logger.warning(f"Search error: {se}")
+
+            if matches:
+                search_results = "\nHe encontrado estos registros en la base de datos (Maestro + Productividad):\n" + "\n".join(matches)
+
+        contexto = (
+            "Eres el Cerebro de CPSL (🔱), el asistente de inteligencia artificial definitivo y estratégico para el CRM de Crear Lima. "
+            "Estás entrenado para responder a consultas de usuarios internos: Gerentes (ej. José), Coordinadoras (Diana, Joyce, Zuley) y el CMJ (Coordinador de Maestría del Juego). "
+            "Tienes acceso a la información de todas las pestañas del CRM en la nube (Google Sheets): "
+            "1. Hoja 1 (Base Maestra), 2. PRODUCTIVIDAD, 3. ASIGNACIONES, 4. GESTION_LLAMADAS, etc.\n\n"
+            f"📊 ESTADO ACTUAL DE LA CAMPAÑA:\n{stats_txt}\n\n"
+            "TUS DIRECTRICES:\n"
+            "- Sé profesional, empático y orientado a resultados.\n"
+            "- Adapta tu respuesta al rol: Si es una coordinadora, dale foco a sus equipos y efectividad. Si es gerencia, enfócate en la Meta C1 (325) y panoramas globales. Si es el Coordinador de Maestría del Juego (CMJ), apóyalo con el estatus detallado de los prospectos y su historial.\n"
+            "- Si te preguntan por un participante, responde usando ÚNICAMENTE la data encontrada a continuación.\n"
+            "- Si te piden gráficas o análisis complejos, explícales los números disponibles o guíalos a la pestaña 'Sala de Guerra' del CRM donde se visualizan los gráficos interactivos.\n"
+            f"{search_results}"
+        )
+        reply = ia_responder(msg, contexto=contexto)
+        return jsonify({"reply": reply or "Lo siento, mi procesador está ocupado. Intenta de nuevo."}), 200
+    except Exception as e:
+        logger.error(f"Chat API error: {e}")
+        return jsonify({"reply": f"Error interno: {str(e)}"}), 500
 @app.route("/api/debug/logs")
 def api_debug_logs():
     try:

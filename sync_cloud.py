@@ -179,4 +179,35 @@ def load_asignaciones_cloud():
     except Exception as e:
         print(f"❌ Error cargando asignaciones cloud: {e}")
         return pd.DataFrame()
+def load_master_cloud():
+    """Carga los datos maestros de la Hoja 1 desde Google Sheets."""
+    client = conectar_sheets()
+    if not client: return pd.DataFrame()
+    try:
+        sh = client.open_by_key(SHEET_ID)
+        ws = sh.get_worksheet(0) # Hoja 1
+        data = ws.get_all_records()
+        if data:
+            return pd.DataFrame(data)
+        return pd.DataFrame()
+    except Exception as e:
+        print(f"❌ Error cargando master cloud: {e}")
+        return pd.DataFrame()
 
+def load_gestion_llamadas_cloud():
+    """Carga los datos de GESTION_LLAMADAS desde Google Sheets."""
+    client = conectar_sheets()
+    if not client: return pd.DataFrame()
+    try:
+        sh = client.open_by_key(SHEET_ID)
+        try:
+            ws = sh.worksheet("GESTION_LLAMADAS")
+            data = ws.get_all_records()
+            if data:
+                return pd.DataFrame(data)
+        except gspread.exceptions.WorksheetNotFound:
+            pass
+        return pd.DataFrame()
+    except Exception as e:
+        print(f"❌ Error cargando gestion_llamadas cloud: {e}")
+        return pd.DataFrame()

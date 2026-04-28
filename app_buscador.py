@@ -21,6 +21,39 @@ GSHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=x
 HIST_FILE = "Historial_Reportes.csv"
 META_OKS = 325
 
+# ── SESSION MANAGEMENT (REMEMBER ME) ─────────────────────────
+def check_auth():
+    if "authenticated" not in st.session_state:
+        # Trivial implementation of "Remember Me" for demo/web purposes
+        # In a real app, this would use secure cookies or database
+        st.session_state.authenticated = False
+
+    if not st.session_state.authenticated:
+        st.markdown("""
+            <div id="login-overlay">
+                <div style="background:white; padding:40px; border-radius:24px; width:400px; text-align:center;">
+                    <h2 style="color:#1e293b;">🔱 CRM Maestro</h2>
+                    <p style="color:#64748b;">Ingresa tus credenciales para acceder</p>
+                    <br>
+                    <input type="text" id="u" placeholder="Usuario" style="width:100%; padding:12px; border:1px solid #e2e8f0; border-radius:12px; margin-bottom:10px;">
+                    <input type="password" id="p" placeholder="Contraseña" style="width:100%; padding:12px; border:1px solid #e2e8f0; border-radius:12px; margin-bottom:10px;">
+                    <div style="text-align:left; margin-bottom:20px;">
+                        <input type="checkbox" id="rem" checked> <label for="rem" style="color:#475569; font-size:0.9rem;">Recordar sesión</label>
+                    </div>
+                    <button onclick="parent.postMessage('auth_ok', '*')" style="width:100%; background:#4f46e5; color:white; border:none; padding:14px; border-radius:12px; font-weight:700; cursor:pointer;">
+                        Iniciar Sesión
+                    </button>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+        # Handle the postMessage (simplified for Streamlit)
+        if st.button("🔓 Entrar al Sistema (Bypass Demo)"):
+            st.session_state.authenticated = True
+            st.rerun()
+        st.stop()
+
+check_auth()
+
 COORDS = {
     "DIANA":  "Diana Moscoso",
     "JOYCE":  "Joyce Marin",
@@ -33,20 +66,217 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
 html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-.stApp { background: #f1f5f9; }
+.stApp { background: #f8fafc; }
+
+/* Tarjetas */
 .war-card {
     background: white;
-    border-radius: 16px;
-    padding: 22px 26px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.07);
-    border-left: 6px solid #4f46e5;
-    margin-bottom: 18px;
+    border-radius: 20px;
+    padding: 24px;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.05);
+    border: 1px solid #e2e8f0;
+    margin-bottom: 20px;
+    transition: all 0.3s ease;
 }
-.status-ok   { background:#dcfce7; color:#166534; padding:3px 12px; border-radius:20px; font-weight:700; }
-.status-pend { background:#fef9c3; color:#854d0e; padding:3px 12px; border-radius:20px; font-weight:700; }
-.status-reza { background:#fee2e2; color:#991b1b; padding:3px 12px; border-radius:20px; font-weight:700; }
-[data-testid="stMetricValue"] { font-size:2rem !important; font-weight:800 !important; }
+.war-card:hover { transform: translateY(-2px); box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+
+/* Status Badges */
+.status-ok   { background:#dcfce7; color:#15803d; padding:4px 14px; border-radius:30px; font-weight:800; font-size:0.85rem; border:1px solid #bbf7d0; }
+.status-pend { background:#fef9c3; color:#a16207; padding:4px 14px; border-radius:30px; font-weight:800; font-size:0.85rem; border:1px solid #fef08a; }
+.status-reza { background:#fee2e2; color:#b91c1c; padding:4px 14px; border-radius:30px; font-weight:800; font-size:0.85rem; border:1px solid #fecaca; }
+
+/* Floating Cerebro Bubble */
+#cerebro-bubble {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    width: 65px;
+    height: 65px;
+    background: linear-gradient(135deg, #6366f1, #a855f7);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.5);
+    z-index: 9999;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+#cerebro-bubble:hover { 
+    transform: scale(1.1) translateY(-5px); 
+    box-shadow: 0 0 30px rgba(168, 85, 247, 0.7);
+}
+#cerebro-bubble i { color: white; font-size: 28px; }
+
+#chat-window {
+    position: fixed;
+    bottom: 110px;
+    right: 30px;
+    width: 400px;
+    height: 600px;
+    background: white;
+    border-radius: 28px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 9998;
+    border: 1px solid #f1f5f9;
+}
+.chat-header {
+    background: linear-gradient(135deg, #6366f1, #a855f7);
+    color: white;
+    padding: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.chat-messages {
+    flex: 1;
+    padding: 24px;
+    overflow-y: auto;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.msg { 
+    max-width: 85%; 
+    padding: 14px 18px; 
+    border-radius: 20px; 
+    font-size: 0.95rem; 
+    line-height: 1.5;
+    position: relative;
+}
+.msg-bot { 
+    background: #f1f5f9; 
+    color: #1e293b; 
+    border-bottom-left-radius: 4px;
+    align-self: flex-start;
+}
+.msg-user { 
+    background: #6366f1; 
+    color: white; 
+    border-bottom-right-radius: 4px;
+    align-self: flex-end;
+}
+.chat-input { 
+    padding: 20px; 
+    background: white; 
+    border-top: 1px solid #f1f5f9; 
+    display: flex; 
+    gap: 12px; 
+}
+.chat-input input { 
+    flex: 1; 
+    border: 1px solid #e2e8f0; 
+    border-radius: 14px; 
+    padding: 12px 18px; 
+    outline: none; 
+    font-size: 0.95rem;
+    transition: border-color 0.2s;
+}
+.chat-input input:focus { border-color: #6366f1; }
+.chat-input button { 
+    background: #6366f1; 
+    color: white; 
+    border: none; 
+    border-radius: 14px; 
+    width: 48px;
+    height: 48px;
+    cursor: pointer; 
+    transition: transform 0.2s;
+}
+.chat-input button:hover { transform: scale(1.05); }
+
+/* Login Overlay */
+#login-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: #0f172a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+.expert-badge {
+    background: rgba(255,255,255,0.2);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
 </style>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+<div id="cerebro-bubble" onclick="toggleChat()">
+    <i class="fas fa-brain"></i>
+</div>
+
+<div id="chat-window">
+    <div class="chat-header">
+        <div>
+            <span class="expert-badge">Expert Mode</span>
+            <div style="font-size:1.2rem; font-weight:800; margin-top:4px;">🧠 Cerebro CPSL</div>
+        </div>
+        <i class="fas fa-chevron-down" onclick="toggleChat()" style="cursor:pointer; opacity:0.8;"></i>
+    </div>
+    <div class="chat-messages" id="chat-msgs">
+        <div class="msg msg-bot">¡Hola! Soy el Cerebro de CPSL. Puedo generar gráficas, buscar datos en el CRM o darte resúmenes en tiempo real. ¿En qué puedo ayudarte?</div>
+    </div>
+    <div class="chat-input">
+        <input type="text" id="chat-in" placeholder="Escribe tu consulta..." onkeypress="if(event.key==='Enter') sendMsg()">
+        <button onclick="sendMsg()"><i class="fas fa-paper-plane"></i></button>
+    </div>
+</div>
+
+<script>
+function toggleChat() {
+    const win = document.getElementById('chat-window');
+    win.style.display = win.style.display === 'flex' ? 'none' : 'flex';
+}
+
+async function sendMsg() {
+    const input = document.getElementById('chat-in');
+    const msg = input.value.trim();
+    if (!msg) return;
+    
+    appendMsg(msg, 'user');
+    input.value = '';
+    
+    // Simular typing
+    const typing = document.createElement('div');
+    typing.className = 'msg msg-bot';
+    typing.innerHTML = '<i>Pensando...</i>';
+    document.getElementById('chat-msgs').appendChild(typing);
+    
+    try {
+        const response = await fetch('https://bot-cpsl.onrender.com/api/chat', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({message: msg, source: 'crm_web'})
+        });
+        const data = await response.json();
+        typing.remove();
+        appendMsg(data.reply || 'No pude procesar tu mensaje.', 'bot');
+    } catch (e) {
+        typing.remove();
+        appendMsg('Error de conexión con el Cerebro.', 'bot');
+    }
+}
+
+function appendMsg(text, type) {
+    const container = document.getElementById('chat-msgs');
+    const div = document.createElement('div');
+    div.className = 'msg msg-' + type;
+    div.innerText = text;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+}
+</script>
 """, unsafe_allow_html=True)
 
 # ── MOTOR DE PARSEO DE REPORTES WA ───────────────────────────
@@ -330,16 +560,29 @@ with tabs[0]:
     c7.metric("🔬 Verificados RENIEC", stats['verificados'])
     c8.metric("📊 Activos", stats['activos'])
 
-    # Gauge
+    # Gauge Circular Dinámico
     fig_gauge = go.Figure(go.Indicator(
         mode="gauge+number+delta", value=stats['sentados_c1'],
-        delta={'reference': META_OKS},
-        title={'text': f"Sentados C1 vs Meta ({META_OKS})"},
-        gauge={'axis': {'range': [None, max(META_OKS, stats['sentados_c1']+50)]},
-               'bar': {'color': "#10b981"},
-               'threshold': {'line': {'color': "#ef4444", 'width': 4}, 'value': META_OKS}}
+        delta={'reference': META_OKS, 'increasing': {'color': "#10b981"}},
+        title={'text': f"Confirmados C1 vs Meta", 'font': {'size': 20, 'weight': 'bold'}},
+        gauge={
+            'axis': {'range': [None, max(META_OKS, stats['sentados_c1']+20)], 'tickwidth': 1},
+            'bar': {'color': "#4f46e5"},
+            'bgcolor': "white",
+            'borderwidth': 2,
+            'bordercolor': "#e2e8f0",
+            'steps': [
+                {'range': [0, META_OKS*0.5], 'color': '#fee2e2'},
+                {'range': [META_OKS*0.5, META_OKS], 'color': '#fef9c3'}
+            ],
+            'threshold': {
+                'line': {'color': "#10b981", 'width': 5},
+                'thickness': 0.75,
+                'value': META_OKS
+            }
+        }
     ))
-    fig_gauge.update_layout(height=280, margin=dict(l=20, r=20, t=50, b=20))
+    fig_gauge.update_layout(height=350, margin=dict(l=30, r=30, t=60, b=30), font={'family': "Inter"})
     st.plotly_chart(fig_gauge, use_container_width=True)
 
     # ── REPORTES POR COORDINADOR (del historial WA/manual) ──

@@ -36,13 +36,29 @@ ENVIO_LOG = os.path.join(DATA_DIR, "imo_envios.json")
 def ahora():
     return datetime.now(TZ)
 
-def formatear_nombre_peruano(nombre_crudo):
-    if not nombre_crudo: return ""
-    crudo = nombre_crudo.strip()
-    partes = crudo.split()
-    if crudo.isupper() and len(partes) >= 3:
-        return " ".join(p.title() for p in partes[2:] + partes[:2])
-    return crudo.title()
+def formatear_nombre_peruano(texto, solo_nombre=False):
+    """
+    Normaliza nombres peruanos de 'APELLIDO APELLIDO NOMBRE' a 'Nombre Apellido'.
+    """
+    if not texto: return ""
+    texto = str(texto).strip()
+    if "," in texto:
+        partes = [p.strip() for p in texto.split(",")]
+        if len(partes) >= 2:
+            nom, ape = partes[1], partes[0]
+            if solo_nombre: return nom.split()[0].title()
+            return f"{nom.title()} {ape.title()}"
+    tokens = [t for t in texto.split() if len(t) > 1]
+    if not tokens: return texto.title()
+    if len(tokens) >= 3:
+        nombres = " ".join(tokens[2:])
+        apellidos = " ".join(tokens[:2])
+        if solo_nombre: return tokens[2].title()
+        return f"{nombres.title()} {apellidos.title()}"
+    if len(tokens) == 2:
+        if solo_nombre: return tokens[1].title()
+        return f"{tokens[1].title()} {tokens[0].title()}"
+    return tokens[0].title()
 
 def en_horario():
     h = ahora().hour
@@ -422,3 +438,51 @@ def obtener_respuestas_pendientes_cc(sheets_client, sheet_id, cc):
         return [r for r in rows if r.get("CC","").upper()==cc and r.get("Estado","").upper()=="PENDIENTE_CC"]
     except:
         return []
+
+def enviar_recordatorios_imos(sheets_client, sheet_id):
+    """
+    Envia un texto libre de recordatorio a los IMOs que aun tienen NC.
+    (Para uso dentro de la ventana de 24h).
+    """
+    from datetime import datetime
+    limite_campana = datetime.strptime("2026-04-30T21:00:00", "%Y-%m-%dT%H:%M:%S").replace(tzinfo=TZ)
+    if ahora() > limite_campana:
+        return 0
+
+    if not en_horario(): return 0
+    nc_data = obtener_nc_por_imo(sheets_client, sheet_id)
+    if not nc_data: return 0
+    
+    imos_tel = cargar_imos_con_telefono()
+    enviados = 0
+    
+    for cc_alias, imos_dict in nc_data.items():
+        cc_info = CC_CONTACTO.get(cc_alias, {})
+        if not cc_info: continue
+        for imo_nc_nombre, px_list in imos_dict.items():
+            if not px_list: continue
+            
+            imo_data_encontrada = None
+            for i_nom, i_data in imos_tel.items():
+                if i_nom.strip().upper() == imo_nc_nombre.strip().upper():
+                    imo_data_encontrada = i_data
+                    break
+            
+            if not imo_data_encontrada: continue
+            tel = imo_data_encontrada.get("tel", "")
+            if not tel: continue
+            
+            msg = (
+                f"⏳ *Recordatorio Rápido*\n\n"
+                f"Hola {formatear_nombre_peruano(imo_nc_nombre, True)}, aún quedan {len(px_list)} enrolados tuyos que no contestan:\n"
+                + "\n".join(f" - {p}" for p in px_list[:10])
+                + ("\n - ... y otros más" if len(px_list) > 10 else "")
+                + f"\n\nPor favor ayúdanos a contactarlos. Responde con su estado a *{cc_info['nombre']}* o por aquí."
+            )
+            
+            ok = _enviar_whatsapp(tel, msg)
+            if ok: enviados += 1
+            import time; time.sleep(10)
+            
+    log.info(f"[IMO-RECORDATORIO] {enviados} recordatorios enviados")
+    return enviados
