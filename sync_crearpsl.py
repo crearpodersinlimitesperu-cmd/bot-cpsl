@@ -1,222 +1,339 @@
-import os
-import json
-import time
+"""
+sync_crearpsl.py — Sincronizador maestro CPSL Lima
+====================================================
+Lee 7 endpoints de crearpslglobal.com/admin cada 30 minutos y vuelca todo a
+Google Sheets para que el bot-cpsl y el CRM-CREARLIMA trabajen con datos reales.
+
+Endpoints sincronizados:
+  1. datosparticipante.php?mostrar=todos
+  2. reporte_detallegestion.php
+  3. reporte_cierrefactura.php
+  4. resultado_llamadas.php          (C1)
+  5. resultado_llamadasc2.php        (C2)
+  6. listar_asignaciones.php         (C1)
+  7. listar_asignacionesc2.php       (C2)
+
+Hojas destino en el Sheet maestro (variable de entorno SHEET_CRM_ID):
+  CREARPSL_PARTICIPANTES
+  CREARPSL_GESTION
+  CREARPSL_FACTURAS
+  CREARPSL_LLAMADAS_C1
+  CREARPSL_LLAMADAS_C2
+  CREARPSL_ASIGNACIONES_C1
+  CREARPSL_ASIGNACIONES_C2
+  CREARPSL_AUDITORIA      (log de cada corrida)
+"""
+from __future__ import annotations
+import os, json, time, logging, threading
+from datetime import datetime, timezone, timedelta
+from typing import List, Dict, Any
+
 import requests
-import pandas as pd
 from bs4 import BeautifulSoup
-from io import StringIO
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
 
-# ====== CONFIGURACION ======
-CREARPSL_USER = os.getenv("CREARPSL_USER", "jsanchez")
-CREARPSL_PASS = os.getenv("CREARPSL_PASS", "crearpsl25")
-SHEET_CRM_ID = os.getenv("SHEET_CRM_ID", "1IoCYs1qfOTdn3XWyeK64jsUfAXOFgv3Wa6uJBM-lR2Y")
+log = logging.getLogger("sync_crearpsl")
+if not log.handlers:
+    h = logging.StreamHandler()
+    h.setFormatter(logging.Formatter("%(asctime)s [sync_crearpsl] %(levelname)s %(message)s"))
+    log.addHandler(h)
+    log.setLevel(logging.INFO)
 
-HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+# ── Configuración ────────────────────────────────────────────────────────
+BASE_URL    = "https://crearpslglobal.com/admin"
+LOGIN_URL   = f"{BASE_URL}/login.php"
+USUARIO     = os.environ.get("CREARPSL_USER", "jsanchez")
+PASSWORD    = os.environ.get("CREARPSL_PASS", "crearpsl25")
 
-URL_LOGIN = "https://crearpslglobal.com/admin/login.php"
-URL_AUTH = "https://crearpslglobal.com/admin/iniciar_sesion.php"
+# Nombres de los campos del form de login. Si no son estos, ajustar vía env vars.
+CAMPO_USR   = os.environ.get("CREARPSL_FIELD_USER", "usuario")
+CAMPO_PWD   = os.environ.get("CREARPSL_FIELD_PASS", "password")
 
+INTERVALO_SEG = int(os.environ.get("SYNC_INTERVAL_SEG", "1800"))  # 30 min
+SHEET_ID      = os.environ.get("SHEET_CRM_ID", "1IoCYs1qfOTdn3XWyeK64jsUfAXOFgv3Wa6uJBM-lR2Y")
+
+ENDPOINTS = [
+    {"hoja": "CREARPSL_PARTICIPANTES",     "url": f"{BASE_URL}/datosparticipante.php?mostrar=todos"},
+    {"hoja": "CREARPSL_GESTION",           "url": f"{BASE_URL}/reporte_detallegestion.php"},
+    {"hoja": "CREARPSL_FACTURAS",          "url": f"{BASE_URL}/reporte_cierrefactura.php"},
+    {"hoja": "CREARPSL_LLAMADAS_C1",       "url": f"{BASE_URL}/resultado_llamadas.php"},
+    {"hoja": "CREARPSL_LLAMADAS_C2",       "url": f"{BASE_URL}/resultado_llamadasc2.php"},
+    {"hoja": "CREARPSL_ASIGNACIONES_C1",   "url": f"{BASE_URL}/listar_asignaciones.php"},
+    {"hoja": "CREARPSL_ASIGNACIONES_C2",   "url": f"{BASE_URL}/listar_asignacionesc2.php"},
+]
+
+
+# ── Utilidades ───────────────────────────────────────────────────────────
+def ahora_lima() -> datetime:
+    return datetime.now(timezone.utc) - timedelta(hours=5)
+
+def normalizar_dni(v: str) -> str:
+    return "".join(c for c in str(v or "") if c.isdigit())[:8]
+
+def normalizar_telefono(v: str) -> str:
+    digitos = "".join(c for c in str(v or "") if c.isdigit())
+    if len(digitos) == 9:                  # 9XXXXXXXX → 519XXXXXXXX
+        return f"51{digitos}"
+    if len(digitos) == 11 and digitos.startswith("51"):
+        return digitos
+    return digitos
+
+def normalizar_nombre(v: str) -> str:
+    return " ".join(str(v or "").upper().split())
+
+
+# ── Scraper ──────────────────────────────────────────────────────────────
+class CrearPSLScraper:
+    """
+    Scraper para sistema PHP corporativo crearpslglobal.com/admin.
+    Mantiene una sesión HTTP persistente con cookies.
+    """
+
+    def __init__(self):
+        self.s = requests.Session()
+        self.s.headers.update({
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                          "AppleWebKit/537.36 (KHTML, like Gecko) "
+                          "Chrome/120.0 Safari/537.36",
+            "Accept-Language": "es-PE,es;q=0.9",
+        })
+        self._logueado = False
+
+    # ── Login ─────────────────────────────────────────────
+    def login(self) -> bool:
+        try:
+            # 1. GET inicial para recibir cookies de sesión PHP
+            self.s.get(LOGIN_URL, timeout=20)
+
+            # 2. POST de credenciales
+            payload = {CAMPO_USR: USUARIO, CAMPO_PWD: PASSWORD}
+            r = self.s.post(LOGIN_URL, data=payload, timeout=20, allow_redirects=True)
+
+            # 3. Validar éxito: si la URL final aún apunta a login.php es fail
+            url_final = r.url.lower()
+            if "login.php" in url_final and "error" in (r.text.lower()[:1000] if r.text else ""):
+                log.error("Login falló. La página devolvió error.")
+                return False
+            if "login.php" in url_final and r.status_code == 200:
+                # Algunos sistemas devuelven 200 sin redirigir: revisar si hay form de login
+                soup = BeautifulSoup(r.text, "html.parser")
+                if soup.find("input", {"type": "password"}):
+                    log.error(f"Login falló. Sigue mostrando form. "
+                              f"Verificar campos: {CAMPO_USR}/{CAMPO_PWD}")
+                    return False
+
+            self._logueado = True
+            log.info("✅ Login OK en crearpslglobal.com")
+            return True
+
+        except Exception as e:
+            log.error(f"Login excepción: {e}")
+            return False
+
+    # ── Scrape de tablas HTML ─────────────────────────────
+    def scrape_tabla(self, url: str) -> List[Dict[str, Any]]:
+        """
+        Extrae la primera tabla con datos (>1 fila) de la URL.
+        Retorna lista de dicts con headers como llaves.
+        """
+        try:
+            r = self.s.get(url, timeout=30)
+            if r.status_code != 200:
+                log.warning(f"GET {url} → {r.status_code}")
+                return []
+
+            # Si nos redirigieron al login → reintentar login y refetch
+            if "login.php" in r.url.lower():
+                log.warning(f"Sesión expiró en {url} — re-loguenado")
+                if self.login():
+                    r = self.s.get(url, timeout=30)
+                else:
+                    return []
+
+            soup = BeautifulSoup(r.text, "html.parser")
+
+            # Buscar la tabla con más filas (la "principal")
+            tablas = soup.find_all("table")
+            if not tablas:
+                log.warning(f"Sin tablas en {url}")
+                return []
+
+            tabla = max(tablas, key=lambda t: len(t.find_all("tr")))
+
+            # Extraer headers
+            headers = []
+            primera = tabla.find("tr")
+            if primera:
+                ths = primera.find_all(["th", "td"])
+                headers = [self._limpiar(th.get_text()) for th in ths]
+
+            # Extraer filas
+            filas = []
+            for tr in tabla.find_all("tr")[1:]:
+                celdas = [self._limpiar(td.get_text()) for td in tr.find_all(["td", "th"])]
+                if not any(celdas):  # fila vacía
+                    continue
+                # Empatar headers con celdas
+                row = {}
+                for i, val in enumerate(celdas):
+                    key = headers[i] if i < len(headers) else f"col_{i}"
+                    row[key] = val
+                filas.append(row)
+
+            log.info(f"  · {url.split('/')[-1]} → {len(filas)} filas")
+            return filas
+
+        except Exception as e:
+            log.error(f"scrape_tabla({url}) error: {e}")
+            return []
+
+    @staticmethod
+    def _limpiar(s: str) -> str:
+        return " ".join(str(s or "").split())
+
+
+# ── Sheets writer ─────────────────────────────────────────────────────────
 def conectar_sheets():
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds_json = os.environ.get("GOOGLE_CREDENTIALS")
-    if creds_json:
-        info = json.loads(creds_json)
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(info, scope)
-        return gspread.authorize(creds)
-    elif os.path.exists("credenciales.json"):
-        creds = ServiceAccountCredentials.from_json_keyfile_name("credenciales.json", scope)
-        return gspread.authorize(creds)
-    return None
+    """Retorna (svc, SHEET_ID) o (None, None) si falla."""
+    try:
+        from google.oauth2 import service_account
+        from googleapiclient.discovery import build
 
-def push_to_sheet(client, sh, sheet_name, df):
-    try:
-        ws = sh.worksheet(sheet_name)
-    except gspread.exceptions.WorksheetNotFound:
-        ws = sh.add_worksheet(title=sheet_name, rows=1000, cols=30)
-    
-    # Obtener data existente para cruzar timestamps
-    try:
-        existing_data = ws.get_all_records()
-        if existing_data:
-            df_old = pd.DataFrame(existing_data)
-        else:
-            df_old = pd.DataFrame()
+        creds_json = os.environ.get("GOOGLE_CREDENTIALS", "")
+        if not creds_json:
+            log.warning("GOOGLE_CREDENTIALS no definido")
+            return None, None
+
+        creds = service_account.Credentials.from_service_account_info(
+            json.loads(creds_json),
+            scopes=["https://www.googleapis.com/auth/spreadsheets"]
+        )
+        svc = build("sheets", "v4", credentials=creds, cache_discovery=False)
+        return svc, SHEET_ID
     except Exception as e:
-        df_old = pd.DataFrame()
+        log.error(f"conectar_sheets error: {e}")
+        return None, None
 
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    if not df.empty:
-        df = df.fillna("").astype(str)
-        # Añadir columna de fecha por defecto
-        df['Fecha_Actualizacion'] = now_str
-        
-        if not df_old.empty and 'Fecha_Actualizacion' in df_old.columns and len(df_old) > 0:
-            # Crear claves de comparación asumiendo que NombreCompleto y ApellidoCompleto o DNI existen
-            # o podemos concatenar todas las columnas excepto Fecha_Actualizacion
-            cols_to_compare = [c for c in df.columns if c != 'Fecha_Actualizacion' and c in df_old.columns]
-            
-            # Convertimos ambos a string para asegurar el merge
-            df_old = df_old.fillna("").astype(str)
-            
-            if 'NombreCompleto' in df.columns:
-                pk = 'NombreCompleto'
-            elif 'Nombres' in df.columns:
-                pk = 'Nombres'
-            else:
-                pk = df.columns[0] # Fallback a la primera columna
-                
-            # Mergear para rescatar el timestamp viejo
-            merged = df.merge(df_old[[pk, 'Fecha_Actualizacion'] + [c for c in cols_to_compare if c != pk]], on=pk, how='left', suffixes=('', '_old'))
-            
-            # Revisar si hay cambios en las columnas de gestion (Ultima Gestion, Comentario, etc) o cualquier otra
-            for i, row in merged.iterrows():
-                changed = False
-                for c in cols_to_compare:
-                    if c != pk and f"{c}_old" in merged.columns:
-                        if row[c] != row[f"{c}_old"]:
-                            changed = True
-                            break
-                if not changed and pd.notna(row.get('Fecha_Actualizacion_old')) and str(row.get('Fecha_Actualizacion_old')).strip() != "nan" and str(row.get('Fecha_Actualizacion_old')).strip() != "":
-                    df.at[i, 'Fecha_Actualizacion'] = row['Fecha_Actualizacion_old']
-            
-        ws.clear()
-        ws.update([df.columns.values.tolist()] + df.values.tolist())
-    print(f"✅ Uploaded {len(df)} rows to {sheet_name}")
 
-def iterar_reporte(s, url, table_index=1):
-    # Fetch initial to get dropdown options
-    r = s.get(url, headers=HEADERS)
-    soup = BeautifulSoup(r.text, 'html.parser')
-    
-    eq_select = soup.find('select', id='cbnEquipo')
-    cc_select = soup.find('select', {'id': ['IdCoordinador', 'cbnCoordinador']})
-    
-    if not eq_select or not cc_select:
-        return pd.DataFrame()
-
-    equipos = [opt['value'] for opt in eq_select.find_all('option') if opt.get('value')]
-    ccs = [opt['value'] for opt in cc_select.find_all('option') if opt.get('value')]
-    
-    cc_name_attr = cc_select.get('name')
-    
-    all_dfs = []
-    for eq in equipos:
-        for cc in ccs:
-            data = {
-                'cbnEquipo': eq,
-                cc_name_attr: cc,
-                'userId': CREARPSL_USER,
-                'invoice_btn': 'Consultar'
-            }
-            res = s.post(url, data=data, headers=HEADERS)
-            try:
-                dfs = pd.read_html(StringIO(res.text), flavor='lxml')
-                if len(dfs) > table_index:
-                    df = dfs[table_index]
-                    # Drop last row if it's "Total"
-                    if not df.empty and str(df.iloc[-1, 0]).strip().lower() == 'total':
-                        df = df.iloc[:-1]
-                    
-                    if not df.empty:
-                        df['Filter_Eq'] = eq
-                        df['Filter_CC'] = cc
-                        all_dfs.append(df)
-            except Exception as e:
-                pass
-            time.sleep(0.1) # Be nice to the server
-            
-    if all_dfs:
-        return pd.concat(all_dfs, ignore_index=True)
-    return pd.DataFrame()
-
-def iniciar_sync():
-    print("🚀 Iniciando Sincronizador OMNI CrearPSL...")
-    s = requests.Session()
-    s.headers.update(HEADERS)
-    
-    s.get(URL_LOGIN)
-    r_auth = s.post(URL_AUTH, data={'usuario': CREARPSL_USER, 'password': CREARPSL_PASS, 'ingresar': ''})
-    
-    if "iniciar_sesion.php" in r_auth.url or "login" in r_auth.url:
-        print("❌ Fallo en el login.")
-        # Try alternative
-        r_auth = s.post(URL_AUTH, data={'usuario': CREARPSL_USER, 'clave': CREARPSL_PASS, 'ingresar': ''})
-    
-    client = conectar_sheets()
-    if not client:
-        print("❌ No se pudo conectar a Google Sheets.")
+def escribir_hoja(svc, sheet_id: str, hoja: str, filas: List[Dict[str, Any]]):
+    """Reemplaza el contenido de una hoja con los datos nuevos."""
+    if not filas:
+        log.warning(f"  ⚠ {hoja}: sin filas, no se escribe")
         return
-    
-    sh = client.open_by_key(SHEET_CRM_ID)
-    
-    # 1. Participantes
-    print("Fetching Participantes...")
-    try:
-        r = s.get('https://crearpslglobal.com/admin/datosparticipante.php?mostrar=todos')
-        dfs = pd.read_html(StringIO(r.text), flavor='lxml')
-        push_to_sheet(client, sh, 'CREARPSL_PARTICIPANTES', dfs[0])
-    except Exception as e: print("Error Participantes:", e)
 
-    # 2. Asignaciones C1
-    print("Fetching Asignaciones C1...")
     try:
-        r = s.get('https://crearpslglobal.com/admin/listar_asignaciones.php')
-        dfs = pd.read_html(StringIO(r.text), flavor='lxml')
-        push_to_sheet(client, sh, 'CREARPSL_ASIGNACIONES_C1', dfs[0])
-    except Exception as e: print("Error Asignaciones C1:", e)
+        # 1. Crear hoja si no existe
+        meta = svc.spreadsheets().get(spreadsheetId=sheet_id).execute()
+        existentes = [s["properties"]["title"] for s in meta.get("sheets", [])]
+        if hoja not in existentes:
+            svc.spreadsheets().batchUpdate(spreadsheetId=sheet_id, body={
+                "requests": [{"addSheet": {"properties": {"title": hoja}}}]
+            }).execute()
 
-    # 3. Asignaciones C2
-    print("Fetching Asignaciones C2...")
+        # 2. Limpiar la hoja
+        svc.spreadsheets().values().clear(
+            spreadsheetId=sheet_id, range=f"{hoja}!A:ZZ"
+        ).execute()
+
+        # 3. Escribir headers + filas
+        headers = list(filas[0].keys())
+        rows = [headers] + [[r.get(h, "") for h in headers] for r in filas]
+
+        svc.spreadsheets().values().update(
+            spreadsheetId=sheet_id,
+            range=f"{hoja}!A1",
+            valueInputOption="RAW",
+            body={"values": rows}
+        ).execute()
+
+        log.info(f"  ✓ {hoja}: {len(filas)} filas escritas")
+
+    except Exception as e:
+        log.error(f"escribir_hoja({hoja}) error: {e}")
+
+
+def escribir_auditoria(svc, sheet_id: str, resultados: Dict[str, int], duracion: float):
+    """Append una fila al log de auditoría."""
     try:
-        r = s.get('https://crearpslglobal.com/admin/listar_asignacionesc2.php')
-        dfs = pd.read_html(StringIO(r.text), flavor='lxml')
-        push_to_sheet(client, sh, 'CREARPSL_ASIGNACIONES_C2', dfs[0])
-    except Exception as e: print("Error Asignaciones C2:", e)
+        meta = svc.spreadsheets().get(spreadsheetId=sheet_id).execute()
+        existentes = [s["properties"]["title"] for s in meta.get("sheets", [])]
+        hoja = "CREARPSL_AUDITORIA"
+        if hoja not in existentes:
+            svc.spreadsheets().batchUpdate(spreadsheetId=sheet_id, body={
+                "requests": [{"addSheet": {"properties": {"title": hoja}}}]
+            }).execute()
+            svc.spreadsheets().values().update(
+                spreadsheetId=sheet_id, range=f"{hoja}!A1",
+                valueInputOption="RAW",
+                body={"values": [["TIMESTAMP", "ENDPOINT", "FILAS", "DURACION_SEG", "ESTADO"]]}
+            ).execute()
 
-    # 4. Detalle Gestion
-    print("Fetching Gestion Llamadas...")
-    try:
-        df_gestion = iterar_reporte(s, 'https://crearpslglobal.com/admin/reporte_detallegestion.php', table_index=1)
-        push_to_sheet(client, sh, 'CREARPSL_GESTION', df_gestion)
-    except Exception as e: print("Error Gestion:", e)
+        ts = ahora_lima().strftime("%Y-%m-%d %H:%M:%S")
+        rows = []
+        for ep, n in resultados.items():
+            rows.append([ts, ep, n, f"{duracion:.1f}", "OK" if n > 0 else "VACIO"])
 
-    # 5. Cierre Factura
-    print("Fetching Cierre Factura...")
-    try:
-        df_fac = iterar_reporte(s, 'https://crearpslglobal.com/admin/reporte_cierrefactura.php', table_index=1)
-        push_to_sheet(client, sh, 'CREARPSL_FACTURAS', df_fac)
-    except Exception as e: print("Error Facturas:", e)
+        svc.spreadsheets().values().append(
+            spreadsheetId=sheet_id, range=f"{hoja}!A:E",
+            valueInputOption="RAW", insertDataOption="INSERT_ROWS",
+            body={"values": rows}
+        ).execute()
+    except Exception as e:
+        log.error(f"escribir_auditoria error: {e}")
 
-    # 6. Resultados C1
-    print("Fetching Llamadas C1...")
-    try:
-        df_c1 = iterar_reporte(s, 'https://crearpslglobal.com/admin/resultado_llamadas.php', table_index=1)
-        push_to_sheet(client, sh, 'CREARPSL_LLAMADAS_C1', df_c1)
-    except Exception as e: print("Error Llamadas C1:", e)
 
-    # 7. Resultados C2
-    print("Fetching Llamadas C2...")
-    try:
-        df_c2 = iterar_reporte(s, 'https://crearpslglobal.com/admin/resultado_llamadasc2.php', table_index=1)
-        push_to_sheet(client, sh, 'CREARPSL_LLAMADAS_C2', df_c2)
-    except Exception as e: print("Error Llamadas C2:", e)
-    
-    print("🏁 Sincronizacion completada.")
+# ── Loop principal ───────────────────────────────────────────────────────
+def correr_una_vez():
+    """Ejecuta una sincronización completa de los 7 endpoints."""
+    inicio = time.time()
+    log.info("═" * 60)
+    log.info(f"⚡ Sincronización CrearPSL — {ahora_lima():%Y-%m-%d %H:%M:%S} Lima")
+    log.info("═" * 60)
 
-def iniciar_thread():
-    import threading
-    def worker():
-        while True:
-            try:
-                iniciar_sync()
-            except Exception as e:
-                print(f"Error general sync: {e}")
-            time.sleep(1800)
-    t = threading.Thread(target=worker, daemon=True)
+    scraper = CrearPSLScraper()
+    if not scraper.login():
+        log.error("Login fallido — abortando ciclo")
+        return
+
+    svc, sheet_id = conectar_sheets()
+    if not svc:
+        log.error("Sheets no disponible — abortando ciclo")
+        return
+
+    resultados: Dict[str, int] = {}
+    for ep in ENDPOINTS:
+        filas = scraper.scrape_tabla(ep["url"])
+        resultados[ep["hoja"]] = len(filas)
+        if filas:
+            escribir_hoja(svc, sheet_id, ep["hoja"], filas)
+        time.sleep(2)  # cortesía con el servidor
+
+    duracion = time.time() - inicio
+    escribir_auditoria(svc, sheet_id, resultados, duracion)
+
+    total = sum(resultados.values())
+    log.info(f"✅ Ciclo completo: {total} filas en {duracion:.1f}s")
+    log.info("═" * 60)
+
+
+def loop_sincronizador():
+    """Loop infinito — corre cada INTERVALO_SEG segundos."""
+    while True:
+        try:
+            correr_una_vez()
+        except Exception as e:
+            log.error(f"Loop error: {e}")
+        log.info(f"⏸ Próxima sync en {INTERVALO_SEG//60} min...")
+        time.sleep(INTERVALO_SEG)
+
+
+def iniciar_thread() -> threading.Thread:
+    """Llamar esto desde bot_whatsapp.py al startup."""
+    t = threading.Thread(target=loop_sincronizador, daemon=True, name="sync_crearpsl")
     t.start()
+    log.info(f"🚀 Sync CrearPSL iniciado — intervalo {INTERVALO_SEG//60} min")
+    return t
+
 
 if __name__ == "__main__":
-    iniciar_sync()
+    # Modo standalone: una corrida y termina
+    correr_una_vez()
