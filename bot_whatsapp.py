@@ -2081,14 +2081,8 @@ try:
     _SEG_OK = True
     logger.info(f"✅ Worker seguimiento GitHub cargado (AUTO={SEG_AUTO}, HORA={SEG_HORA})")
       # ── Sincronizador CrearPSL Global ──
-try:
-    from sync_crearpsl import iniciar_thread as iniciar_sync_crearpsl
-    iniciar_sync_crearpsl()
-    log.info("✅ Sync CrearPSL iniciado — cada 30 min")
-except Exception as e:
-    log.warning(f"⚠ Sync CrearPSL no inició: {e}")
+logger.info(f"✅ Worker seguimiento GitHub cargado (AUTO={SEG_AUTO}, HORA={SEG_HORA})")
 except ImportError:
-    try:
         from seguimiento_autonomo import (
             run_seguimiento, _estado_worker,
         )
