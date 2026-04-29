@@ -185,8 +185,23 @@ def obtener_nc_por_imo(sheets_client, sheet_id):
         log.error(f"[IMO] Error leyendo Sheets PRODUCTIVIDAD: {e}")
         return {}
         
-    resultado = {}
+    # Deduplicar por participante quedándonos con su gestión más reciente (última fila)
+    px_dict = {}
     for r in rows:
+        nombres = str(r.get("NombreCompleto", "")).strip()
+        apellidos = str(r.get("ApellidoCompleto", "")).strip()
+        cliente_id = str(r.get("ClienteId", "")).strip()
+        
+        if not nombres:
+            continue
+            
+        px_key = cliente_id if cliente_id else f"{nombres.upper()} {apellidos.upper()}"
+        px_dict[px_key] = r
+        
+    rows_unicos = list(px_dict.values())
+
+    resultado = {}
+    for r in rows_unicos:
         # 1. Filtro: Resultado de la Gestión = NO CONTESTA
         resultado_gestion = str(r.get("Resultado Gestión", "")).upper().strip()
         if resultado_gestion != "NO CONTESTA" and "NO CONTEST" not in resultado_gestion:
