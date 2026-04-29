@@ -196,7 +196,8 @@ def obtener_nc_por_imo(sheets_client, sheet_id):
             continue
             
         px_key = cliente_id if cliente_id else f"{nombres.upper()} {apellidos.upper()}"
-        px_dict[px_key] = r
+        if px_key not in px_dict:
+            px_dict[px_key] = r
         
     rows_unicos = list(px_dict.values())
 
