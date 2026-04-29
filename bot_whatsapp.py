@@ -2080,6 +2080,13 @@ try:
     )
     _SEG_OK = True
     logger.info(f"✅ Worker seguimiento GitHub cargado (AUTO={SEG_AUTO}, HORA={SEG_HORA})")
+      # ── Sincronizador CrearPSL Global ──
+try:
+    from sync_crearpsl import iniciar_thread as iniciar_sync_crearpsl
+    iniciar_sync_crearpsl()
+    log.info("✅ Sync CrearPSL iniciado — cada 30 min")
+except Exception as e:
+    log.warning(f"⚠ Sync CrearPSL no inició: {e}")
 except ImportError:
     try:
         from seguimiento_autonomo import (
@@ -2335,20 +2342,34 @@ def _flujo_gerente(tel, up, texto):
         s["st_jose"] = "MENU"; set_s(tel, s)
         return
 
-    if up == "3":
-        # Consolidado CRM real desde Google Sheets
-        try:
-            kpi_msg = kpi_consolidado_whatsapp()
-            wa(tel, kpi_msg, "GERENTE")
-        except Exception as e:
-            logger.error(f"KPI consolidado: {e}")
-            consolidado = consolidar_reportes()
-            if consolidado:
-                wa(tel, consolidado, "GERENTE")
-            else:
-                wa(tel, "Sin datos de consolidado.", "GERENTE")
-        s["st_jose"] = "MENU"; set_s(tel, s)
-        return
+    if up == "3":
+
+        # Consolidado CRM real desde Google Sheets
+
+        try:
+
+            kpi_msg = kpi_consolidado_whatsapp()
+
+            wa(tel, kpi_msg, "GERENTE")
+
+        except Exception as e:
+
+            logger.error(f"KPI consolidado: {e}")
+
+            consolidado = consolidar_reportes()
+
+            if consolidado:
+
+                wa(tel, consolidado, "GERENTE")
+
+            else:
+
+                wa(tel, "Sin datos de consolidado.", "GERENTE")
+
+        s["st_jose"] = "MENU"; set_s(tel, s)
+
+        return
+
 
     if up == "4":
         s["st_jose"] = "AVISO_MASIVO"; set_s(tel, s)
