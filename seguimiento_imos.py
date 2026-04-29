@@ -173,56 +173,59 @@ def cargar_imos_con_telefono():
 
 def obtener_nc_por_imo(sheets_client, sheet_id):
     """
-    Lee GESTION_LLAMADAS, filtra los "NO CONTESTAN" y busca a su IMO Asignado 
-    usando la base de datos CSV.
+    Lee PRODUCTIVIDAD, filtra los que NO CONTESTAN en la última gestión 
+    y que NO SE HAN SENTADO en C1 (ni desertaron).
     Retorna: {cc_alias: {imo_nombre: [px_nombres]}}
     """
     try:
         sh = sheets_client.open_by_key(sheet_id)
-        ws = sh.worksheet("GESTION_LLAMADAS")
-        rows = ws.get_all_records()
+        ws = sh.worksheet("PRODUCTIVIDAD")
+        rows = ws.get_all_records(default_blank="")
     except Exception as e:
-        log.error(f"[IMO] Error leyendo Sheets: {e}")
+        log.error(f"[IMO] Error leyendo Sheets PRODUCTIVIDAD: {e}")
         return {}
         
-    # Cargar el mapeo de PX -> IMO desde el CSV
-    px_a_imo = {}
-    csv_path = os.path.join(BASE_DIR, "E27_participantes_limpio.csv")
-    if os.path.exists(csv_path):
-        import csv
-        with open(csv_path, encoding="utf-8-sig") as f:
-            for r in csv.DictReader(f):
-                px_nom = str(r.get("Nombres", "")).strip().upper()
-                px_ape = str(r.get("Apellidos", "")).strip().upper()
-                imo_nom = r.get("Nombre_IMO", "").strip()
-                if px_nom and imo_nom:
-                    px_a_imo[f"{px_nom} {px_ape}"] = imo_nom
-
     resultado = {}
     for r in rows:
-        primera = str(r.get("Primera_Llamada", "")).upper().strip()
-        if primera != "NO CONTESTAN":
+        # 1. Filtro: Resultado de la Gestión = NO CONTESTA
+        resultado_gestion = str(r.get("Resultado Gestión", "")).upper().strip()
+        if resultado_gestion != "NO CONTESTA" and "NO CONTEST" not in resultado_gestion:
             continue
             
-        cc = str(r.get("CC_Alias", "")).upper().strip()
-        nombres = str(r.get("Nombres", "")).strip()
-        apellidos = str(r.get("Apellidos", "")).strip()
+        # 2. Filtro: Asistencia (no sentados). Excluimos desertores y sentados
+        asistencia = str(r.get("Asistencia", "")).upper().strip()
+        
+        # Si ya se sentó (SI, CONFIRMADO) o desertó (DESERTOR), no notificar
+        if asistencia in ['SI', 'CONFIRMADO', 'SENTADO', '✓', '✔', 'ASISTIRA', 'DESERTOR']:
+            continue
+        if 'SENTADO' in asistencia or 'CONFIRMADO' in asistencia or 'DESERTOR' in asistencia:
+            continue
+            
+        cc = str(r.get("Coordinador", "")).upper().strip()
+        # Normalizar nombres de CC a las alias (ZULEY, DIANA, JOYCE)
+        cc_alias = cc
+        for alias, data in CC_CONTACTO.items():
+            if data["nombre"].upper() in cc or alias in cc:
+                cc_alias = alias
+                break
+                
+        nombres = str(r.get("NombreCompleto", "")).strip()
+        apellidos = str(r.get("ApellidoCompleto", "")).strip()
         if not nombres:
             continue
             
         px = f"{nombres} {apellidos}".strip()
-        px_key = f"{nombres.upper()} {apellidos.upper()}".strip()
+        imo_real = str(r.get("Nombre IMO", "")).strip()
         
-        # Encontrar IMO Real
-        imo_real = px_a_imo.get(px_key, "")
-        if not imo_real:
-            continue # Si no tiene IMO, no hay a quien avisar
+        if not imo_real or imo_real.lower() == "nan" or imo_real == "—":
+            continue
 
-        if cc not in resultado:
-            resultado[cc] = {}
-        if imo_real not in resultado[cc]:
-            resultado[cc][imo_real] = []
-        resultado[cc][imo_real].append(px)
+        if cc_alias not in resultado:
+            resultado[cc_alias] = {}
+        if imo_real not in resultado[cc_alias]:
+            resultado[cc_alias][imo_real] = []
+        if px not in resultado[cc_alias][imo_real]:
+            resultado[cc_alias][imo_real].append(px)
 
     return resultado
 
