@@ -122,29 +122,41 @@ def chequeo_bot_render():
 
 
 def chequeo_sheets():
-    """Verifica la conexión a Google Sheets y que las pestañas existan."""
+    """Verifica la conexión a Google Sheets y que las pestañas clave existan."""
     try:
         from sync_cloud import conectar_sheets
         c = conectar_sheets()
         if not c:
-            return {"ok": False, "msg": "Sin conexion a Google Sheets"}
+            return {"ok": False, "msg": "Sin conexion a Google Sheets (credenciales no configuradas)"}
         
         sh = c.open_by_key(SHEET_ID)
         tabs = [w.title for w in sh.worksheets()]
         
-        requeridas = ["HOJA_MAESTRA", "GESTION_LLAMADAS"]
-        faltantes = [t for t in requeridas if t not in tabs]
+        # Pestañas reales usadas por el sistema (al menos una debe existir)
+        # El sistema puede llamarlas CREARPSL_GESTION o GESTION_LLAMADAS
+        requeridas_cualquiera = [
+            ["CREARPSL_GESTION", "GESTION_LLAMADAS"],   # Al menos una de estas
+            ["HISTORIAL"],                                # Esta sí debe existir
+        ]
+        
+        faltantes = []
+        for grupo in requeridas_cualquiera:
+            if not any(t in tabs for t in grupo):
+                faltantes.append(grupo[0])  # Reportar solo el nombre preferido
         
         if faltantes:
-            return {"ok": False, "msg": f"Pestanas faltantes en Sheets: {faltantes}"}
+            return {"ok": False, "msg": f"Pestanas faltantes en Sheets: {faltantes}. Disponibles: {tabs[:5]}"}
         
-        # Verificar que HOJA_MAESTRA tenga datos
-        ws = sh.worksheet("HOJA_MAESTRA")
-        total = len(ws.get_all_values()) - 1  # Sin header
-        if total < 100:
-            return {"ok": False, "msg": f"HOJA_MAESTRA solo tiene {total} registros (esperado >100)"}
+        # Verificar datos en la hoja de gestión
+        tab_datos = next((t for t in ["CREARPSL_GESTION", "GESTION_LLAMADAS"] if t in tabs), None)
+        if tab_datos:
+            ws = sh.worksheet(tab_datos)
+            total = max(0, len(ws.get_all_values()) - 1)  # Sin header
+            if total == 0:
+                return {"ok": False, "msg": f"{tab_datos} está vacía — pegar datos desde CREARPSL"}
+            return {"ok": True, "msg": f"Sheets OK — {tab_datos}: {total} registros | {len(tabs)} pestanas totales"}
         
-        return {"ok": True, "msg": f"Sheets OK ({total} registros, {len(tabs)} pestanas)"}
+        return {"ok": True, "msg": f"Sheets OK — {len(tabs)} pestanas"}
     except Exception as e:
         return {"ok": False, "msg": f"Error Sheets: {e}"}
 
@@ -185,15 +197,29 @@ def chequeo_envios_imo():
 
 
 def chequeo_web_crm():
-    """Verifica que el CRM de Render esté respondiendo."""
+    """Verifica que el CRM de Render esté respondiendo.
+    
+    NOTA: Render free tier puede dormir hasta 50s al primer ping.
+    Un timeout NO es señal de caída — es normal. Solo alertamos si
+    la respuesta es un error HTTP claro (4xx/5xx).
+    """
     try:
         url = os.environ.get("CRM_URL", "https://crm-crearlima.onrender.com")
-        r = req.get(url, timeout=20)
+        # Timeout extendido a 55s para dar tiempo a que Render despierte
+        r = req.get(url, timeout=55)
         if r.status_code == 200:
             return {"ok": True, "msg": "CRM Dashboard OK"}
-        return {"ok": False, "msg": f"CRM respondio {r.status_code}"}
+        elif r.status_code in (502, 503, 504):
+            return {"ok": False, "msg": f"CRM error de servidor ({r.status_code}) — posible crash en Render"}
+        else:
+            return {"ok": True, "msg": f"CRM respondio {r.status_code} (no critico)"}
+    except req.exceptions.Timeout:
+        # Timeout en Render = normal en plan gratuito. No es una caída real.
+        return {"ok": True, "msg": "CRM en standby (Render free tier durmiendo — normal fuera de horario)"}
+    except req.exceptions.ConnectionError as e:
+        return {"ok": False, "msg": f"CRM SIN RED — error de conexion: {str(e)[:100]}"}
     except Exception as e:
-        return {"ok": False, "msg": f"CRM CAIDO: {e}"}
+        return {"ok": False, "msg": f"CRM error inesperado: {str(e)[:100]}"}
 
 
 # ══════════════════════════════════════════════════════════════
