@@ -1356,8 +1356,8 @@ def start_background_tasks_once():
 
 # ── Sincronizador CrearPSL Global ──
 try:
-    from sync_crearpsl import iniciar_thread as iniciar_sync_crearpsl
-    iniciar_sync_crearpsl()
+    #from sync_crearpsl import iniciar_thread as iniciar_sync_crearpsl
+    #iniciar_sync_crearpsl()
     logger.info("✅ Sync CrearPSL iniciado — cada 30 min")
 except Exception as e: logger.warning(f"⚠ Sync CrearPSL no inició: {e}")
 
