@@ -2080,15 +2080,18 @@ try:
     )
     _SEG_OK = True
     logger.info(f"✅ Worker seguimiento GitHub cargado (AUTO={SEG_AUTO}, HORA={SEG_HORA})")
-      # ── Sincronizador CrearPSL Global ──
-logger.info(f"✅ Worker seguimiento GitHub cargado (AUTO={SEG_AUTO}, HORA={SEG_HORA})")
 except ImportError:
+    try:
         from seguimiento_autonomo import (
             run_seguimiento, _estado_worker,
         )
         _SEG_OK = True
         logger.info("✅ Worker seguimiento_autonomo cargado")
     except ImportError:
+        _SEG_OK = False
+        _estado_worker = {"corriendo":False,"ok":0,"err":0,"total":0,"ultimo":"No disponible","log":[]}
+        def run_seguimiento(**kw): return {"error":"Worker no encontrado"}
+        logger.warning("⚠️ Worker seguimiento no encontrado")
         _SEG_OK = False
         _estado_worker = {"corriendo":False,"ok":0,"err":0,"total":0,"ultimo":"No disponible","log":[]}
         def run_seguimiento(**kw): return {"error":"Worker no encontrado"}
