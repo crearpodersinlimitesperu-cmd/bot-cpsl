@@ -3,10 +3,14 @@ Bot WhatsApp — Crear Poder Sin Límites Perú
 V112-FIX: Corrección de sintaxis + dependencias
 ✅ LISTO PARA COPIAR Y PEGAR EN RENDER
 """
-import os, re, json, time, csv, base64, random, logging, threading, queue
+import os, re, json, time, csv, base64, random, logging, threading, queue, smtplib
 from flask import Flask, request, jsonify
 from datetime import datetime, timedelta, timezone
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 import requests as req_lib
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -84,7 +88,6 @@ def ahora(): return datetime.now(TZ_LIMA)
 STAFF = {
     "dmoscoso": {"nombre": "Diana Moscoso", "tel": "51912379744"},
     "jmarin": {"nombre": "Joyce Marín", "tel": "51933599903"},
-    "zurteaga": {"nombre": "Zuley Urteaga", "tel": "51933599864"},
 }
 _carga = {k: 0 for k in STAFF}
 _carga_lk = threading.Lock()
@@ -99,8 +102,8 @@ def cc_add(k):
 
 # Mapa equipo → coordinadora para DERIVACIONES
 _CC_POR_EQUIPO = {
-    "EQUIPO 26": "dmoscoso", "EQUIPO 25": "jmarin", "EQUIPO 24": "zurteaga",
-    "EQUIPO 23": "zurteaga", "EQUIPO 22": "jmarin", "EQUIPO 21": "jmarin",
+    "EQUIPO 26": "dmoscoso", "EQUIPO 25": "jmarin", "EQUIPO 24": "dmoscoso",
+    "EQUIPO 23": "jmarin", "EQUIPO 22": "jmarin", "EQUIPO 21": "jmarin",
     "EQUIPO 20": "jmarin", "EQUIPO 19": "dmoscoso", "EQUIPO 18": "dmoscoso",
     "EQUIPO 17": "dmoscoso", "EQUIPO 16": "dmoscoso", "EQUIPO 15": "dmoscoso",
     "EQUIPO 14": "dmoscoso",
@@ -116,8 +119,10 @@ class Cfg:
     PHONE_ID = os.environ.get("WA_PHONE_ID","")
     VER_TOKEN = os.environ.get("WA_VERIFY_TOKEN","cpsl2026")
     SHEET_ID = os.environ.get("SHEET_ID","")
-    CREDS = os.environ.get("GOOGLE_CREDENTIALS","")
+    SHEDS = os.environ.get("GOOGLE_CREDENTIALS","")
     SHEET_TAB = os.environ.get("SHEET_TAB","Hoja 1")
+    GMAIL_USER = "crearpodersinlimitesperu@gmail.com"
+    GMAIL_PASS = os.environ.get("GMAIL_APP_PASS", "bgsl xjus xsmn pzqd")
     LOCK_T = 5
     CSV = os.path.join(BASE_DIR, "Prospectos_Pendientes_C1_Depurado_Campana.csv")
     S_REAL = os.path.join(DATA_DIR, "sesiones.json")
@@ -383,7 +388,98 @@ def wa(tel, txt, log="BOT"):
             return False
     except Exception as e: logger.error(f"wa() excepción tel={tel}: {e}"); return False
 
+
+EMAILS_CC = {
+    "dmoscoso": "diana.moscoso@crearpsl.com",
+    "jmarin": "joyce.marin@crearpsl.com"
+}
+
+def sync_cc_all(p, motivo, extra=""):
+    try:
+        cc_key = p.get("staff_key") or cc_libre()
+        nom_cc = p.get("staff_nom") or STAFF.get(cc_key, {}).get("nombre", "Coordinación")
+        nom_px = p.get("nombre_full") or p.get("nombre", "Sin nombre")
+        tel_px = p.get("_tel", "")
+        
+        # 1. ACTUALIZAR GOOGLE SHEETS
+        if Cfg.SHEET_ID and Cfg.SHEDS:
+            try:
+                scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+                creds = ServiceAccountCredentials.from_json_keyfile_dict(json.loads(Cfg.SHEDS), scope)
+                client = gspread.authorize(creds)
+                sh = client.open_by_key(Cfg.SHEET_ID)
+                
+                # A. LOG_DERIVACIONES
+                ws_log = sh.worksheet("LOG_DERIVACIONES")
+                ws_log.append_row([
+                    ahora().strftime("%d/%m/%Y"), 
+                    ahora().strftime("%H:%M"), 
+                    nom_cc, nom_px, tel_px, motivo, "DERIVADO"
+                ])
+                
+                # B. RESUMEN_DERIVACIONES (Mantener el formato del Excel)
+                ws_res = sh.worksheet("RESUMEN_DERIVACIONES")
+                cell = ws_res.find(nom_cc)
+                if cell:
+                    row = cell.row
+                    # Incrementar CASOS TOTALES (Col B)
+                    val = ws_res.cell(row, 2).value or 0
+                    ws_res.update_cell(row, 2, int(val) + 1)
+                    
+                    # Incrementar URGENTES si aplica (Col C)
+                    urgente = "DEVOLUCION" in motivo.upper() or "PLATA" in motivo.upper() or "URGENTE" in motivo.upper()
+                    if urgente:
+                        val_u = ws_res.cell(row, 3).value or 0
+                        ws_res.update_cell(row, 3, int(val_u) + 1)
+                    
+                    # Incrementar CONFIRMACIONES (LOG) (Col D)
+                    if "CONFIRMA" in motivo.upper():
+                        val_c = ws_res.cell(row, 4).value or 0
+                        ws_res.update_cell(row, 4, int(val_c) + 1)
+
+                    # Incrementar OPCION 4 / INFO (Col E)
+                    if "OPCION 4" in motivo.upper() or "INFO" in motivo.upper():
+                        val_i = ws_res.cell(row, 5).value or 0
+                        ws_res.update_cell(row, 5, int(val_i) + 1)
+            except Exception as e:
+                logger.error(f"sync_cc_all Sheets Error: {e}")
+
+        # 2. ENVIAR CORREO ELECTRÓNICO
+        email_dest = EMAILS_CC.get(cc_key)
+        if email_dest:
+            try:
+                msg = MIMEMultipart()
+                msg['From'] = Cfg.GMAIL_USER
+                msg['To'] = email_dest
+                msg['Subject'] = f"🚨 DERIVACIÓN: {nom_px} ({motivo})"
+                
+                body = f"""
+                <html>
+                <body style='font-family: Arial, sans-serif; color: #333;'>
+                    <h2 style='color: #1d4ed8;'>Nuevo Caso Derivado - CPSL Lima</h2>
+                    <p><b>Participante:</b> {nom_px}</p>
+                    <p><b>Teléfono:</b> <a href='https://wa.me/{tel_px}'>{tel_px}</a></p>
+                    <p><b>Motivo:</b> {motivo}</p>
+                    <p><b>Detalle:</b> {extra}</p>
+                    <hr>
+                    <p style='font-size: 12px; color: #666;'>Sincronizado automáticamente por el Cerebro Cuántico CPSL.</p>
+                </body>
+                </html>
+                """
+                msg.attach(MIMEText(body, 'html'))
+                
+                with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+                    server.login(Cfg.GMAIL_USER, Cfg.GMAIL_PASS)
+                    server.send_message(msg)
+                logger.info(f"📧 Correo enviado a {email_dest} para {nom_px}")
+            except Exception as e:
+                logger.error(f"sync_cc_all Email Error: {e}")
+                
+    except Exception as e:
+        logger.error(f"sync_cc_all General Error: {e}")
+
 def notif_cc(p, motivo, extra=""):
+    sync_cc_all(p, motivo, extra)
     tel_cc = p.get("staff_tel") or STAFF[cc_libre()]["tel"]
     nom_cc = p.get("staff_nom") or "Coordinación"
     nom_full = p.get("nombre_full") or ""
@@ -425,7 +521,6 @@ def notif_cc(p, motivo, extra=""):
 _CC_TELS = {
     "51912379744": {"key":"dmoscoso","nombre":"Diana","nombre_full":"Diana Moscoso"},
     "51933599903": {"key":"jmarin","nombre":"Joyce","nombre_full":"Joyce Marín"},
-    "51933599864": {"key":"zurteaga","nombre":"Zuley","nombre_full":"Zuley Urteaga"},
 }
 
 def _menu_cc(tel_cc, nom):
