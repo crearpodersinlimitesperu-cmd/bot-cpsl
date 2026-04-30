@@ -9,6 +9,9 @@ from email.mime.text import MIMEText
 from datetime import datetime
 import pandas as pd
 import threading
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Importar ecosistema CREAR LIMA
 try:
@@ -35,6 +38,19 @@ def disparar_alertas_matutinas():
     if df_prod.empty:
         print("Error: Base de datos vacía.")
         return
+        
+    # FILTRO ESTRICTO DE CAMPAÑA C1E27
+    if 'Equipo' in df_prod.columns:
+        df_prod = df_prod[df_prod['Equipo'] == 'EQUIPO 27']
+        
+    def es_sentado(val):
+        v = str(val).upper().strip()
+        if v in ['SI', 'CONFIRMADO', 'SENTADO', '✓', '✔', 'ASISTIRA']: return True
+        if 'SENTADO' in v or 'CONFIRMADO' in v or '✓' in v or '✔' in v: return True
+        return False
+        
+    df_prod['EsSentado'] = df_prod['Asistencia'].apply(es_sentado) if 'Asistencia' in df_prod.columns else False
+    df_prod['EsDesertor'] = df_prod['Asistencia'].str.upper().str.contains('DESERTOR', na=False) if 'Asistencia' in df_prod.columns else False
         
     df_no_sentados = df_prod[~df_prod['EsSentado'] & ~df_prod['EsDesertor']]
     
