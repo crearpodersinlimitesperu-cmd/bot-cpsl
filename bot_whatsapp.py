@@ -8,7 +8,7 @@ from flask import Flask, request, jsonify
 from datetime import datetime, timedelta, timezone
 import requests as req_lib
 from dotenv import load_dotenv
-from filelock import FileLock, Timeout as FileLockTimeout
+load_dotenv()
 
 # Imports opcionales con manejo seguro
 try:
@@ -37,8 +37,7 @@ except ImportError:
     push_reporte_jose = None
     kpi_consolidado_whatsapp = None
 
-# Cargar variables de entorno desde .env
-load_dotenv()
+from filelock import FileLock, Timeout as FileLockTimeout
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("CPSL")
