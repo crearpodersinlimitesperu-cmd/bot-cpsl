@@ -23,9 +23,9 @@ EMAIL_GERENCIA = "crearpodersinlimitesperu@gmail.com"
 EMAIL_PASS = os.environ.get("GMAIL_APP_PASS", "AQUÍ_VA_TU_CLAVE_DE_16_LETRAS")
 
 COORDS_INFO = {
-    "Diana Moscoso": {"email": "dmoscoso@crearlima.com", "wa": "51912379744"},
-    "Joyce Marin": {"email": "jmarin@crearlima.com", "wa": "51933599903"},
-    "Zuley Urteaga": {"email": "zurteaga@crearlima.com", "wa": "51933599864"}
+    "Diana Moscoso": {"email": "diana.moscoso@crearpsl.com", "wa": "51912379744"},
+    "Joyce Marin": {"email": "joyce.marin@crearpsl.com", "wa": "51933599903"},
+    "Zuley Urteaga": {"email": "zuley.urteaga@crearpsl.com", "wa": "51933599864"}
 }
 
 # ── 1. RUTINA 8:50 AM: DISPARAR ALERTAS (CORREO + WA) ──
