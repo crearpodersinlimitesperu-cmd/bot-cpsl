@@ -1152,6 +1152,97 @@ def api_bienvenida_plantilla_iniciar():
     threading.Thread(target=_run, daemon=True, name="masivo_plantilla").start()
     return jsonify({"ok": True, "msg": f"Envío masivo con plantilla iniciado ({limite} pxs)."}), 200
 
+# ══════════════════════════════════════════════════════════════
+# ENDPOINT: ENVÍO MASIVO DE PLANTILLA APROBADA POR LOTE
+# Recibe JSON con lista de contactos [{tel, nombre}] y plantilla
+# ══════════════════════════════════════════════════════════════
+_envio_plantilla_estado = {"corriendo": False, "total": 0, "enviados": 0, "errores": 0, "log": []}
+
+def _wa_template_send(tel, nombre, template_name="emergencia_enrolamiento", lang="es"):
+    """Envía una plantilla aprobada de WhatsApp con parámetro {{1}}=nombre."""
+    if not Cfg.TOKEN:
+        logger.error("_wa_template_send: WA_TOKEN vacío")
+        return False
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": str(tel),
+        "type": "template",
+        "template": {
+            "name": template_name,
+            "language": {"code": lang},
+            "components": [
+                {"type": "body", "parameters": [{"type": "text", "text": nombre}]}
+            ]
+        }
+    }
+    try:
+        r = req_lib.post(
+            f"https://graph.facebook.com/v19.0/{Cfg.PHONE_ID}/messages",
+            json=payload,
+            headers={"Authorization": f"Bearer {Cfg.TOKEN}", "Content-Type": "application/json"},
+            timeout=15
+        )
+        if r.status_code == 200:
+            logger.info(f"TEMPLATE OK -> {tel} ({nombre})")
+            return True
+        err = r.json().get("error", {})
+        logger.error(f"TEMPLATE FAIL {tel}: {r.status_code} - {err.get('message','?')[:150]}")
+        return False
+    except Exception as e:
+        logger.error(f"TEMPLATE EXC {tel}: {e}")
+        return False
+
+@app.route("/api/plantilla/enviar_lote", methods=["POST"])
+def api_plantilla_enviar_lote():
+    """Recibe {contactos: [{tel, nombre}], plantilla: str, pausa: int} y envía en hilo."""
+    global _envio_plantilla_estado
+    if _envio_plantilla_estado["corriendo"]:
+        return jsonify({"ok": False, "msg": "Ya hay un envío en curso.", "estado": _envio_plantilla_estado}), 409
+
+    d = request.get_json(silent=True) or {}
+    contactos = d.get("contactos", [])
+    plantilla = d.get("plantilla", "emergencia_enrolamiento")
+    pausa = max(int(d.get("pausa", 20)), 5)  # mínimo 5 segundos entre mensajes
+
+    if not contactos:
+        return jsonify({"ok": False, "msg": "Lista de contactos vacía."}), 400
+
+    _envio_plantilla_estado = {"corriendo": True, "total": len(contactos), "enviados": 0, "errores": 0, "log": []}
+
+    def _run_lote():
+        global _envio_plantilla_estado
+        try:
+            for i, c in enumerate(contactos):
+                tel = str(c.get("tel", "")).strip()
+                nombre = str(c.get("nombre", "Amigo/a")).strip().title()
+                if not tel or len(tel) < 10:
+                    _envio_plantilla_estado["errores"] += 1
+                    _envio_plantilla_estado["log"].append(f"SKIP: tel inválido '{tel}'")
+                    continue
+                ok = _wa_template_send(tel, nombre, template_name=plantilla)
+                if ok:
+                    _envio_plantilla_estado["enviados"] += 1
+                    _envio_plantilla_estado["log"].append(f"OK: {nombre} ({tel})")
+                else:
+                    _envio_plantilla_estado["errores"] += 1
+                    _envio_plantilla_estado["log"].append(f"FAIL: {nombre} ({tel})")
+                if i < len(contactos) - 1:
+                    time.sleep(pausa)
+        except Exception as e:
+            logger.error(f"enviar_lote error: {e}", exc_info=True)
+            _envio_plantilla_estado["log"].append(f"ERROR FATAL: {e}")
+        finally:
+            _envio_plantilla_estado["corriendo"] = False
+            logger.info(f"Lote plantilla finalizado: {_envio_plantilla_estado['enviados']}/{_envio_plantilla_estado['total']}")
+
+    import threading
+    threading.Thread(target=_run_lote, daemon=True, name="envio_plantilla_lote").start()
+    return jsonify({"ok": True, "msg": f"Envío iniciado: {len(contactos)} contactos con plantilla '{plantilla}' (pausa {pausa}s)", "total": len(contactos)}), 200
+
+@app.route("/api/plantilla/estado")
+def api_plantilla_estado():
+    """Devuelve el estado actual del envío masivo de plantillas."""
+    return jsonify(_envio_plantilla_estado), 200
 @app.route("/api/bienvenida/v1/iniciar", methods=["POST"])
 def api_bienvenida_v1_iniciar():
     import threading; d = request.json or {}; limite = min(int(d.get("limite", 50) or 50), 100)
