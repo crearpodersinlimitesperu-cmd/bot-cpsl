@@ -310,7 +310,7 @@ def ia_responder(prompt, contexto="px_respuesta", timeout=8):
     cached = _cg(ck)
     if cached: return cached
 
-    system = PROMPTS.get(contexto, CPSL_CTX)
+    system = PROMPTS.get(contexto, contexto if len(contexto) > 50 else CPSL_CTX)
 
     for fn, nombre, _ in CADENA_IA:
         if fn is None: continue

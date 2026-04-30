@@ -271,17 +271,69 @@ def generar_mensaje_imo(imo_nombre, px_nc_list, cc_alias, es_primera_vez=False):
             f"Gracias! -- CREAR Lima"
         )
     else:
-        hora = ahora().strftime("%H:%M")
-        saludos = ["Buen dia", "Hola", "Saludos"]
-        saludo = saludos[ahora().day % len(saludos)]
-        return (
-            f"{saludo} {imo_nombre},\n\n"
-            f"Seguimos sin contactar a {n} enrolados tuyos:\n\n"
-            f"{px_txt}\n\n"
-            f"Ayudanos a confirmarlos.\n"
-            f"CC: *{cc_nom}* (wa.me/{cc_tel})\n\n"
-            f"Responde con nombre + estado de cada uno."
-        )
+        dia_semana = ahora().weekday() # 0 = Lunes, 6 = Domingo
+        
+        if dia_semana == 0:
+            return (
+                f"Excelente inicio de semana {imo_nombre} 🙌\n\n"
+                f"Tenemos a {n} de tus enrolados que aún no logramos contactar:\n\n"
+                f"{px_txt}\n\n"
+                f"¿Podrías darnos una mano revisando su estatus?\n"
+                f"Comunícate con *{cc_nom}* al wa.me/{cc_tel} o responde aquí mismo con el detalle.\n"
+                f"¡Vamos con todo por ese C1!"
+            )
+        elif dia_semana == 1:
+            return (
+                f"Hola {imo_nombre}, esperando que tengas un excelente día.\n\n"
+                f"Seguimos en la búsqueda de estos {n} participantes de tu equipo que no contestan:\n\n"
+                f"{px_txt}\n\n"
+                f"Por favor, ayúdanos a ubicarlos. Tu apoyo es clave para que no se queden fuera.\n"
+                f"Cualquier duda, escribe a tu CC: *{cc_nom}* (wa.me/{cc_tel}).\n"
+                f"Quedo atento a tus respuestas sobre cada uno."
+            )
+        elif dia_semana == 2:
+            return (
+                f"¡Buen día {imo_nombre}! Mitad de semana y seguimos a full. 🚀\n\n"
+                f"Te escribo porque hay {n} personas tuyas pendientes que no logramos ubicar:\n\n"
+                f"{px_txt}\n\n"
+                f"Danos una alerta rápida si ya confirmaron contigo o si necesitan apoyo extra.\n"
+                f"CC asignada: *{cc_nom}* (wa.me/{cc_tel}).\n"
+                f"¡Gracias por el seguimiento!"
+            )
+        elif dia_semana == 3:
+            return (
+                f"Hola {imo_nombre}, ¡el tiempo vuela y el C1 está cada vez más cerca! ⏳\n\n"
+                f"Tenemos {n} de tus enrolados en estado 'No Contesta':\n\n"
+                f"{px_txt}\n\n"
+                f"Necesitamos tu intervención urgente para asegurar su asistencia.\n"
+                f"Comunícate con ellos y dinos qué pasó, o escribe directo a *{cc_nom}* (wa.me/{cc_tel}).\n"
+                f"Respondeme indicando el estatus de cada uno por favor."
+            )
+        elif dia_semana == 4:
+            return (
+                f"¡Viernes de cierre {imo_nombre}! Aún estamos a tiempo de sentar a todos. 🔥\n\n"
+                f"Estos {n} participantes siguen sin responder a las llamadas:\n\n"
+                f"{px_txt}\n\n"
+                f"¿Lograste hablar con ellos? Por favor envíanos su estatus actualizado para sacarlos de esta lista de alertas.\n"
+                f"Tu CC: *{cc_nom}* (wa.me/{cc_tel})."
+            )
+        elif dia_semana == 5:
+            return (
+                f"Hola {imo_nombre}, feliz fin de semana. No paramos hasta verlos en la sala. 💪\n\n"
+                f"Aún quedan {n} enrolados tuyos sin confirmar asistencia:\n\n"
+                f"{px_txt}\n\n"
+                f"Apóyanos contactándolos en estos días clave. \n"
+                f"Avisale a tu coordinadora *{cc_nom}* al wa.me/{cc_tel} o respóndeme por aquí la situación de cada participante."
+            )
+        else:
+            return (
+                f"¡Buen domingo {imo_nombre}! Disculpa la interrupción hoy, pero estamos afinando los últimos detalles. 🌟\n\n"
+                f"Nos figuran {n} personas de tu equipo que no han contestado:\n\n"
+                f"{px_txt}\n\n"
+                f"Cuando tengas un momento, revísalo y déjanos un mensaje con su estado para actualizar el sistema.\n"
+                f"CC: *{cc_nom}* (wa.me/{cc_tel}).\n"
+                f"¡Un abrazo!"
+            )
 
 
 def enviar_seguimiento_diario(sheets_client, sheet_id):

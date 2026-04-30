@@ -211,7 +211,7 @@ def ia_responder(prompt, contexto="general", timeout=8):
     """
     Intenta con 5 IAs gratuitas rotando hasta que una funcione.
     """
-    system = _SYSTEM.get(contexto, "")
+    system = _SYSTEM.get(contexto, contexto)
     proveedores = [
         (_gemini, "Gemini"),
         (_groq, "Groq"),

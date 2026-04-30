@@ -81,13 +81,11 @@ def _en_entrenamiento():
 
 def ahora(): return datetime.now(TZ_LIMA)
 
-# ── STAFF ────────────────────────────────────────────────────
+# ── STAFF (SOLO CCs ACTIVAS — Diana, Joyce, Zuley) ──────────
 STAFF = {
     "dmoscoso": {"nombre": "Diana Moscoso", "tel": "51912379744"},
     "jmarin": {"nombre": "Joyce Marín", "tel": "51933599903"},
-    "lpasquel": {"nombre": "Leyla Pasquel", "tel": "51919502385"},
     "zurteaga": {"nombre": "Zuley Urteaga", "tel": "51933599864"},
-    "lvalencia": {"nombre": "Linid Valencia", "tel": "51912379686"},
 }
 _carga = {k: 0 for k in STAFF}
 _carga_lk = threading.Lock()
@@ -429,8 +427,6 @@ _CC_TELS = {
     "51912379744": {"key":"dmoscoso","nombre":"Diana","nombre_full":"Diana Moscoso"},
     "51933599903": {"key":"jmarin","nombre":"Joyce","nombre_full":"Joyce Marín"},
     "51933599864": {"key":"zurteaga","nombre":"Zuley","nombre_full":"Zuley Urteaga"},
-    "51919502385": {"key":"lpasquel","nombre":"Leyla","nombre_full":"Leyla Pasquel"},
-    "51912379686": {"key":"lvalencia","nombre":"Linid","nombre_full":"Linid Valencia"},
 }
 
 def _menu_cc(tel_cc, nom):
