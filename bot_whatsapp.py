@@ -1211,8 +1211,10 @@ def api_plantilla_enviar_lote():
 
     def _run_lote():
         global _envio_plantilla_estado
+        logger.info(f"HILO PLANTILLA ARRANCADO: {len(contactos)} contactos, plantilla={plantilla}, pausa={pausa}s")
         try:
             for i, c in enumerate(contactos):
+                logger.info(f"PLANTILLA [{i+1}/{len(contactos)}] procesando...")
                 tel = str(c.get("tel", "")).strip()
                 nombre = str(c.get("nombre", "Amigo/a")).strip().title()
                 if not tel or len(tel) < 10:
@@ -1243,6 +1245,13 @@ def api_plantilla_enviar_lote():
 def api_plantilla_estado():
     """Devuelve el estado actual del envío masivo de plantillas."""
     return jsonify(_envio_plantilla_estado), 200
+
+@app.route("/api/plantilla/reset", methods=["POST"])
+def api_plantilla_reset():
+    """Resetea el estado del envío para poder re-lanzar."""
+    global _envio_plantilla_estado
+    _envio_plantilla_estado = {"corriendo": False, "total": 0, "enviados": 0, "errores": 0, "log": ["RESET manual"]}
+    return jsonify({"ok": True, "msg": "Estado reseteado."}), 200
 @app.route("/api/bienvenida/v1/iniciar", methods=["POST"])
 def api_bienvenida_v1_iniciar():
     import threading; d = request.json or {}; limite = min(int(d.get("limite", 50) or 50), 100)
