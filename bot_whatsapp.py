@@ -1601,6 +1601,25 @@ def api_chat():
         return jsonify({"reply": reply or "Lo siento, mi procesador está ocupado. Intenta de nuevo."}), 200
     except Exception as e: logger.error(f"Chat API error: {e}"); return jsonify({"reply": f"Error interno: {str(e)}"}), 500
 
+@app.route("/api/debug/test_wa")
+def api_debug_test_wa():
+    tel = request.args.get("tel")
+    if not tel: return jsonify({"error": "Falta parámetro tel"}), 400
+    try:
+        import requests as req_lib
+        payload = {"messaging_product": "whatsapp", "to": str(tel), "type": "text", "text": {"body": "📡 Prueba de fuego desde Render."}}
+        headers = {"Authorization": f"Bearer {Cfg.TOKEN}", "Content-Type": "application/json"}
+        r = req_lib.post(f"https://graph.facebook.com/v19.0/{Cfg.PHONE_ID}/messages", json=payload, headers=headers, timeout=10)
+        return jsonify({
+            "status_code": r.status_code,
+            "response_json": r.json(),
+            "tel": tel,
+            "phone_id_usado": Cfg.PHONE_ID,
+            "token_inicio": Cfg.TOKEN[:15] + "..." if Cfg.TOKEN else "VACIO"
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route("/api/debug/status")
 def api_debug_status():
     status = {
