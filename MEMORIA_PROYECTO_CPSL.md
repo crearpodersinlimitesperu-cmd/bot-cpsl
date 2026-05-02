@@ -964,3 +964,37 @@ threading.Thread(target=_wsheets, daemon=False, name="wsheets").start()
 > **Documento creado por Claude (Anthropic) en sesión del 02 mayo 2026.**
 > **Última edición:** 02 mayo 2026, ~01:38 Lima.
 > **Próxima actualización sugerida:** después del cierre C1 E27 (3 mayo) y de la primera corrida exitosa del sync.
+
+---
+
+## 17. Anexos y Herramientas de Pruebas (Checklist)
+
+### 17.1 Comandos cURL (Pruebas Manuales)
+
+**Verificar webhook (GET):**
+```bash
+curl -X GET "https://bot-cpsl.onrender.com/webhook?hub.mode=subscribe&hub.verify_token=<VERIFY_TOKEN>&hub.challenge=1234"
+```
+
+**Enviar mensaje de prueba (Graph API Meta):**
+```bash
+curl -X POST "https://graph.facebook.com/v18.0/1085205258006361/messages" \
+     -H "Authorization: Bearer $WHATSAPP_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "messaging_product": "whatsapp",
+       "to": "5191xxxxxxx",
+       "type": "text",
+       "text": {"body": "Hola desde prueba"}
+     }'
+```
+
+### 17.2 Checklist Operativo (Deploy Render)
+
+- [x] **Logs de inicio:** Al arrancar la app en Render, se debe ver `✅ CSV cargado: N filas`.
+- [x] **Verificación webhook:** Al hacer GET con hub.verify_token correcto, debe retornar el hub.challenge.
+- [x] **Recepción de mensajes:** Cada mensaje entrante debe aparecer en logs con `🟢 Mensaje entrante de ...`.
+- [x] **Respuesta del bot:** Tras enviar un texto al número del bot, éste debe responder instantáneamente según el menú. En logs aparecerá `📤 Enviando a ...` y luego `📨 Respuesta WA: 200 ...`.
+- [x] **Reintentos:** Si WhatsApp API responde error temporal, la función `wa_client` intentará hasta 3 veces (log `Reintentar envío 🔄`).
+- [x] **Fallback anti-silencio:** Si envías un texto no válido (p.ej. “xyz”), el bot debe responder con “No entendí tu mensaje...” o el menú, y no quedarse en silencio. (Implementado globalmente en `flujo()`).
+
