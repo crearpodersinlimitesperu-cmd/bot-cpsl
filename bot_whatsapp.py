@@ -1458,7 +1458,8 @@ def api_bienvenida_v1_estado():
     return jsonify({"corriendo": False, "enviados": 0, "total": 0}), 200
 
 def _disparar_recordatorios_imos():
-    logger.info("🚀 Iniciando envío de recordatorios a IMOs (Texto libre)...")
+    logger.info("⏸️ Envío de recordatorios a IMOs PAUSADO por reprogramación de fecha C1.")
+    return
     try:
         from seguimiento_imos import enviar_recordatorios_imos
         from sync_cloud import conectar_sheets
@@ -1498,6 +1499,8 @@ def _scheduler_imos():
         _time.sleep(60)
 
 def _enviar_mensajes_imos():
+    logger.info("⏸️ Seguimiento principal a IMOs PAUSADO por reprogramación de fecha C1.")
+    return
     try:
         from seguimiento_imos import enviar_seguimiento_diario, en_horario
         if not en_horario(): logger.info("[IMO] Fuera de horario (9-17h)"); return

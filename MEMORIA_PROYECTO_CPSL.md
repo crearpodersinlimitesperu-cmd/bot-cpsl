@@ -998,3 +998,7 @@ curl -X POST "https://graph.facebook.com/v18.0/1085205258006361/messages" \
 - [x] **Reintentos:** Si WhatsApp API responde error temporal, la función `wa_client` intentará hasta 3 veces (log `Reintentar envío 🔄`).
 - [x] **Fallback anti-silencio:** Si envías un texto no válido (p.ej. “xyz”), el bot debe responder con “No entendí tu mensaje...” o el menú, y no quedarse en silencio. (Implementado globalmente en `flujo()`).
 
+
+
+### Actualización 02/05/2026 - Pausa de Seguimientos IMOs
+- Se pausaron temporalmente los envíos automáticos de seguimiento y recordatorios a los IMOs (funciones _enviar_mensajes_imos y _disparar_recordatorios_imos en ot_whatsapp.py) debido a una reprogramación de la fecha del C1.
