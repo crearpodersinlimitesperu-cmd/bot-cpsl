@@ -120,6 +120,8 @@ def cc_por_equipo(equipo):
 
 # ── CONFIG ────────────────────────────────────────────────────
 class Cfg:
+    CAMPANA_ACTUAL = 'C1 E28'
+    EQUIPO_ACTUAL = 'Equipo 28'
     TOKEN = os.environ.get("WA_TOKEN","").strip()
     PHONE_ID = os.environ.get("WA_PHONE_ID","").strip()
     VER_TOKEN = os.environ.get("WA_VERIFY_TOKEN","cpsl2026")
@@ -148,7 +150,7 @@ FECHAS_MSG = (
     "📅 *Próximas Fechas — Sede Lima 2026*\n\n"
     "🚀 *C1 Equipo 28:* Próximamente\n"
     "   📍 *Lugar por confirmar*\n\n"
-    "🔥 *C2 Equipo 27:* Jueves 14 de mayo\n"
+    "🔥 *C2 {Cfg.EQUIPO_ACTUAL}:* Jueves 14 de mayo\n"
 )
 
 # ── CACHÉ CSV ─────────────────────────────────────────────────
@@ -192,12 +194,12 @@ def _cargar_graduados():
                 if _r[0]:
                     _n = re.sub(r"\s+"," ",re.sub(r"[^\w\s]","",str(_r[0]).upper())).strip()
                     _GRADUADOS_IDX[_n] = {"graduado":True,"rango":"GRADUADO","equipo":str(_r[1] or "")}
-        if "ALIADOS C1E27" in _wb.sheetnames:
-            for _r in _wb["ALIADOS C1E27"].iter_rows(min_row=3, values_only=True):
+        if "ALIADOS C1{Cfg.CAMPANA_ACTUAL.split()[1]}" in _wb.sheetnames:
+            for _r in _wb["ALIADOS C1{Cfg.CAMPANA_ACTUAL.split()[1]}"].iter_rows(min_row=3, values_only=True):
                 if _r[0] and str(_r[0]).strip() not in ("CREADOR CUANTICO",""):
                     _n = re.sub(r"\s+"," ",re.sub(r"[^\w\s]","",str(_r[0]).upper())).strip()
                     if _n not in _GRADUADOS_IDX:
-                        _GRADUADOS_IDX[_n] = {"graduado":True,"rango":"GRADUADO_E27"}
+                        _GRADUADOS_IDX[_n] = {"graduado":True,"rango":"GRADUADO_{Cfg.CAMPANA_ACTUAL.split()[1]}"}
         _wb.close()
         logger.info(f"Graduados cargados: {len(_GRADUADOS_IDX)}")
     except Exception as _e:
@@ -268,7 +270,7 @@ def perfil_crm(tel):
     p["staff_tel"] = STAFF[k]["tel"]
     p["staff_nom"] = STAFF[k]["nombre"]
     cc_add(k)
-    nom_norm = re.sub(r"\s+"," ",re.sub(r"[^\w\s]","", f"{p.get('nombre','')} {p.get('apellido','')}".upper())).strip()
+    nom_norm = re.sub(r"\s+"," ",re.sub(r"[^\w\s]","", f"{p.get('nombre','')} {p.get('apellido','f')}".upper())).strip()
     grad_info = _GRADUADOS_IDX.get(nom_norm, {})
     if not grad_info:
         partes = nom_norm.split()
@@ -506,7 +508,7 @@ def notif_cc(p, motivo, extra=""):
     equipo = p.get("equipo","")
     pend_n = len(p.get("pendientes",[]))
     if tipo == "IMO": ctx = f"*IMO | {pend_n} enrolados pendientes C1*"; ctx += f" | {equipo}" if equipo else ""
-    elif tipo == "PX": ctx = f"*Creador C1 E27{(' | '+equipo) if equipo else ''}*"; imo_n = p.get("imo_nombre",""); ctx += f"\n*Su IMO:* {imo_n}" if imo_n else ""
+    elif tipo == "PX": ctx = f"*Creador {Cfg.CAMPANA_ACTUAL}{(' | '+equipo) if equipo else ''}*"; imo_n = p.get("imo_nombre",""); ctx += f"\n*Su IMO:* {imo_n}" if imo_n else ""
     else: ctx = "*Nuevo contacto*"
     logger.info(f"notif_cc INICIO → {nom_cc} tel={tel_cc} | px={nom_px} | {motivo[:40]}")
     if not tel_cc or not Cfg.TOKEN: logger.critical("notif_cc: tel_cc o WA_TOKEN vacío"); return nom_cc
@@ -595,7 +597,7 @@ def _flujo_cc(tel, up, texto, cc_info):
             elif up == "3": actualizar_caso(tel_caso, "ABIERTO", f"Sin respuesta — {nom_full} pide apoyo"); wa(tel, f"🆘 Avisado a coordinación para apoyo.", f"SIS→{nom}"); wa(JOSE_TEL, f"🆘 *{nom_full} necesita apoyo*\nCaso: wa.me/{tel_caso}", f"SIS→JOSE")
             s.pop("caso_followup", None); set_s(tel, s); _menu_cc(tel, nom); return
         if up == "1": wa(tel, f"📋 *Reporte del día — {nom_full}*\n\nEscribe tu reporte:\n✅ Confirmados: N\n🔀 Gestionando: N\n🛑 Devoluciones: N\n💬 Notas: texto libre\n\n_O escribe libremente._", f"SIS→{nom}"); s["st_cc"] = "ESPERANDO_REPORTE"; set_s(tel, s)
-        elif up == "2": wa(tel, f"Escribe el nombre del PX que confirmó asistencia al C1 E27\n\n_Ejemplo: Juan Pérez — equipo 26_\n\n9️⃣ Volver", f"SIS→{nom}"); s["st_cc"] = "ESPERANDO_CONFIRMACION"; set_s(tel, s)
+        elif up == "2": wa(tel, f"Escribe el nombre del PX que confirmó asistencia al {Cfg.CAMPANA_ACTUAL}\n\n_Ejemplo: Juan Pérez — equipo 26_\n\n9️⃣ Volver", f"SIS→{nom}"); s["st_cc"] = "ESPERANDO_CONFIRMACION"; set_s(tel, s)
         elif up == "3": wa(tel, f"Escribe los datos del PX que solicita devolución:\n\n_Ejemplo: María García — +51999888777 — monto S/250_\n\n9️⃣ Volver", f"SIS→{nom}"); s["st_cc"] = "ESPERANDO_DEVOLUCION"; set_s(tel, s)
         elif up == "4":
             h = []; hist_path = Cfg.HIST
@@ -760,11 +762,11 @@ def _graduado(tel, up, texto, s, p):
 def _menu_main(tel, p):
     tipo = p.get("tipo","NUEVO"); nom = p.get("nombre") or "Líder"
     if tipo == "IMO":
-        n = len(p.get("pendientes",[])); al = f"\n⚠️ Tienes *{n}* enrolado{'s' if n!=1 else ''} pendiente{'s' if n!=1 else ''} de C1." if n else "\n✅ Todos tus enrolados al día."
-        wa(tel, f"👑 *Hola {nom}* — Portal IMO{al}\n\n1️⃣ Ver mis pendientes de C1\n2️⃣ Ver TODOS mis enrolados\n3️⃣ Solicitar ser Aliado C1 E27\n4️⃣ Fechas activas\n5️⃣ Hablar con Coordinación\n0️⃣ Salir\n\n_STOP para darte de baja._", nom)
+        n = len(p.get("pendientes",[])); al = f"\n⚠️ Tienes *{n}* enrolado{'s' if n!=1 else ''} pendiente{'s' if n!=1 else 'f'} de C1." if n else "\n✅ Todos tus enrolados al día."
+        wa(tel, f"👑 *Hola {nom}* — Portal IMO{al}\n\n1️⃣ Ver mis pendientes de C1\n2️⃣ Ver TODOS mis enrolados\n3️⃣ Solicitar ser Aliado {Cfg.CAMPANA_ACTUAL}\n4️⃣ Fechas activas\n5️⃣ Hablar con Coordinación\n0️⃣ Salir\n\n_STOP para darte de baja._", nom)
     elif tipo == "PX":
         nom_cc = p.get("staff_nom","Coordinación")
-        wa(tel, f"🌟 *Hola {nom}!*\nTu coordinadora: *{nom_cc}*\n\n1️⃣ Confirmar asistencia al C1 Equipo 27\n2️⃣ Fechas y logística\n3️⃣ Inversión y pagos\n4️⃣ Hablar con mi coordinadora\n0️⃣ Salir\n\n_STOP para darte de baja._", nom)
+        wa(tel, f"🌟 *Hola {nom}!*\nTu coordinadora: *{nom_cc}*\n\n1️⃣ Confirmar asistencia al C1 {Cfg.EQUIPO_ACTUAL}\n2️⃣ Fechas y logística\n3️⃣ Inversión y pagos\n4️⃣ Hablar con mi coordinadora\n0️⃣ Salir\n\n_STOP para darte de baja._", nom)
     elif tipo == "GRADUADO":
         wa(tel, f"🎓 *Hola {nom}!* — Portal Graduado\n\n1️⃣ Quiero ser Aliado C1 E28\n2️⃣ Re-enrolarme al C1\n3️⃣ Solicitar Staff / Equipo de Apoyo\n4️⃣ Hablar con Coordinación\n0️⃣ Salir\n\n_STOP para darte de baja._", nom)
     else: wa(tel, f"🌟 *Bienvenido a Crear Poder Sin Límites Perú*\nCanal Corporativo Oficial — Sede Lima.\n\n1️⃣ Ya participé antes (cambié de número)\n2️⃣ Soy nuevo — quiero información\n0️⃣ Salir\n\n_STOP para darte de baja._", "Sistema")
@@ -775,17 +777,17 @@ def _imo(tel, up, texto, s, p):
         if up == "1":
             if pend:
                 lista = "\n".join(pend[:20]); lista += f"\n_...y {len(pend)-20} más_" if len(pend)>20 else ""
-                wa(tel, f"⏳ *Pendientes de C1 — Equipo 27*\n📅 {Cfg.FECHA}\n📍 {Cfg.LUGAR}\n\n{lista}\n\n¿Cómo avanzan tus gestiones?\n1️⃣ Reportar una confirmación\n2️⃣ Sigo gestionando\n3️⃣ Necesito apoyo de Coordinación\n9️⃣ Volver", nom); s["st"]="IMO_PEND"; set_s(tel,s)
+                wa(tel, f"⏳ *Pendientes de C1 — {Cfg.EQUIPO_ACTUAL}*\n📅 {Cfg.FECHA}\n📍 {Cfg.LUGAR}\n\n{lista}\n\n¿Cómo avanzan tus gestiones?\n1️⃣ Reportar una confirmación\n2️⃣ Sigo gestionando\n3️⃣ Necesito apoyo de Coordinación\n9️⃣ Volver", nom); s["st"]="IMO_PEND"; set_s(tel,s)
             else: wa(tel,"🎉 ¡Todos tus enrolados ya se sentaron! Felicitaciones.\n\n9️⃣ Volver",nom)
         elif up == "2":
             rows = _get_rows(); t9 = n9(tel); todos = []
             for r in rows:
                 if n9(r.get("Tel. IMO","")) == t9:
-                    nom_px = formatear_nombre_empatia(f"{r.get('Apellido','')} {r.get('Nombre','')}"); eq = r.get("Equipo",""); c1 = str(r.get("C1","")).strip().upper(); st_px = "✅ Sentado" if c1=="SI" else "⏳ Pendiente"
+                    nom_px = formatear_nombre_empatia(f"{r.get('Apellido','')} {r.get('Nombre','f')}"); eq = r.get("Equipo",""); c1 = str(r.get("C1","")).strip().upper(); st_px = "✅ Sentado" if c1=="SI" else "⏳ Pendiente"
                     todos.append(f"• {nom_px} ({eq}) — {st_px}")
             if todos: lista = "\n".join(todos[:25]); lista+=f"\n_...y {len(todos)-25} más_" if len(todos)>25 else ""; wa(tel,f"📋 *Todos tus enrolados:*\n\n{lista}\n\n9️⃣ Volver",nom)
             else: wa(tel,"Sin enrolados vinculados en el sistema.\n\n9️⃣ Volver",nom)
-        elif up == "3": nom_cc = notif_cc(p,"Solicita ser Aliado C1 E27",f"IMO: {p.get('imo_nombre',nom)}"); wa(tel, f"✅ Solicitud registrada.\n\nTu coordinadora *{nom_cc}* te escribirá para confirmar tu rol como Aliado.\n\n9️⃣ Volver",nom); reg(tel,nom,"IMO","Solicita ser Aliado","ALIADO",dir_="SYS",staff=nom_cc)
+        elif up == "3": nom_cc = notif_cc(p,f"Solicita ser Aliado {Cfg.CAMPANA_ACTUAL}",f"IMO: {p.get('imo_nombre',nom)}"); wa(tel, f"✅ Solicitud registrada.\n\nTu coordinadora *{nom_cc}* te escribirá para confirmar tu rol como Aliado.\n\n9️⃣ Volver",nom); reg(tel,nom,"IMO","Solicita ser Aliado","ALIADO",dir_="SYS",staff=nom_cc)
         elif up == "4": wa(tel,FECHAS_MSG+"\n\n9️⃣ Volver",nom)
         elif up == "5": nom_cc = notif_cc(p,"IMO solicita atención directa"); s["st"]="DER"; set_s(tel,s); wa(tel,f"✅ Derivado a *{nom_cc}*. Puedes escribirle directamente aquí.",nom)
         elif up == "0": del_s(tel); wa(tel,"Hasta pronto. Escribe HOLA para volver. 🌟",nom)
@@ -793,7 +795,7 @@ def _imo(tel, up, texto, s, p):
             if ia_clasificar:
                 cat = ia_clasificar(texto)
                 if cat == "CONFIRMA" or any(w in up for w in ["CONFIRMA","VA ASISTIR","VA A SENTARSE","ASISTIRA","ASISTIRÁ","SI VA"]):
-                    nom_cc = notif_cc(p, "IMO reporta confirmación en texto libre", f"Mensaje: '{texto[:150]}'")
+                    nom_cc = notif_cc(p, "IMO reporta confirmación en texto libre", f"Mensaje: '{texto[:150]}f'")
                     wa(tel, f"✅ Recibido. Tu mensaje fue enviado a *{nom_cc}* para procesarlo.\n\nSi deseas confirmar formalmente, usa la opción *1* → *1*.\n\n9️⃣ Volver", nom); reg(tel, nom, "IMO", f"Texto libre: {texto[:100]}", "CONF_TEXTO", dir_="SYS", staff=nom_cc)
                 elif len(texto.strip()) > 15 and ia_respuesta_imo:
                     resp_ia = ia_respuesta_imo(nom, texto, len(pend))
@@ -804,7 +806,7 @@ def _imo(tel, up, texto, s, p):
     elif st == "IMO_PEND":
         if up == "1": s["st"]="IMO_CONF"; set_s(tel,s); wa(tel,"Escribe el nombre de quien confirma.\n_Escribe 9 para volver._",nom)
         elif up == "2": s["st"]="MAIN"; set_s(tel,s); wa(tel,"Perfecto. Cuando tengas confirmaciones escríbenos. 💪\n\n9️⃣ Volver / 0️⃣ Menú",nom)
-        elif up == "3": nom_cc = notif_cc(p,"IMO necesita apoyo para gestionar pendientes C1 E27",f"{len(pend)} pendientes"); s["st"]="DER"; set_s(tel,s); wa(tel,f"✅ Derivado. *{nom_cc}* te apoyará directamente.",nom)
+        elif up == "3": nom_cc = notif_cc(p,f"IMO necesita apoyo para gestionar pendientes {Cfg.CAMPANA_ACTUAL}",f"{len(pend)} pendientes"); s["st"]="DER"; set_s(tel,s); wa(tel,f"✅ Derivado. *{nom_cc}* te apoyará directamente.",nom)
         else: s["st"]="MAIN"; set_s(tel,s); _menu_main(tel,p)
     elif st == "IMO_CONF":
         nom_cc = notif_cc(p,"IMO reporta confirmación de enrolado",f"Nombre: '{texto}'"); reg(tel,nom,"IMO",f"Confirma: {texto}","CONF_ENROLADO",dir_="SYS",staff=nom_cc)
@@ -813,7 +815,7 @@ def _imo(tel, up, texto, s, p):
 def _px(tel, up, texto, s, p):
     nom = p.get("nombre","Líder"); nom_cc = p.get("staff_nom","Coordinación"); st = s.get("st","MAIN")
     if st == "MAIN":
-        if up == "1": nom_cc2 = notif_cc(p,"PX CONFIRMA asistencia C1 E27"); reg(tel,p.get("nombre_full",nom),"PX","Confirma C1 E27","CONFIRMA",dir_="SYS",staff=nom_cc2); wa(tel, f"¡Confirmado {nom}! ✅\n\n📍 *{Cfg.LUGAR}*\n🗓 {Cfg.FECHA}\n⏰ {Cfg.REGISTRO}\n\nRopa cómoda y botella de agua. Bloquea los 3 días.\n\nTu coordinadora *{nom_cc2}* recibirá tu confirmación. 💪",nom); del_s(tel)
+        if up == "1": nom_cc2 = notif_cc(p,f"PX CONFIRMA asistencia {Cfg.CAMPANA_ACTUAL}"); reg(tel,p.get("nombre_full",nom),"PX",f"Confirma {Cfg.CAMPANA_ACTUAL}","CONFIRMA",dir_="SYS",staff=nom_cc2); wa(tel, f"¡Confirmado {nom}! ✅\n\n📍 *{Cfg.LUGAR}*\n🗓 {Cfg.FECHA}\n⏰ {Cfg.REGISTRO}\n\nRopa cómoda y botella de agua. Bloquea los 3 días.\n\nTu coordinadora *{nom_cc2}* recibirá tu confirmación. 💪",nom); del_s(tel)
         elif up == "2": wa(tel,FECHAS_MSG+"\n\n9️⃣ Volver",nom)
         elif up == "3": wa(tel, "💳 *Inversión y Pagos*\n\nBCP — Creación Cuántica E.I.R.L.\nCuenta Soles: *1934218307060*\n\n1️⃣ Enviar voucher a Coordinación\n9️⃣ Volver",nom); s["st"]="PX_PAGO"; set_s(tel,s)
         elif up == "4": nom_cc2 = notif_cc(p,"PX solicita atención directa"); s["st"]="DER"; set_s(tel,s); wa(tel,f"✅ Te derivo con *{nom_cc2}*. Escribe tu consulta aquí.",nom)
@@ -822,7 +824,7 @@ def _px(tel, up, texto, s, p):
             if ia_clasificar:
                 cat = ia_clasificar(texto)
                 if cat == "CONFIRMA":
-                    nom_cc2 = notif_cc(p, "PX CONFIRMA asistencia (detectado por IA)", f"Mensaje: '{texto[:100]}'")
+                    nom_cc2 = notif_cc(p, "PX CONFIRMA asistencia (detectado por IA)", f"Mensaje: '{texto[:100]}f'")
                     reg(tel, p.get("nombre_full",nom), "PX", f"Confirma (IA): {texto[:80]}", "CONFIRMA", dir_="SYS", staff=nom_cc2)
                     wa(tel, f"¡Confirmado {nom}! ✅\n\n📍 *{Cfg.LUGAR}*\n🗓 {Cfg.FECHA}\n⏰ {Cfg.REGISTRO}\n\nTu coordinadora *{nom_cc2}* recibirá tu confirmación. 💪", nom)
                     guardar_feedback and guardar_feedback("PX", texto, "CONFIRMA_AUTO"); del_s(tel)
@@ -852,7 +854,7 @@ def _nuevo(tel, up, texto, s, p):
             else: _menu_main(tel,p)
     elif st == "NVO_NUM":
         k = cc_libre(); cc_add(k); tel_cc=STAFF[k]["tel"]; nom_cc=STAFF[k]["nombre"]
-        wa(tel_cc, f"🔍 *VERIFICACIÓN DE IDENTIDAD*\nTel: wa.me/{tel}\nDato: '{texto}'\nBuscar en sistema y actualizar.","SIS")
+        wa(tel_cc, f"🔍 *VERIFICACIÓN DE IDENTIDAD*\nTel: wa.me/{tel}\nDato: '{texto}f'\nBuscar en sistema y actualizar.","SIS")
         p["staff_key"]=k; p["staff_tel"]=tel_cc; p["staff_nom"]=nom_cc; s["p"]=p; s["st"]="DER"; set_s(tel,s)
         wa(tel,f"✅ Datos enviados a Coordinación ({nom_cc}). Te responderán pronto.","Sistema"); reg(tel,texto,"NUEVO",texto,"CAMBIO_NUM",dir_="SYS",staff=nom_cc)
     elif st == "NVO_INFO":
@@ -876,6 +878,26 @@ def dashboard():
     if os.path.exists(html_path):
         with open(html_path, "r", encoding="utf-8") as f: return f.read()
     return "Dashboard no encontrado", 404
+
+@app.route("/api/admin/transicion_e28", methods=["GET"])
+def transicion_e28():
+    try:
+        from casos_derivados import _cargar, _guardar, _lk, ahora
+        with _lk:
+            casos = _cargar()
+            modificados = 0
+            for k, c in casos.items():
+                if c.get("estado") in ["ABIERTO", "EN_GESTION", "URGENTE"]:
+                    c["estado"] = "ARCHIVADO_E27"
+                    c["ts_cierre"] = ahora().isoformat()
+                    if "historial" not in c: c["historial"] = []
+                    c["historial"].append({"ts": ahora().isoformat(), "nota": "Cierre automático por transición a campaña C1E28"})
+                    modificados += 1
+            if modificados > 0:
+                _guardar(casos)
+        return jsonify({"ok": True, "msg": f"{modificados} casos del E27 archivados con éxito para limpiar el dashboard."}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/interactions")
 def api_interactions():
@@ -979,17 +1001,17 @@ def api_sim():
 def test_notif():
     d = request.json or {}; key = d.get("cc","dmoscoso"); msg = d.get("msg","Test de notificación desde Torre de Control")
     tel = STAFF.get(key,{}).get("tel",""); nom = STAFF.get(key,{}).get("nombre","?")
-    if not tel: return jsonify({"error":f"CC '{key}' no encontrada"}), 400
+    if not tel: return jsonify({"error":f"CC '{key}f' no encontrada"}), 400
     logger.info(f"TEST NOTIF → {nom} ({tel})"); exito = wa(tel, f"🧪 *TEST Torre de Control*\n{msg}\n\nSi ves esto, las notificaciones funcionan ✅", "TEST")
     return jsonify({"enviado":exito,"cc":nom,"tel":tel}), 200
 
-# ── ENDPOINTS BIENVENIDA E27 ──────────────────────────────────
+# ── ENDPOINTS BIENVENIDA {Cfg.CAMPANA_ACTUAL.split()[1]} ──────────────────────────────────
 @app.route("/api/bienvenida/e27/iniciar", methods=["POST"])
 def api_bienvenida_iniciar():
     d = request.json or {}; limite = min(int(d.get("limite", 50) or 50), 100)
     def _run(): run_bienvenida_e27(limite=limite)
     threading.Thread(target=_run, daemon=True, name="bienvenida_e27").start()
-    return jsonify({"ok": True, "limite": limite, "msg": f"Bienvenida E27 iniciada — máx {limite} envíos"}), 200
+    return jsonify({"ok": True, "limite": limite, "msg": f"Bienvenida {Cfg.CAMPANA_ACTUAL.split()[1]} iniciada — máx {limite} envíos"}), 200
 
 @app.route("/api/bienvenida/e27/estado")
 def api_bienvenida_estado(): return jsonify(estado_bienvenida()), 200
@@ -1221,7 +1243,7 @@ logger.info("Scheduler followup activo — 08:00 y 20:00")
 def _flujo_gerente(tel, up, texto):
     s = get_s(tel) or {}; st = s.get("st_jose", ""); OPCIONES = {"1","2","3","4","5","6","0"}
     def menu():
-        wa(tel, f"⚡ *Torre de Control CPSL Lima*\n_José Sánchez · Gerente · {ahora().strftime('%d/%m %H:%M')}_\n\n1️⃣ Estado del sistema\n2️⃣ Derivados activos\n3️⃣ Reporte consolidado\n4️⃣ Aviso masivo a CCs\n5️⃣ Activar modo ENTRENAMIENTO\n6️⃣ Desactivar modo ENTRENAMIENTO\n7️⃣ Bienvenida E27 — estado/iniciar\n8️⃣ 📊 Pegar reporte de CC al CRM\n0️⃣ Salir", "GERENTE"); s["st_jose"] = "MENU"; set_s(tel, s)
+        wa(tel, f"⚡ *Torre de Control CPSL Lima*\n_José Sánchez · Gerente · {ahora().strftime('%d/%m %H:%M')}_\n\n1️⃣ Estado del sistema\n2️⃣ Derivados activos\n3️⃣ Reporte consolidado\n4️⃣ Aviso masivo a CCs\n5️⃣ Activar modo ENTRENAMIENTO\n6️⃣ Desactivar modo ENTRENAMIENTO\n7️⃣ Bienvenida {Cfg.CAMPANA_ACTUAL.split()[1]} — estado/iniciar\n8️⃣ 📊 Pegar reporte de CC al CRM\n0️⃣ Salir", "GERENTE"); s["st_jose"] = "MENU"; set_s(tel, s)
     if up in RESET_W or (not st and up not in OPCIONES): menu(); return
     if st == "AVISO_MASIVO":
         if up == "0": wa(tel, "❌ Aviso cancelado.", "GERENTE")
@@ -1260,7 +1282,7 @@ def _flujo_gerente(tel, up, texto):
         if not activos: wa(tel, "✅ Sin casos derivados activos.\n\n_Escribe un número para otra opción._", "GERENTE")
         else:
             lineas = []; emojis = {"URGENTE":"🔴","EN_GESTION":"⏳","ABIERTO":"🔵"}
-            for c in activos[:12]: emoji = emojis.get(c["estado"],"▪"); cc_n = STAFF.get(c.get("cc_key",""),{}).get("nombre","?"); lineas.append(f"{emoji} {c.get('nombre','?')[:22]} → {cc_n}")
+            for c in activos[:12]: emoji = emojis.get(c["estado"],"▪"); cc_n = STAFF.get(c.get("cc_key",""),{}).get("nombre","?"); lineas.append(f"{emoji} {c.get('nombre','?f')[:22]} → {cc_n}")
             wa(tel, f"🗂 *Derivados activos ({len(activos)}):*\n\n" + "\n".join(lineas) + "\n\n_Escribe un número para otra opción._", "GERENTE")
         s["st_jose"] = "MENU"; set_s(tel, s); return
     if up == "3":
@@ -1277,14 +1299,14 @@ def _flujo_gerente(tel, up, texto):
     if up == "6": os.environ["MODO_ENTRENAMIENTO"] = ""; wa(tel, "✅ *Modo ENTRENAMIENTO desactivado.*\nEl bot opera en modo normal.\n\n_Escribe un número para otra opción._", "GERENTE"); s["st_jose"] = "MENU"; set_s(tel, s); return
     if up == "7":
         est = estado_bienvenida()
-        if est.get("corriendo"): wa(tel, f"📤 *Bienvenida E27 en curso*\nEnviados: {est.get('enviados',0)}\nPendientes: {est.get('pendientes_total',0)}\n\nEscribe *7A* para detener.", "GERENTE")
+        if est.get("corriendo"): wa(tel, f"📤 *Bienvenida {Cfg.CAMPANA_ACTUAL.split()[1]} en curso*\nEnviados: {est.get('enviados',0)}\nPendientes: {est.get('pendientes_total',0)}\n\nEscribe *7A* para detener.", "GERENTE")
         elif up == "7A": detener_bienvenida(); wa(tel, "⏹ Bienvenida detenida.", "GERENTE")
-        else: wa(tel, f"📤 *Bienvenida E27 — Estado*\nEnviados histórico: {est.get('enviados_total_historico',0)}/275\nPendientes: {est.get('pendientes_total',275)}\n\nEscribe *7S* para iniciar envío (50 por ciclo).", "GERENTE")
+        else: wa(tel, f"📤 *Bienvenida {Cfg.CAMPANA_ACTUAL.split()[1]} — Estado*\nEnviados histórico: {est.get('enviados_total_historico',0)}/275\nPendientes: {est.get('pendientes_total',275)}\n\nEscribe *7S* para iniciar envío (50 por ciclo).", "GERENTE")
         s["st_jose"] = "MENU"; set_s(tel, s); return
     if up == "7S":
         def _b(): run_bienvenida_e27(limite=50)
         import threading as _th; _th.Thread(target=_b, daemon=True).start()
-        wa(tel, "📤 Bienvenida E27 iniciada — 50 mensajes en cola (45s/msg).", "GERENTE"); s["st_jose"] = "MENU"; set_s(tel, s); return
+        wa(tel, f"📤 Bienvenida {Cfg.CAMPANA_ACTUAL.split()[1]} iniciada — 50 mensajes en cola (45s/msg).", "GERENTE"); s["st_jose"] = "MENU"; set_s(tel, s); return
     if up == "8": s["st_jose"] = "PEGAR_REPORTE"; set_s(tel, s); wa(tel, "📊 *Pegar Reporte al CRM*\n\nPega aquí el reporte de cualquier coordinadora.\nLa IA detectará automáticamente de quién es (Diana o Joyce) basado en el contenido, y lo enviará directo al CRM.\n\n_O escribe 0 para cancelar._", "GERENTE"); return
     if up == "0": wa(tel, "👋 Hasta pronto, José.", "GERENTE"); s["st_jose"] = ""; set_s(tel, s); return
     menu()
@@ -1321,7 +1343,7 @@ logger.info("✅ Keepalive loop activo — ciclo 23h")
 def api_bienvenida_preview():
     d = request.json or {}; nom = d.get("nombre","Participante"); cc_key = d.get("cc","dmoscoso"); cc = STAFF.get(cc_key, STAFF["dmoscoso"]); CC_EMOJI = {"dmoscoso":"🌟","jmarin":"⚡","zurteaga":"🔥"}
     pila = nom.split()[0].title() if nom else "Hola"
-    msg = f"Hola {pila} 👋\n\nBienvenido/a a *Crear Poder Sin Límites Perú* 🇵🇪\n\nTu inscripción para *C1 Equipo 27* ha sido confirmada.\n📅 Viernes 01, Sábado 02 y Domingo 03 de Mayo 2026\n🏨 Hotel José Antonio Deluxe, Miraflores\n\nTu coordinadora asignada es *{cc['nombre']}* {CC_EMOJI.get(cc_key,'🌟')}\nGuárdala en tus contactos:\n📱 wa.me/{cc['tel']}\n\nSi tienes alguna consulta, escríbele directamente.\n\n_¡Nos vemos en el salón!_ ⚡"
+    msg = f"Hola {pila} 👋\n\nBienvenido/a a *Crear Poder Sin Límites Perú* 🇵🇪\n\nTu inscripción para *C1 {Cfg.EQUIPO_ACTUAL}* ha sido confirmada.\n📅 Viernes 01, Sábado 02 y Domingo 03 de Mayo 2026\n🏨 Hotel José Antonio Deluxe, Miraflores\n\nTu coordinadora asignada es *{cc['nombre']}* {CC_EMOJI.get(cc_key,'🌟')}\nGuárdala en tus contactos:\n📱 wa.me/{cc['tel']}\n\nSi tienes alguna consulta, escríbele directamente.\n\n_¡Nos vemos en el salón!_ ⚡"
     return jsonify({"mensaje": msg, "cc": cc["nombre"], "tel_cc": cc["tel"]}), 200
 
 @app.route("/api/bienvenida_plantilla/iniciar", methods=["GET", "POST"])
