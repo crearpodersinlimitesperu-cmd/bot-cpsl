@@ -884,6 +884,7 @@ def wh_get():
 @app.route("/webhook", methods=["POST"])
 def wh_post():
     d = request.get_json(silent=True)
+    logger.info(f"WEBHOOK RAW: {d}")
     if not d: return jsonify({"status":"ok"}),200
     try:
         chg = d["entry"][0]["changes"][0]["value"]
