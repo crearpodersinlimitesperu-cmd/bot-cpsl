@@ -18,23 +18,37 @@ _lk = threading.Lock()
 STAFF = {
     "dmoscoso": {"nombre":"Diana Moscoso",  "tel":"51912379744"},
     "jmarin":   {"nombre":"Joyce Marín",    "tel":"51933599903"},
-    "zurteaga": {"nombre":"Zuley Urteaga",  "tel":"51933599864"},
 }
 
 def _cargar():
     try:
         if os.path.exists(CASOS_PATH):
             with open(CASOS_PATH, encoding="utf-8") as f:
-                return json.load(f)
+                casos = json.load(f)
+                migrados = False
+                for k, c in casos.items():
+                    if c.get("cc_key") == "zurteaga":
+                        try:
+                            # Migración equitativa y consistente por hash del teléfono
+                            nuevo_cc = "dmoscoso" if int(hash(str(k))) % 2 == 0 else "jmarin"
+                        except: nuevo_cc = "dmoscoso"
+                        c["cc_key"] = nuevo_cc
+                        c["cc_nombre"] = "Diana Moscoso" if nuevo_cc == "dmoscoso" else "Joyce Marín"
+                        migrados = True
+                if migrados: _guardar_sin_lock(casos)
+                return casos
     except: pass
     return {}
 
-def _guardar(casos):
+def _guardar_sin_lock(casos):
     try:
         with open(CASOS_PATH, "w", encoding="utf-8") as f:
             json.dump(casos, f, ensure_ascii=False, indent=2)
     except Exception as e:
-        log.error(f"guardar_casos: {e}")
+        log.error(f"guardar_casos (sin_lock): {e}")
+
+def _guardar(casos):
+    _guardar_sin_lock(casos)
 
 def abrir_caso(tel_px, nombre, cc_key, asunto, urgente=False):
     """Abre o actualiza un caso derivado."""

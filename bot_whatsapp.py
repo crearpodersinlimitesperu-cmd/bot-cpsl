@@ -568,6 +568,14 @@ def marcar_confirmado(tel): pass
 def resumen_recordatorios(): return {}
 def run_bienvenida_e27(**k): return {"error":"módulo no disponible"}
 def estado_bienvenida(): return {}
+
+try:
+    from casos_derivados import (
+        casos_abiertos, casos_cerrados, abrir_caso, cerrar_caso, 
+        actualizar_caso, casos_para_followup, marcar_notificado, resumen_casos
+    )
+except ImportError:
+    pass
 def detener_bienvenida(): return {"ok": False}
 def ejecutar_campana(path, modo_prueba=False, limite=50): pass
 
@@ -1219,7 +1227,7 @@ def _flujo_gerente(tel, up, texto):
         if up == "0": wa(tel, "❌ Aviso cancelado.", "GERENTE")
         else:
             enviados = 0
-            for cc_tel in ["51912379744","51933599903","51933599864"]:
+            for cc_tel in ["51912379744","51933599903"]:
                 if wa(cc_tel, f"📢 *Mensaje de Gerencia:*\n\n{texto}", "GERENTE"): enviados += 1; time.sleep(1)
             wa(tel, f"✅ Mensaje enviado a {enviados} coordinadoras.\n\nEscribe un número para otra opción.", "GERENTE")
         s["st_jose"] = "MENU"; set_s(tel, s); return
@@ -1228,7 +1236,7 @@ def _flujo_gerente(tel, up, texto):
         cc_detectada, exito = push_reporte_jose(texto) if push_reporte_jose else ("DESCONOCIDA", False)
         if cc_detectada == "DESCONOCIDA":
             s["_reporte_pendiente"] = texto; s["st_jose"] = "CONFIRMAR_CC"; set_s(tel, s)
-            wa(tel, f"🤖 *No pude detectar de qué coordinadora es.*\n\n¿De quién es este reporte?\n\n1️⃣ Diana Moscoso\n2️⃣ Joyce Marín\n3️⃣ Zuley Urteaga\n0️⃣ Cancelar", "GERENTE"); return
+            wa(tel, f"🤖 *No pude detectar de qué coordinadora es.*\n\n¿De quién es este reporte?\n\n1️⃣ Diana Moscoso\n2️⃣ Joyce Marín\n0️⃣ Cancelar", "GERENTE"); return
         if exito: wa(tel, f"✅ *Reporte registrado en el CRM*\nCC detectada: *{cc_detectada}*\n\n_El CRM ya puede ver estos datos en el Buscador 360°._\n\nEscribe un número para otra opción.", "GERENTE")
         else: wa(tel, f"⚠️ No pude enviar el reporte al CRM.\nCC detectada: *{cc_detectada}*\n\nVerifica que GOOGLE_CREDENTIALS esté configurado en Render.", "GERENTE")
         s["st_jose"] = "MENU"; set_s(tel, s); return
@@ -1242,7 +1250,7 @@ def _flujo_gerente(tel, up, texto):
                 else: wa(tel, f"⚠️ Error al enviar el reporte de {cc_nombre}.", "GERENTE")
             else: wa(tel, "⚠️ Reporte perdido. Intenta de nuevo con opción 8.", "GERENTE")
         elif up == "0": s.pop("_reporte_pendiente", None); wa(tel, "❌ Cancelado.", "GERENTE")
-        else: wa(tel, "Responde 1️⃣ Diana, 2️⃣ Joyce, 3️⃣ Zuley o 0️⃣ Cancelar", "GERENTE"); return
+        else: wa(tel, "Responde 1️⃣ Diana, 2️⃣ Joyce, o 0️⃣ Cancelar", "GERENTE"); return
         s["st_jose"] = "MENU"; set_s(tel, s); return
     if up == "1":
         res = resumen_casos(); por_cc = res.get("por_cc", {}); cc_txt = "\n".join(f"  · {STAFF.get(k,{}).get('nombre',k)}: {n} casos" for k,n in por_cc.items()) or "  Sin casos asignados"
@@ -1264,7 +1272,7 @@ def _flujo_gerente(tel, up, texto):
                 else: wa(tel, "Sin datos de consolidado.", "GERENTE")
         except Exception as e: logger.error(f"KPI consolidado: {e}"); wa(tel, "Error al obtener KPIs.", "GERENTE")
         s["st_jose"] = "MENU"; set_s(tel, s); return
-    if up == "4": s["st_jose"] = "AVISO_MASIVO"; set_s(tel, s); wa(tel, "📢 Escribe el mensaje que quieres enviar a *todas las coordinadoras* (Diana, Joyce, Zuley):\n\n_O escribe 0 para cancelar._", "GERENTE"); return
+    if up == "4": s["st_jose"] = "AVISO_MASIVO"; set_s(tel, s); wa(tel, "📢 Escribe el mensaje que quieres enviar a *todas las coordinadoras* (Diana y Joyce):\n\n_O escribe 0 para cancelar._", "GERENTE"); return
     if up == "5": os.environ["MODO_ENTRENAMIENTO"] = "true"; wa(tel, "⚡ *Modo ENTRENAMIENTO activado.*\nEl bot pedirá más detalle antes de derivar y notificará la demora.\n\n_Escribe un número para otra opción._", "GERENTE"); s["st_jose"] = "MENU"; set_s(tel, s); return
     if up == "6": os.environ["MODO_ENTRENAMIENTO"] = ""; wa(tel, "✅ *Modo ENTRENAMIENTO desactivado.*\nEl bot opera en modo normal.\n\n_Escribe un número para otra opción._", "GERENTE"); s["st_jose"] = "MENU"; set_s(tel, s); return
     if up == "7":
@@ -1277,7 +1285,7 @@ def _flujo_gerente(tel, up, texto):
         def _b(): run_bienvenida_e27(limite=50)
         import threading as _th; _th.Thread(target=_b, daemon=True).start()
         wa(tel, "📤 Bienvenida E27 iniciada — 50 mensajes en cola (45s/msg).", "GERENTE"); s["st_jose"] = "MENU"; set_s(tel, s); return
-    if up == "8": s["st_jose"] = "PEGAR_REPORTE"; set_s(tel, s); wa(tel, "📊 *Pegar Reporte al CRM*\n\nPega aquí el reporte de cualquier coordinadora.\nLa IA detectará automáticamente de quién es (Diana, Joyce o Zuley) basado en el contenido, y lo enviará directo al CRM.\n\n_O escribe 0 para cancelar._", "GERENTE"); return
+    if up == "8": s["st_jose"] = "PEGAR_REPORTE"; set_s(tel, s); wa(tel, "📊 *Pegar Reporte al CRM*\n\nPega aquí el reporte de cualquier coordinadora.\nLa IA detectará automáticamente de quién es (Diana o Joyce) basado en el contenido, y lo enviará directo al CRM.\n\n_O escribe 0 para cancelar._", "GERENTE"); return
     if up == "0": wa(tel, "👋 Hasta pronto, José.", "GERENTE"); s["st_jose"] = ""; set_s(tel, s); return
     menu()
 
@@ -1287,7 +1295,7 @@ def _keepalive_loop():
     while True:
         try:
             ahora_s = ahora().strftime("%d/%m/%Y %H:%M")
-            CCS_KEEPALIVE = [("51912379744", "Diana"), ("51933599903", "Joyce"), ("51933599864", "Zuley")]
+            CCS_KEEPALIVE = [("51912379744", "Diana"), ("51933599903", "Joyce")]
             for tel_cc, nom in CCS_KEEPALIVE:
                 ok = wa(tel_cc, f"👋 Hola {nom} — CPSL Lima al día.\nEstamos disponibles. Escribe *HOLA* si necesitas algo.", "KEEPALIVE")
                 if ok: logger.info(f"Keepalive enviado a {nom}"); _t.sleep(3)

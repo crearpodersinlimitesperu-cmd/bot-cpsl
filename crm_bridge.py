@@ -23,14 +23,13 @@ log = logging.getLogger("CRM_Bridge")
 TZ  = timezone(timedelta(hours=-5))
 
 # ── CONFIGURACIÓN ──────────────────────────────────────────────
-CRM_SHEET_ID = "1IoCYs1qfOTdn3XWyeK64jsUfAXOFgv3Wa6uJBM-lR2Y"  # Sheet del CRM
+CRM_SHEET_ID = os.environ.get("SHEET_ID", "1IoCYs1qfOTdn3XWyeK64jsUfAXOFgv3Wa6uJBM-lR2Y")
 CRM_TAB      = "REPORTES_BOT"
 
 # Patrones para detectar a qué CC pertenece un reporte pegado
 _CC_PATTERNS = {
     "DIANA": [r"diana", r"dmoscoso", r"moscoso", r"equipo\s*26", r"equipo\s*1[4-9]"],
-    "JOYCE": [r"joyce", r"jmarin", r"mar[ií]n", r"equipo\s*2[0125]"],
-    "ZULEY": [r"zuley", r"zurteaga", r"urteaga", r"equipo\s*2[34]"],
+    "JOYCE": [r"joyce", r"jmarin", r"mar[ií]n", r"equipo\s*2[0125]"]
 }
 
 def _detectar_cc(texto):
@@ -51,15 +50,15 @@ def _detectar_cc(texto):
         prompt = (
             f'Analiza este reporte de productividad de coordinadoras de Lima:\n'
             f'"""{texto[:500]}"""\n\n'
-            f'Las coordinadoras son: DIANA (equipos 14-19,26), JOYCE (equipos 20-22,25), ZULEY (equipos 23-24).\n'
+            f'Las coordinadoras son: DIANA (equipos 14-19,26), JOYCE (equipos 20-22,25).\n'
             f'Equipo 27 es el equipo actual de la campaña C1.\n'
-            f'¿De cuál coordinadora es este reporte? Responde SOLO con el nombre: DIANA, JOYCE o ZULEY.\n'
+            f'¿De cuál coordinadora es este reporte? Responde SOLO con el nombre: DIANA o JOYCE.\n'
             f'Si no puedes determinarlo, responde DESCONOCIDA.'
         )
         resp = ia_responder(prompt, contexto="general", timeout=5)
         if resp:
             resp_upper = resp.strip().upper()
-            for nombre in ["DIANA", "JOYCE", "ZULEY"]:
+            for nombre in ["DIANA", "JOYCE"]:
                 if nombre in resp_upper:
                     log.info(f"CRM_Bridge: IA detectó CC={nombre}")
                     return nombre
@@ -261,7 +260,7 @@ def kpi_consolidado_whatsapp():
     
     # ── Procesar Master ──
     total_master = max(len(master_rows) - 1, 0)
-    cc_count = {"DIANA": 0, "JOYCE": 0, "ZULEY": 0, "SIN_CC": 0}
+    cc_count = {"DIANA": 0, "JOYCE": 0, "SIN_CC": 0}
     if master_rows:
         headers_m = [h.upper().strip() for h in master_rows[0]]
         idx_cc = next((i for i, h in enumerate(headers_m) if "COORDINADOR" in h), -1)
@@ -277,7 +276,9 @@ def kpi_consolidado_whatsapp():
             elif "JOYCE" in cc_val:
                 cc_count["JOYCE"] += 1
             elif "ZULEY" in cc_val:
-                cc_count["ZULEY"] += 1
+                # Reasignación equitativa histórica de Zuley
+                if cc_count["DIANA"] <= cc_count["JOYCE"]: cc_count["DIANA"] += 1
+                else: cc_count["JOYCE"] += 1
             else:
                 cc_count["SIN_CC"] += 1
             
@@ -288,8 +289,7 @@ def kpi_consolidado_whatsapp():
     
     # ── Procesar Productividad ──
     prod_por_cc = {"DIANA": {"OK": 0, "NC": 0, "TOTAL": 0},
-                   "JOYCE": {"OK": 0, "NC": 0, "TOTAL": 0},
-                   "ZULEY": {"OK": 0, "NC": 0, "TOTAL": 0}}
+                   "JOYCE": {"OK": 0, "NC": 0, "TOTAL": 0}}
     if prod_rows and len(prod_rows) > 1:
         headers_p = [h.upper().strip() for h in prod_rows[0]]
         idx_cc_p = next((i for i, h in enumerate(headers_p) if "CC_REPORTADA" in h), -1)
@@ -300,7 +300,7 @@ def kpi_consolidado_whatsapp():
             res_p = row[idx_res].upper().strip() if idx_res >= 0 and idx_res < len(row) else ""
             
             for cc_k in prod_por_cc:
-                if cc_k in cc_p:
+                if cc_k in cc_p or ("ZULEY" in cc_p and cc_k == "DIANA"):  # Zuley pasa a sumar a Diana para simplificar el histórico
                     prod_por_cc[cc_k]["TOTAL"] += 1
                     if "OK" in res_p or "CONFIRM" in res_p or "ASIST" in res_p:
                         prod_por_cc[cc_k]["OK"] += 1
@@ -337,7 +337,7 @@ def kpi_consolidado_whatsapp():
         f"*POR COORDINADORA:*\n\n"
     )
     
-    for cc_name in ["DIANA", "JOYCE", "ZULEY"]:
+    for cc_name in ["DIANA", "JOYCE"]:
         asig = cc_count.get(cc_name, 0)
         ok_p = prod_por_cc[cc_name]["OK"]
         nc_p = prod_por_cc[cc_name]["NC"]
