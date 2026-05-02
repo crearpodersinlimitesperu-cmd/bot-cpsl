@@ -1002,3 +1002,9 @@ curl -X POST "https://graph.facebook.com/v18.0/1085205258006361/messages" \
 
 ### Actualización 02/05/2026 - Pausa de Seguimientos IMOs
 - Se pausaron temporalmente los envíos automáticos de seguimiento y recordatorios a los IMOs (funciones _enviar_mensajes_imos y _disparar_recordatorios_imos en ot_whatsapp.py) debido a una reprogramación de la fecha del C1.
+
+
+### Actualización 02/05/2026 - Transición a Campaña C1E28
+- Se implementó la variable CAMPANA_ACTUAL = 'C1 E28' en ot_whatsapp.py (Clase Cfg).
+- Se inyectaron -strings en todos los menús para leer la variable dinámicamente y abandonar los strings quemados de E27.
+- Se creó el endpoint GET /api/admin/transicion_e28 para ejecutar un cierre masivo de estado (ARCHIVADO_E27) a todos los casos antiguos y limpiar el dashboard de derivaciones.
