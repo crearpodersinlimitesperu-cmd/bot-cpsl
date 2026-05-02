@@ -84,7 +84,7 @@ def _en_entrenamiento():
 
 def ahora(): return datetime.now(TZ_LIMA)
 
-# ── STAFF (SOLO CCs ACTIVAS — Diana, Joyce, Zuley) ──────────
+# ── STAFF (Diana Moscoso y Joyce Marín — Campaña C1 E28) ──────────
 STAFF = {
     "dmoscoso": {"nombre": "Diana Moscoso", "tel": "51912379744"},
     "jmarin": {"nombre": "Joyce Marín", "tel": "51933599903"},
@@ -100,13 +100,12 @@ def cc_add(k):
     with _carga_lk:
         if k in _carga: _carga[k] += 1
 
-# Mapa equipo → coordinadora para DERIVACIONES
+# Mapa equipo → coordinadora para DERIVACIONES (Actualizado para Diana/Joyce)
 _CC_POR_EQUIPO = {
-    "EQUIPO 26": "dmoscoso", "EQUIPO 25": "jmarin", "EQUIPO 24": "dmoscoso",
-    "EQUIPO 23": "jmarin", "EQUIPO 22": "jmarin", "EQUIPO 21": "jmarin",
-    "EQUIPO 20": "jmarin", "EQUIPO 19": "dmoscoso", "EQUIPO 18": "dmoscoso",
-    "EQUIPO 17": "dmoscoso", "EQUIPO 16": "dmoscoso", "EQUIPO 15": "dmoscoso",
-    "EQUIPO 14": "dmoscoso",
+    "EQUIPO 27": "dmoscoso", "EQUIPO 26": "dmoscoso", "EQUIPO 25": "jmarin", 
+    "EQUIPO 24": "dmoscoso", "EQUIPO 23": "jmarin", "EQUIPO 22": "jmarin", 
+    "EQUIPO 21": "jmarin", "EQUIPO 20": "jmarin", "EQUIPO 19": "dmoscoso", 
+    "EQUIPO 18": "dmoscoso", "EQUIPO 17": "dmoscoso", "EQUIPO 16": "dmoscoso"
 }
 
 def cc_por_equipo(equipo):
@@ -129,16 +128,15 @@ class Cfg:
     S_SIM = os.path.join(DATA_DIR, "sesiones_sim.json")
     HIST = os.path.join(DATA_DIR, "historial_chat.json")
     HIST_ALT = os.path.join(DATA_DIR, "historial.json")
-    FECHA = "Viernes 1, Sábado 2 y Domingo 3 de mayo de 2026"
-    LUGAR = "Hotel José Antonio Deluxe, Calle Bellavista 133, Miraflores"
-    REGISTRO = "Viernes 1 de mayo a las 9:00am (obligatorio)"
+    FECHA = "Próxima fecha C1 E28 (Sede Lima)"
+    LUGAR = "Lugar por confirmar (Miraflores/San Isidro)"
+    REGISTRO = "Viernes a las 9:00am (obligatorio)"
 
 FECHAS_MSG = (
     "📅 *Próximas Fechas — Sede Lima 2026*\n\n"
-    f"🚀 *C1 Equipo 27:* {Cfg.FECHA}\n"
-    f"   📍 {Cfg.LUGAR}\n\n"
+    "🚀 *C1 Equipo 28:* Próximamente\n"
+    "   📍 *Lugar por confirmar*\n\n"
     "🔥 *C2 Equipo 27:* Jueves 14 de mayo\n"
-    "👑 *MJ Inducción:* Viernes 17 de abril"
 )
 
 # ── CACHÉ CSV ─────────────────────────────────────────────────
@@ -635,6 +633,29 @@ def flujo(tel, texto):
         if up_clean != up and up_clean in ('0','1','2','3','4','5','6','7','8','9'): up = up_clean
         if _es_autoresponder(up): logger.info(f"[AUTO-RESP] Ignorado de {tel}: {texto[:60]}"); return
         if up in STOP_W: del_s(tel); marcar_stop(tel); wa(tel,"Has sido dado de baja. Escribe HOLA para reiniciar.\n\n*Crear Poder Sin Límites Perú*","SIS"); reg(tel,"","","STOP","STOP",dir_="SYS"); return
+
+        # --- LÓGICA DE CAMPAÑA C1 E28 (BOTONES DE RESPUESTA) ---
+        if up in {"SÍ CONFIRMO", "SI CONFIRMO"}:
+            s = get_s(tel) or {}
+            p = s.get("p") or perfil_crm(tel)
+            nom_full = p.get("nombre_full") or p.get("nombre", "")
+            nom_cc = notif_cc(p, "✅ PX CONFIRMA E28 (Campaña Reactivación)", "Clic en SÍ CONFIRMO")
+            reg(tel, nom_full, p.get("tipo", "PX"), "Clic en SÍ CONFIRMO", "CONFIRMA_E28", dir_="SYS", staff=nom_cc)
+            wa(tel, f"¡Excelente decisión, {p.get('nombre', '')}! ✅\n\nTu confirmación para el **Capítulo 1 - Equipo 28** ha sido registrada.\n\n📍 *Lugar por confirmar (Sede Lima)*\n🗓 Del 29 al 31 de mayo\n\nTu coordinadora *{nom_cc}* ha sido notificada y se pondrá en contacto contigo muy pronto. 💪", "SIS")
+            del_s(tel)
+            return
+
+        if up == "NO CONFIRMO":
+            s = get_s(tel) or {}
+            p = s.get("p") or perfil_crm(tel)
+            nom_full = p.get("nombre_full") or p.get("nombre", "")
+            nom_cc = p.get("staff_nom", "Coordinación")
+            notif_cc(p, "⚠️ PX NO CONFIRMA E28", "Clic en NO CONFIRMO")
+            reg(tel, nom_full, p.get("tipo", "PX"), "Clic en NO CONFIRMO", "NO_ASISTE_E28", dir_="SYS", staff=nom_cc)
+            wa(tel, f"Entendemos perfectamente, {p.get('nombre', '')}. 🌟\n\nTu entrenamiento sigue disponible para cuando decidas retomarlo. Sabemos que los tiempos perfectos existen.\n\nSi deseas consultar fechas futuras o conversar con tu coordinadora *{nom_cc}*, solo escríbenos *HOLA* en cualquier momento.\n\n_Tu espacio quedará pausado._", "SIS")
+            del_s(tel)
+            return
+        # -------------------------------------------------------
         s = get_s(tel)
         if tel == "51919563284": _flujo_gerente(tel, up, texto); return
         p = s.get("p") or perfil_crm(tel); s["p"] = p
