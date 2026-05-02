@@ -92,7 +92,9 @@ def ahora(): return datetime.now(TZ_LIMA)
 STAFF = {
     "dmoscoso": {"nombre": "Diana Moscoso", "tel": "51912379744"},
     "jmarin": {"nombre": "Joyce Marín", "tel": "51933599903"},
+    "gerencia": {"nombre": "José (Gerencia)", "tel": "573116024515"},
 }
+MANAGER_TELS = {"51919563284", "573116024515"}
 _carga = {k: 0 for k in STAFF}
 _carga_lk = threading.Lock()
 
@@ -123,6 +125,7 @@ class Cfg:
     VER_TOKEN = os.environ.get("WA_VERIFY_TOKEN","cpsl2026")
     SHEET_ID = os.environ.get("SHEET_ID","").strip()
     CREDS = os.environ.get("GOOGLE_CREDENTIALS","").strip()
+    SHEDS = os.environ.get("GOOGLE_CREDENTIALS","").strip() # Alias para evitar errores de atributo
     SHEET_TAB = os.environ.get("SHEET_TAB","Hoja 1")
     GMAIL_USER = "crearpodersinlimitesperu@gmail.com"
     GMAIL_PASS = os.environ.get("GMAIL_APP_PASS", "bgsl xjus xsmn pzqd")
@@ -391,6 +394,7 @@ def wa(tel, txt, log="BOT"):
             json={"messaging_product":"whatsapp","to":str(tel),"type":"text","text":{"body":txt,"preview_url":False}},
             headers={"Authorization":f"Bearer {Cfg.TOKEN}","Content-Type":"application/json"},timeout=10)
         if r.status_code == 200:
+            logger.info(f"wa() EXITOSO tel={tel}")
             add_hist(tel, log, txt, "out"); reg(tel, log, "", txt, "BOT_OUT", dir_="OUT"); return True
         else:
             err = r.json().get("error", {}); code_err = err.get("code", 0); msg_err = err.get("message","?")[:120]
@@ -686,7 +690,7 @@ def flujo(tel, texto):
             return
         # -------------------------------------------------------
         s = get_s(tel)
-        if tel == "51919563284": _flujo_gerente(tel, up, texto); return
+        if tel in MANAGER_TELS: _flujo_gerente(tel, up, texto); return
         p = s.get("p") or perfil_crm(tel); s["p"] = p
         if p.get("tipo") in ("PX", "IMO", "NUEVO") and not s.get("notificado_entrenamiento"):
             evento_actual = _en_entrenamiento()
