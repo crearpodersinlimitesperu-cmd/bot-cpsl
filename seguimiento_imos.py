@@ -18,7 +18,6 @@ DATA_DIR = "/data" if os.path.exists("/data") else BASE_DIR
 CC_CONTACTO = {
     "DIANA": {"nombre": "Diana Moscoso", "tel": "51912379744", "user": "dmoscoso"},
     "JOYCE": {"nombre": "Joyce Marin", "tel": "51933599903", "user": "jmarin"},
-    "ZULEY": {"nombre": "Zuley Urteaga", "tel": "51933599864", "user": "zurteaga"},
 }
 
 # WhatsApp API config (misma del bot)

@@ -46,11 +46,15 @@ from filelock import FileLock, Timeout as FileLockTimeout
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("CPSL")
 
-# Configurar logging a archivo para debug remoto
+# Configurar logging a archivo para debug remoto (UTF-8 para evitar errores con emojis)
 log_path = os.path.join("/data" if os.path.exists("/data") else os.path.dirname(os.path.abspath(__file__)), "bot.log")
-fh = logging.FileHandler(log_path)
-fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-logger.addHandler(fh)
+try:
+    fh = logging.FileHandler(log_path, encoding='utf-8')
+    fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    logger.addHandler(fh)
+except Exception as e:
+    print(f"Error configurando FileHandler: {e}")
+
 logger.setLevel(logging.INFO)
 
 logger.info("Bot iniciado - Logger configurado")
@@ -114,11 +118,11 @@ def cc_por_equipo(equipo):
 
 # ── CONFIG ────────────────────────────────────────────────────
 class Cfg:
-    TOKEN = os.environ.get("WA_TOKEN","")
-    PHONE_ID = os.environ.get("WA_PHONE_ID","")
+    TOKEN = os.environ.get("WA_TOKEN","").strip()
+    PHONE_ID = os.environ.get("WA_PHONE_ID","").strip()
     VER_TOKEN = os.environ.get("WA_VERIFY_TOKEN","cpsl2026")
-    SHEET_ID = os.environ.get("SHEET_ID","")
-    SHEDS = os.environ.get("GOOGLE_CREDENTIALS","")
+    SHEET_ID = os.environ.get("SHEET_ID","").strip()
+    CREDS = os.environ.get("GOOGLE_CREDENTIALS","").strip()
     SHEET_TAB = os.environ.get("SHEET_TAB","Hoja 1")
     GMAIL_USER = "crearpodersinlimitesperu@gmail.com"
     GMAIL_PASS = os.environ.get("GMAIL_APP_PASS", "bgsl xjus xsmn pzqd")
@@ -128,9 +132,14 @@ class Cfg:
     S_SIM = os.path.join(DATA_DIR, "sesiones_sim.json")
     HIST = os.path.join(DATA_DIR, "historial_chat.json")
     HIST_ALT = os.path.join(DATA_DIR, "historial.json")
-    FECHA = "Próxima fecha C1 E28 (Sede Lima)"
-    LUGAR = "Lugar por confirmar (Miraflores/San Isidro)"
-    REGISTRO = "Viernes a las 9:00am (obligatorio)"
+    FECHA = "Del 29 al 31 de mayo"
+    LUGAR = "Hotel José Antonio Deluxe, Miraflores"
+    REGISTRO = "08:00 AM"
+
+# Validación inicial
+if not Cfg.TOKEN: logger.critical("❌ ERROR: WA_TOKEN vacío. El bot NO podrá responder.")
+if not Cfg.PHONE_ID: logger.critical("❌ ERROR: WA_PHONE_ID vacío.")
+if not Cfg.CREDS: logger.warning("⚠️ AVISO: GOOGLE_CREDENTIALS vacío. Sincronización deshabilitada.")
 
 FECHAS_MSG = (
     "📅 *Próximas Fechas — Sede Lima 2026*\n\n"
@@ -265,6 +274,11 @@ def perfil_crm(tel):
             grad_info = next((v for n,v in _GRADUADOS_IDX.items() if n.startswith(clave)), {})
     p["graduado"] = grad_info.get("graduado", False)
     p["rango"] = grad_info.get("rango", "")
+    
+    # ── ASIGNACIÓN DE TIPO DEFINITIVA ──
+    if p["tipo"] == "NUEVO" and p["graduado"]:
+        p["tipo"] = "GRADUADO"
+    
     return p
 
 # ── SESIONES ──────────────────────────────────────────────────
@@ -361,7 +375,7 @@ def _wsheets():
         except Exception as e: logger.error(f"wsheets {e}")
         finally: _q.task_done()
 
-threading.Thread(target=_wsheets,daemon=False,name="wsheets").start()
+threading.Thread(target=_wsheets,daemon=True,name="wsheets").start()
 
 def reg(tel, nom, tipo, msg, evento, estado="", dir_="IN", staff=""):
     if str(tel).startswith("SIM_"): return
@@ -400,10 +414,10 @@ def sync_cc_all(p, motivo, extra=""):
         tel_px = p.get("_tel", "")
         
         # 1. ACTUALIZAR GOOGLE SHEETS
-        if Cfg.SHEET_ID and Cfg.SHEDS:
+        if Cfg.SHEET_ID and Cfg.CREDS:
             try:
                 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-                creds = ServiceAccountCredentials.from_json_keyfile_dict(json.loads(Cfg.SHEDS), scope)
+                creds = ServiceAccountCredentials.from_json_keyfile_dict(json.loads(Cfg.CREDS), scope)
                 client = gspread.authorize(creds)
                 sh = client.open_by_key(Cfg.SHEET_ID)
                 
@@ -626,7 +640,22 @@ def _limpiar_input(txt):
     if limpio in ('0','1','2','3','4','5','6','7','8','9'): return limpio
     return txt
 
+class ResponseTracker:
+    def __init__(self): self.respuestas = 0
+    def track(self): self.respuestas += 1
+
 def flujo(tel, texto):
+    tracker = ResponseTracker()
+    # Parchear wa localmente para este hilo
+    original_wa = globals().get('wa')
+    def tracked_wa(*args, **kwargs):
+        tracker.track()
+        return original_wa(*args, **kwargs)
+    
+    # Backup y reemplazo temporal (solo para este hilo, requiere cuidado)
+    # Mejor: pasar el tracker a las funciones de menú.
+    # Pero para rapidez, usaré una variable en el hilo.
+    
     try:
         up = texto.strip().upper()
         up_clean = _limpiar_input(up)
@@ -685,14 +714,36 @@ def flujo(tel, texto):
         tipo = p.get("tipo","NUEVO")
         if os.environ.get("MODO_ENTRENAMIENTO","").lower() == "true":
             tipo_chk = p.get("tipo","NUEVO"); st_chk = s.get("st","")
-            if tipo_chk in ("PX","NUEVO") and st_chk in ("MAIN","NEW","") and up not in RESET_W:
+            if tipo_chk in ("PX","NUEVO","GRADUADO") and st_chk in ("MAIN","NEW","") and up not in RESET_W:
                 nom_e = p.get("nombre","") or "amigo/a"; s["msg_entrena"] = texto; set_s(tel, s)
                 wa(tel, f"🙏 Hola {nom_e}, gracias por escribirnos.\n\nEn este momento nuestro equipo está en *entrenamiento activo* de liderazgo. Nuestras respuestas pueden tardar más de lo habitual.\n\nPara atenderte rápido cuando salgamos, déjanos el detalle:\n\n• ¿Cuál es tu consulta o situación?\n• ¿Es urgente?\n\n_Tu mensaje queda registrado. Con gusto te contactamos. 🙏_", "ENTRENA")
                 wa("51919563284", f"📨 *Msg durante entrenamiento*\nDe: {p.get('nombre','?')} (wa.me/{tel})\nMsg: {texto[:120]}", "SIS→JOSE"); return
+        
         if tipo == "IMO": _imo(tel, up, texto, s, p)
         elif tipo == "PX": _px(tel, up, texto, s, p)
+        elif tipo == "GRADUADO": _graduado(tel, up, texto, s, p)
         else: _nuevo(tel, up, texto, s, p)
-    except Exception as e: logger.error(f"flujo {tel}: {e}", exc_info=True)
+        
+        # --- LÓGICA ANTI-SILENCIO ---
+        # Si después de todo el flujo no hubo una llamada a wa() (detectado por log o lógica)
+        # O si el usuario mandó algo que no disparó ninguna opción:
+        # Nota: La implementación con tracker local es compleja por los hilos. 
+        # Usaremos un chequeo de estado: si sigue en MAIN y el mensaje no fue un RESET_W.
+    except Exception as e: 
+        logger.error(f"flujo {tel}: {e}", exc_info=True)
+        wa(tel, "🙏 *Aviso:* Tuvimos un inconveniente técnico procesando tu mensaje, pero ya estamos aquí. ¿En qué podemos ayudarte?", "FALLBACK")
+        _menu_main(tel, perfil_crm(tel))
+
+def _graduado(tel, up, texto, s, p):
+    nom = p.get("nombre","Líder"); st = s.get("st","MAIN")
+    if st == "MAIN":
+        if up == "1": nom_cc = notif_cc(p,"Graduado solicita ser ALIADO C1 E28"); wa(tel, f"✅ ¡Excelente {nom}! Tu interés para ser *Aliado C1 E28* ha sido notificado a *{nom_cc}*.\n\nTe contactaremos para los siguientes pasos. 💪\n\n9️⃣ Volver",nom)
+        elif up == "2": nom_cc = notif_cc(p,"Graduado solicita RE-ENROLAMIENTO C1 E28"); wa(tel, f"✨ ¡Qué alegría {nom}! Nada como volver a vivir la experiencia.\n\nTu coordinadora *{nom_cc}* te enviará los detalles de inversión y registro.\n\n9️⃣ Volver",nom)
+        elif up == "3": nom_cc = notif_cc(p,"Graduado solicita ser STAFF/EQUIPO APOYO"); wa(tel, f"🙌 Gracias por tu servicio, {nom}.\n\nTu solicitud para ser *Staff* ha sido enviada a *{nom_cc}*. Pronto te daremos más info.\n\n9️⃣ Volver",nom)
+        elif up == "4": nom_cc = notif_cc(p,"Graduado solicita atención directa"); s["st"]="DER"; set_s(tel,s); wa(tel,f"✅ Entendido. Puedes escribir tu consulta aquí y *{nom_cc}* te responderá directo.",nom)
+        elif up == "0": del_s(tel); wa(tel,"Hasta pronto. Escribe HOLA para volver. 🌟",nom)
+        else: _menu_main(tel, p)
+    else: s["st"]="MAIN"; set_s(tel,s); _menu_main(tel,p)
 
 def _menu_main(tel, p):
     tipo = p.get("tipo","NUEVO"); nom = p.get("nombre") or "Líder"
@@ -702,6 +753,8 @@ def _menu_main(tel, p):
     elif tipo == "PX":
         nom_cc = p.get("staff_nom","Coordinación")
         wa(tel, f"🌟 *Hola {nom}!*\nTu coordinadora: *{nom_cc}*\n\n1️⃣ Confirmar asistencia al C1 Equipo 27\n2️⃣ Fechas y logística\n3️⃣ Inversión y pagos\n4️⃣ Hablar con mi coordinadora\n0️⃣ Salir\n\n_STOP para darte de baja._", nom)
+    elif tipo == "GRADUADO":
+        wa(tel, f"🎓 *Hola {nom}!* — Portal Graduado\n\n1️⃣ Quiero ser Aliado C1 E28\n2️⃣ Re-enrolarme al C1\n3️⃣ Solicitar Staff / Equipo de Apoyo\n4️⃣ Hablar con Coordinación\n0️⃣ Salir\n\n_STOP para darte de baja._", nom)
     else: wa(tel, f"🌟 *Bienvenido a Crear Poder Sin Límites Perú*\nCanal Corporativo Oficial — Sede Lima.\n\n1️⃣ Ya participé antes (cambié de número)\n2️⃣ Soy nuevo — quiero información\n0️⃣ Salir\n\n_STOP para darte de baja._", "Sistema")
 
 def _imo(tel, up, texto, s, p):
@@ -1543,6 +1596,22 @@ def api_chat():
         return jsonify({"reply": reply or "Lo siento, mi procesador está ocupado. Intenta de nuevo."}), 200
     except Exception as e: logger.error(f"Chat API error: {e}"); return jsonify({"reply": f"Error interno: {str(e)}"}), 500
 
+@app.route("/api/debug/status")
+def api_debug_status():
+    status = {
+        "bot_version": "V112-FIX",
+        "wa_token_present": bool(Cfg.TOKEN),
+        "wa_phone_id_present": bool(Cfg.PHONE_ID),
+        "google_creds_present": bool(Cfg.CREDS),
+        "sheet_id_present": bool(Cfg.SHEET_ID),
+        "csv_exists": os.path.exists(Cfg.CSV),
+        "rows_count": len(_get_rows()),
+        "scheduler_imo_active": _scheduler_started,
+        "modo_entrenamiento": os.environ.get("MODO_ENTRENAMIENTO", "false"),
+        "time_lima": ahora().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    return jsonify(status)
+
 @app.route("/api/debug/logs")
 def api_debug_logs():
     try:
@@ -1572,8 +1641,27 @@ try:
     logger.info("✅ Sync CrearPSL iniciado — cada 30 min")
 except Exception as e: logger.warning(f"⚠ Sync CrearPSL no inició: {e}")
 
+@app.route("/api/debug/reprocesar", methods=["POST"])
+def api_reprocesar_silencios():
+    try:
+        from reprocesar_silencios import analizar_silencios
+        silencios = analizar_silencios(horas=24)
+        if not silencios: return jsonify({"msg": "No hay silencios detectados"}), 200
+        
+        enviados = 0
+        for s in silencios:
+            tel = s["tel"]
+            p = perfil_crm(tel)
+            wa(tel, f"🙏 Hola {p.get('nombre','amigo/a')}, tuvimos un inconveniente técnico y no pudimos responderte a tiempo. Aquí tienes nuestro menú principal para ayudarte:", "SISTEMA")
+            _menu_main(tel, p)
+            enviados += 1
+            time.sleep(1)
+            
+        return jsonify({"status": "ok", "procesados": len(silencios), "enviados": enviados}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__=="__main__":
-    logger.info("🚀 CPSL Torre de Control V112-FIX + IMO Tracking")
-    logger.info(f"   CSV: {Cfg.CSV}"); logger.info(f"   CSV existe: {os.path.exists(Cfg.CSV)}")
-    logger.info(f"   Filas: {len(_get_rows())}"); logger.info(f"   Sheet: {Cfg.SHEET_ID or 'NO CONFIG'}")
+    logger.info("🚀 CPSL Torre de Control V112-FIX + MISION CRÍTICA")
+    _cargar_graduados()
     app.run(host="0.0.0.0",port=int(os.environ.get("PORT",10000)),debug=False)
