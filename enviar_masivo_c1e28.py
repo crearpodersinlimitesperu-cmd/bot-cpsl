@@ -61,8 +61,13 @@ def enviar_template(tel, nombre):
         return False
 
 def main():
+    global WA_TOKEN
     if not WA_TOKEN:
-        log.error("WA_TOKEN no encontrado en variables de entorno.")
+        print("--- CONFIGURACIÓN DE SEGURIDAD ---")
+        WA_TOKEN = input("Por favor, pega aquí tu WA_TOKEN (empieza con EAA...): ").strip()
+    
+    if not WA_TOKEN:
+        log.error("WA_TOKEN no proporcionado. Abortando.")
         return
 
     if not os.path.exists(EXCEL_PATH):
