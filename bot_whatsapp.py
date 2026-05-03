@@ -108,6 +108,7 @@ def cc_add(k):
 
 # Mapa equipo → coordinadora para DERIVACIONES (Actualizado para Diana/Joyce)
 _CC_POR_EQUIPO = {
+    "EQUIPO 28": "dmoscoso", # Nueva campaña C1E28 a Diana
     "EQUIPO 27": "dmoscoso", "EQUIPO 26": "dmoscoso", "EQUIPO 25": "jmarin", 
     "EQUIPO 24": "dmoscoso", "EQUIPO 23": "jmarin", "EQUIPO 22": "jmarin", 
     "EQUIPO 21": "jmarin", "EQUIPO 20": "jmarin", "EQUIPO 19": "dmoscoso", 
@@ -147,12 +148,21 @@ if not Cfg.TOKEN: logger.critical("❌ ERROR: WA_TOKEN vacío. El bot NO podrá 
 if not Cfg.PHONE_ID: logger.critical("❌ ERROR: WA_PHONE_ID vacío.")
 if not Cfg.CREDS: logger.warning("⚠️ AVISO: GOOGLE_CREDENTIALS vacío. Sincronización deshabilitada.")
 
-FECHAS_MSG = (
-    "📅 *Próximas Fechas — Sede Lima 2026*\n\n"
-    "🚀 *C1 Equipo 28:* Próximamente\n"
-    "   📍 *Lugar por confirmar*\n\n"
-    "🔥 *C2 {Cfg.EQUIPO_ACTUAL}:* Jueves 14 de mayo\n"
-)
+def get_fechas_msg():
+    return (
+        "📅 *Próximas Fechas — Sede Lima 2026*\n\n"
+        f"🚀 *{Cfg.CAMPANA_ACTUAL}:* {Cfg.FECHA}\n"
+        f"   📍 {Cfg.LUGAR}\n\n"
+        f"🔥 *C2 {Cfg.EQUIPO_ACTUAL}:* Jueves 14 de mayo\n"
+    )
+
+# Alias para compatibilidad con código antiguo
+@property
+def FECHAS_MSG():
+    return get_fechas_msg()
+
+# Reemplazar la constante por la función en los lugares necesarios o simplemente re-definir la variable
+FECHAS_MSG = get_fechas_msg()
 
 # ── CACHÉ CSV ─────────────────────────────────────────────────
 _csv_cache = None

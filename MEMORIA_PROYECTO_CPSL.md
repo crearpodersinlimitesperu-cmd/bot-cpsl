@@ -1008,3 +1008,10 @@ curl -X POST "https://graph.facebook.com/v18.0/1085205258006361/messages" \
 - Se implementó la variable CAMPANA_ACTUAL = 'C1 E28' en ot_whatsapp.py (Clase Cfg).
 - Se inyectaron -strings en todos los menús para leer la variable dinámicamente y abandonar los strings quemados de E27.
 - Se creó el endpoint GET /api/admin/transicion_e28 para ejecutar un cierre masivo de estado (ARCHIVADO_E27) a todos los casos antiguos y limpiar el dashboard de derivaciones.
+
+
+### Lanzamiento C1 E28 - 03/05/2026
+- Se aprobó la plantilla reactivacion_c1_e28 con botones.
+- Se automatizó el envío masivo para Diana y Joyce.
+- Menú dinámico perpetualizado.
+- Sincronización completa con GitHub.
