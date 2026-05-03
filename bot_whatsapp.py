@@ -126,8 +126,8 @@ class Cfg:
     TOKEN = os.environ.get("WA_TOKEN","").strip()
     PHONE_ID = os.environ.get("WA_PHONE_ID","").strip()
     VER_TOKEN = os.environ.get("WA_VERIFY_TOKEN","cpsl2026")
-    # Unificación de SHEET_ID con fallback al ID maestro
-    SHEET_ID = os.environ.get("SHEET_ID", os.environ.get("CRM_SHEET_ID", "1IoCYs1qfOTdn3XWyeK64jsUfAXOFgv3Wa6uJBM-lR2Y")).strip()
+    # Unificación de SHEET_ID con el nuevo Historial Completo solicitado
+    SHEET_ID = os.environ.get("SHEET_ID", os.environ.get("CRM_SHEET_ID", "1NqEgzCkixVhMn3VLhsy_GVWwYBfwLQ1rwdHVcKTRyjo")).strip()
     CREDS = os.environ.get("GOOGLE_CREDENTIALS","").strip()
     SHEDS = os.environ.get("GOOGLE_CREDENTIALS","").strip() # Alias para evitar errores de atributo
     SHEET_TAB = os.environ.get("SHEET_TAB","LOG_INTERACCIONES")
