@@ -137,7 +137,15 @@ class CrearPSLScraper:
         """
         try:
             r = self.s.get(url, timeout=30)
-            if r.status_code != 200:
+            
+            # Si recibimos 202 (Accepted), el servidor está procesando el reporte. 
+            # Esperamos 5 segundos y reintentamos una vez.
+            if r.status_code == 202:
+                log.info(f"  ⚠ {url.split('/')[-1]} → 202 (Procesando). Reintentando en 5s...")
+                time.sleep(5)
+                r = self.s.get(url, timeout=30)
+
+            if r.status_code not in (200, 202):
                 log.warning(f"GET {url} → {r.status_code}")
                 return []
 

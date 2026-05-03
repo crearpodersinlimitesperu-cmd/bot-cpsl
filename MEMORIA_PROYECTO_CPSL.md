@@ -148,12 +148,11 @@
 |-------|--------|----------|-------|-----|
 | `dmoscoso` | Diana Moscoso | 51912379744 | diana.moscoso@crearpsl.com | CC C1/C2 |
 | `jmarin` | Joyce Marín | 51933599903 | joyce.marin@crearpsl.com | CC C1/C2 |
-| `zurteaga` | Zuley Urteaga | 51933599864 | zuley.urteaga@crearpsl.com | **INACTIVA** (Retirada de rotación) |
+| `zurteaga` | Zuley Urteaga | 51933599864 | zuley.urteaga@crearpsl.com | CC C1/C2 |
 | `lpasquel` | Leyla Pasquel | 51919502385 | leyla.pasquel@crearpsl.com | CC MJ |
 | `lvalencia` | Linid Valencia | 51912379686 | linid.valencia@crearpsl.com | CC MJ |
 
 **Regla operativa crítica:** Linid y Leyla **NO** reciben derivaciones C1/C2. Sus PXs se derivan a Diana o Joyce. Solo Maestría del Juego va directo a Linid/Leyla.
-**Reasignación Zuley:** Todos los casos históricos que estaban a nombre de Zuley (tanto cerrados como pendientes) se **reasignan equitativamente** entre Diana y Joyce en los reportes de KPIs y en la lógica de distribución para no perder el tracking histórico.
 
 ### Mapa equipo → coordinadora (para derivaciones)
 
@@ -457,15 +456,6 @@ google-auth>=2.20.0
 
 ✅ **Confirmado:** las dependencias del sync ya están listadas.
 
-
-#### 8.10 Optimizaciones Avanzadas (Mayo 2026)
-
-- **Gestión de Archivo (Opción 8️⃣):** Las CCs tienen acceso a su historial de casos archivados. Se corrigió un bug en el enrutamiento recursivo para este submenú.
-- **Motor de Reportes CC Inteligente:** El parser `reportes_cc.py` ahora maneja emojis (✅, ❌) e incluye persistencia (`historial_reportes.json`) para notificar el "Delta" o progreso (ej: "+5 OKs"). Posee un "IA Fallback" por si las reglas regex fallan.
-- **Super-Cadena de IAs:** Rotación de 8 proveedores (Gemini Flash, Together AI, OpenRouter, Hugging Face, Groq, DeepSeek, Mistral, Cohere) para 100% uptime. El "fuzzy matching" tiene un cutoff de 0.5 para detectar nombres parciales.
-- **Atajos Rápidos (CCs):** Comandos de texto directo: "REPORTE", "CASOS", "ARCHIVO", "MENU" u "0".
-- **Fix Webhooks:** Corrección del error 415 (Unsupported Media Type) en `get_json` para permitir disparos masivos desde scripts o navegadores.
-
 ---
 
 ## 9. CRM Streamlit — Cerebro Cuántico
@@ -560,9 +550,10 @@ def api_chat():
 
 ### ⚠️ Estado intermitente
 
-- El bot es **100% estable y Operativo**. El silencio fantasma reportado no era un fallo de código, sino de permisos en la App de Meta (Modo Desarrollo).
-Los KPIs de WhatsApp leen data real del Google Sheets. Zuley ha sido removida completamente del front-end del bot.
-
+- El bot **rebota entre dos estados**:
+  1. A veces deploya OK y todo funciona
+  2. A veces falla con `SyntaxError línea 2084: expected 'except' or 'finally' block`
+- Cuando falla, Render hace rollback al deploy anterior, lo que impide instalar `googleapiclient` y por eso el sync no escribe a Sheets aunque el login sí funcione
 
 ### ❌ Pendiente (bloqueador)
 
@@ -845,26 +836,61 @@ sync_crearpsl.py
 
 ---
 
-### 15. Cronología completa de los proyectos (Ecosistema Completo)
+## 15. Cronología completa de la sesión
 
-#### Producción Audiovisual y Capacitación (Feb 2026)
-*   **Podcast Maestro Global CC1Y2 (v2):** Producción automatizada de un podcast de 16 bloques (Audios TTS, pausas de 1s y 2s, música corporativa).
-*   **Video Training 8K (Liderazgo y RRHH):** Creación de guiones, subtitulado y dirección audiovisual.
+### Inicio — Inventario y arquitectura
 
-#### Automatizaciones de Escritorio (Abr 2026)
-*   **Mantenimiento Autónomo:** Script en Python para organizar diariamente archivos por tipos y limpiar basura, mejorando el rendimiento.
+- Llegamos con bot-cpsl v109 desplegado y la bienvenida E27 lista para lanzar
+- Identificamos arquitectura dual bot+CRM con Google Sheets como espina dorsal
+- Descubrimos `crm_bridge.py` como puente entre los dos servicios
+- Detectamos que `CRM-CREARLIMA.` (con punto al final) era el nombre real del repo
 
-#### Desarrollo del CRM (Cerebro Cuántico) (Abr 2026)
-*   **Consolidación de Productividad:** Se unificaron 11 Excels en un dataset maestro.
-*   **Estabilización de IA:** Reparación profunda del `app_buscador.py`. El "Cerebro Cuántico" quedó estabilizado para responder consultas en tiempo real.
-*   **Sincronización Cloud:** Abandono de los CSV locales. El CRM se conectó a la API de Google Sheets para ser fuente de la verdad.
+### Fase de descubrimiento del CRM
 
-#### Desarrollo del Bot y Torre de Control (Abr - May 2026)
-*   **Herramienta de Mensajería Directa:** Frontend local "WhatsApp Web" conectado al backend.
-*   **Torre de Control:** Bot en Render para manejar interacciones con 3000+ participantes.
-*   **Recuperación Anti-Silencio y KPIs:** Reparación del silencio del bot (bloqueo de Meta). Eliminación de Zuley de la rotación y corrección de las funciones `resumen_casos` para que extraigan métricas reales de Google Sheets.
+- Exploración de `app_buscador.py` (1,809 líneas)
+- Mapa de roles: diana/joyce/zuley/valencia → CC; linid/leyla → CC_MJ; jose/gerencia → 8 tabs
+- Identificación de 8 tabs gerenciales y robots automatizados
+- Confirmación de IA multimodelo "Cerebro Cuántico Global"
+- Métricas hardcoded actuales: Diana 47/6/17, Joyce 53/13/8, Otty 48/5/5
 
-*   **Optimización del Parser y Routing:** Implementación de la Opción 8 (Archivados), Parser 2.0 con soporte de emojis y deltas, comandos rápidos de texto, Fix 415 en API, y Super-Cadena de 8 IAs con cutoff 0.5 para fuzzy matching.
+### Fase de planificación del Sync CrearPSL
+
+- Mapeo de los 7 endpoints PHP del sistema corporativo
+- Decisión: scraper con BeautifulSoup, cada 30 min, escribe a Sheets
+- Confirmación de credenciales: `jsanchez/crearpsl25`
+- Confirmación de campos del form: `usuario` y `password` (vía HTML inspeccionado)
+
+### Fase de construcción
+
+- Creación de `sync_crearpsl.py` (339 líneas)
+- Sintaxis validada con `ast.parse`
+- Diseño de 7 hojas destino + auditoría
+- Documentación deploy completa
+
+### Fase de deploy y debugging
+
+**Deploy 1** — el bloque del sync se pegó MAL en `bot_whatsapp.py`:
+```
+SyntaxError línea 2084: expected 'except' or 'finally' block
+```
+
+**Deploy 2** — Render rebotando entre OK y SyntaxError:
+- Cuando levanta: `Login OK en crearpslglobal.com` ✅
+- Cuando falla: `No module named 'googleapiclient'` (porque el rollback no instaló deps)
+
+**Deploy 3** — confirmamos que `requirements.txt` ya tenía `google-api-python-client>=2.100.0`
+
+**Diagnóstico final:**
+- Hay DOS copias del bloque sync_crearpsl en bot_whatsapp.py
+- La copia 1 está mal pegada dentro del try de seguimiento_github (rompe sintaxis)
+- La copia 2 está bien al final del archivo
+- Fix: borrar las 8 líneas duplicadas
+
+### Cierre
+
+- Se generó el resumen completo de la sesión
+- Se documentaron próximos pasos por fases
+- Se preparó este archivo MEMORIA_PROYECTO_CPSL.md como entregable final
 
 ---
 
@@ -928,10 +954,6 @@ threading.Thread(target=_wsheets, daemon=False, name="wsheets").start()
 
 ### 16.5 Anti-patterns descubiertos
 
-- ❌ **El "Silencio Fantasma" (Bloqueo de Meta):** Si el bot recibe mensajes y ejecuta `wa()` devolviendo `status_code: 200`, pero no llega nada al celular, el problema es Meta (App Unpublished). *Solución: Pasar la App a Live.*
-- ❌ **Caída por Atributos (Cfg):** Nunca referenciar variables de entorno sin un valor por defecto. La ausencia de `GOOGLE_CREDENTIALS` colapsó el bot en el pasado.
-- ✅ **Doble Chequeo (Anti-silencio):** Bloque `try...except` global en `flujo()`. Si falla, envía un mensaje de Fallback.
-
 - ❌ **Pegar bloques de código sin verificar estructura del archivo** — exactamente lo que pasó con sync_crearpsl. SIEMPRE re-validar con `ast.parse` antes del commit.
 - ❌ **Tener dos copias del mismo bloque** — Python no perdona, una sola copia o nada.
 - ❌ **Hardcodear métricas** que cambian a diario en el código del CRM — debe leerse de Sheets.
@@ -964,6 +986,7 @@ threading.Thread(target=_wsheets, daemon=False, name="wsheets").start()
 > **Documento creado por Claude (Anthropic) en sesión del 02 mayo 2026.**
 > **Última edición:** 02 mayo 2026, ~01:38 Lima.
 > **Próxima actualización sugerida:** después del cierre C1 E27 (3 mayo) y de la primera corrida exitosa del sync.
+<<<<<<< Updated upstream
 
 ---
 

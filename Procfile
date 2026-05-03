@@ -1,1 +1,1 @@
-web: gunicorn bot_whatsapp:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120
+web: gunicorn main:app --workers 2 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 300
