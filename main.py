@@ -197,7 +197,7 @@ def set_campaign(data: dict, db: Session = Depends(get_db)):
     logger.info(f"Campaña cambiada a: {nombre}")
     return {"status": "ok", "campaña": nombre}
 
-@app.get("/admin/backup_total")
+@app.get("/api/admin/backup_total")
 async def backup_total(token: str):
     """Endpoint de emergencia para descargar todos los datos del disco (FastAPI)."""
     if token != settings.WA_VERIFY_TOKEN:
