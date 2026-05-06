@@ -3,8 +3,8 @@ Bot WhatsApp — Crear Poder Sin Límites Perú
 V112-FIX: Corrección de sintaxis + dependencias
 ✅ LISTO PARA COPIAR Y PEGAR EN RENDER
 """
-import os, re, json, time, csv, base64, random, logging, threading, queue, smtplib
-from flask import Flask, request, jsonify
+import os, re, json, time, csv, base64, random, logging, threading, queue, smtplib, zipfile, io
+from flask import Flask, request, jsonify, send_file
 from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -1736,6 +1736,37 @@ def api_reprocesar_silencios():
         return jsonify({"status": "ok", "procesados": len(silencios), "enviados": enviados}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route("/api/admin/backup_total")
+def backup_total():
+    """Endpoint de emergencia para descargar todos los datos del disco antes de cerrar Render."""
+    token = request.args.get("token")
+    # Usar el token configurado o un fallback seguro si no existe
+    if token != Cfg.VER_TOKEN:
+        return "Error: Token de seguridad incorrecto.", 401
+    
+    memory_file = io.BytesIO()
+    try:
+        with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+            # Caminar por el DATA_DIR y comprimir archivos de datos
+            for root, dirs, files in os.walk(DATA_DIR):
+                for file in files:
+                    # Filtramos archivos útiles (datos y logs)
+                    if file.endswith(('.json', '.csv', '.log', '.xlsx', '.db', '.txt')):
+                        file_path = os.path.join(root, file)
+                        # Nombre dentro del zip relativo a DATA_DIR
+                        arcname = os.path.relpath(file_path, DATA_DIR)
+                        zf.write(file_path, arcname)
+        
+        memory_file.seek(0)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        return send_file(
+            memory_file, 
+            download_name=f"backup_completo_cpsl_{timestamp}.zip", 
+            as_attachment=True
+        )
+    except Exception as e:
+        return f"Error generando backup: {str(e)}", 500
 
 if __name__=="__main__":
     logger.info("🚀 CPSL Torre de Control V112-FIX + MISION CRÍTICA")
