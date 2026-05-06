@@ -6,9 +6,11 @@ from datetime import datetime, timedelta
 from typing import Optional, List
 
 from fastapi import FastAPI, Request, HTTPException, Depends, BackgroundTasks
+from fastapi.responses import FileResponse
 from pydantic_settings import BaseSettings
 from sqlalchemy.orm import Session
 from apscheduler.schedulers.background import BackgroundScheduler
+import zipfile, io, time
 
 from database import SessionLocal, engine, init_db, get_db, LogEnvio, Usuario, Campana, Caso, Derivacion
 
@@ -195,15 +197,42 @@ def set_campaign(data: dict, db: Session = Depends(get_db)):
     logger.info(f"Campaña cambiada a: {nombre}")
     return {"status": "ok", "campaña": nombre}
 
-@app.post("/admin/close_cases")
-def close_cases(db: Session = Depends(get_db)):
-    """Cierra todos los casos abiertos (útil para limpiezas manuales)."""
-    db.query(Caso).filter(Caso.estado != "cerrado").update({
-        Caso.estado: "cerrado",
-        Caso.closed_at: datetime.utcnow()
-    })
-    db.commit()
-    return {"status": "ok", "message": "Todos los casos han sido cerrados"}
+@app.get("/admin/backup_total")
+async def backup_total(token: str):
+    """Endpoint de emergencia para descargar todos los datos del disco (FastAPI)."""
+    if token != settings.WA_VERIFY_TOKEN:
+        raise HTTPException(status_code=401, detail="Token incorrecto")
+    
+    # Intentar determinar el DATA_DIR de la misma forma que bot_whatsapp
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    DATA_DIR = "/data" if os.path.exists("/data") else BASE_DIR
+    
+    memory_file = io.BytesIO()
+    try:
+        with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for root, dirs, files in os.walk(DATA_DIR):
+                for file in files:
+                    if file.endswith(('.json', '.csv', '.log', '.xlsx', '.db', '.txt')):
+                        file_path = os.path.join(root, file)
+                        arcname = os.path.relpath(file_path, DATA_DIR)
+                        zf.write(file_path, arcname)
+        
+        memory_file.seek(0)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        
+        # Guardar temporalmente en disco para FileResponse o usar un streaming response
+        # Por simplicidad y para asegurar la descarga en Render, lo guardamos un momento
+        temp_path = os.path.join(BASE_DIR, f"backup_temp_{int(time.time())}.zip")
+        with open(temp_path, "wb") as f:
+            f.write(memory_file.getvalue())
+            
+        return FileResponse(
+            path=temp_path,
+            filename=f"backup_completo_cpsl_{timestamp}.zip",
+            media_type="application/zip"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error en backup: {str(e)}")
 
 def procesar_flujo(tel: str, text: str):
     """
