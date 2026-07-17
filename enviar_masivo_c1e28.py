@@ -60,6 +60,16 @@ def enviar_template(tel, nombre):
         log.error(f"💥 Excepción en {tel}: {e}")
         return False
 
+# Importar e inicializar Gatekeeper
+import sys
+sys.path.append(os.path.dirname(__file__))
+try:
+    from gatekeeper import Gatekeeper
+    gk = Gatekeeper()
+except Exception as e:
+    log.error(f"Error cargando Gatekeeper: {e}")
+    gk = None
+
 def main():
     global WA_TOKEN
     if not WA_TOKEN:
@@ -94,6 +104,13 @@ def main():
         if pd.isna(tel) or not str(tel).strip():
             log.warning(f"Fila {idx} sin teléfono. Saltando.")
             continue
+            
+        # VALIDACIÓN GATEKEEPER
+        if gk:
+            valido, razon = gk._validar_telefono(tel)
+            if not valido:
+                log.warning(f"⛔ BLOQUEADO por Gatekeeper [Tel: {tel}]: {razon}")
+                continue
             
         if enviar_template(tel, nombre):
             enviados += 1

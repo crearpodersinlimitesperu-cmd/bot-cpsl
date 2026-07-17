@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
 settings = Settings()
 
@@ -307,16 +308,40 @@ def cerrar_campanas_antiguas():
     finally:
         db.close()
 
-scheduler = BackgroundScheduler()
-scheduler.add_job(reprocesar_silencios, 'interval', minutes=1)
-scheduler.add_job(sync_cron, 'interval', minutes=30)
-scheduler.add_job(cerrar_campanas_antiguas, 'cron', hour=0) # Una vez al día a medianoche
-scheduler.start()
+import task_scheduler_v2_1
+
+# Registrar tareas locales en el orquestador unificado
+task_scheduler_v2_1.registrar_tarea(
+    "reprocesar_silencios",
+    reprocesar_silencios,
+    "Detecta silencios de PX y envía fallback de WhatsApp si corresponde.",
+    {"trigger": "interval", "minutes": 1}
+)
+task_scheduler_v2_1.registrar_tarea(
+    "sync_cron",
+    sync_cron,
+    "Llamada al sincronizador externo de CrearPSL.",
+    {"trigger": "interval", "minutes": 30}
+)
+task_scheduler_v2_1.registrar_tarea(
+    "cerrar_campanas_antiguas",
+    cerrar_campanas_antiguas,
+    "Busca campañas expiradas y cierra sus casos asociados de manera automática.",
+    {"trigger": "cron", "hour": 0, "minute": 0}
+)
+
+# Inicializar y arrancar el programador de forma no bloqueante
+unified_scheduler = task_scheduler_v2_1.UnifiedScheduler()
+unified_scheduler.start(blocking=False)
+
+# Registrar endpoints de control e historial en FastAPI
+task_scheduler_v2_1.register_scheduler_endpoints(app)
 
 # ── Health Check ────────────────────────────────────────────────────────
 @app.get("/health")
 def health():
     return {"status": "ok", "time": datetime.utcnow().isoformat()}
+
 
 if __name__ == "__main__":
     import uvicorn

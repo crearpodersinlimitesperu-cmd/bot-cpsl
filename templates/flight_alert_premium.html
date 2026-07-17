@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CREAR GLOBAL - Alerta de Logística</title>
+    <!--[if mso]>
+    <style type="text/css">
+        table {border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;}
+        table td {border-collapse: collapse;}
+    </style>
+    <![endif]-->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
+        body { margin: 0; padding: 0; background-color: #f4f4f4; -webkit-font-smoothing: antialiased; }
+        .wrapper { width: 100%; table-layout: fixed; background-color: #f4f4f4; padding-bottom: 40px; }
+        .main { background-color: #ffffff; margin: 0 auto; width: 100%; max-width: 600px; border-spacing: 0; font-family: 'Inter', Helvetica, Arial, sans-serif; color: #333333; }
+        
+        /* Modificadores de Estado */
+        .status-programado { color: #27ae60; background-color: #eafaf1; border: 1px solid #27ae60; }
+        .status-retrasado { color: #c0392b; background-color: #fdedf0; border: 1px solid #c0392b; }
+        .status-cancelado { color: #ffffff; background-color: #c0392b; border: 1px solid #900000; }
+        .status-en_vuelo { color: #2980b9; background-color: #ebf5fb; border: 1px solid #2980b9; }
+
+        @media screen and (max-width: 600px) {
+            .two-column .column { width: 100% !important; max-width: 100% !important; display: block !important; }
+            .content-pad { padding: 20px !important; }
+        }
+        @media (prefers-color-scheme: dark) {
+            .main { background-color: #1a1a2e !important; }
+            .text-dark { color: #f4f4f4 !important; }
+            .info-box { background-color: #2a2a3e !important; border: 1px solid #444455 !important; }
+            .footer-text { color: #888888 !important; }
+        }
+    </style>
+</head>
+<body>
+    <center class="wrapper">
+        <table class="main" width="100%">
+            <!-- PREHEADER -->
+            <div style="display:none;font-size:1px;color:#333333;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
+                {{PREHEADER}}
+            </div>
+
+            <!-- HEADER BRANDING -->
+            <tr>
+                <td style="padding: 30px 0; background-color: #1a1a2e; text-align: center;">
+                    <!-- Logo (Requires CID if embedded, or public URL) -->
+                    <img src="cid:logo_principal" alt="CREAR GLOBAL" width="180" style="display: block; margin: 0 auto; max-width: 180px;">
+                    <p style="color: #b49632; font-size: 11px; letter-spacing: 3px; font-weight: 600; margin: 15px 0 0 0; text-transform: uppercase;">Logística Institucional</p>
+                </td>
+            </tr>
+
+            <!-- CONTENT -->
+            <tr>
+                <td class="content-pad text-dark" style="padding: 40px;">
+                    <h1 style="font-size: 20px; font-weight: 800; color: #1a1a2e; margin: 0 0 20px 0; letter-spacing: -0.5px;">{{GREETING}}</h1>
+                    
+                    {{CONTENT}}
+                    
+                    <!-- FLIGHT INFO BOX -->
+                    <div class="info-box" style="background-color: #fcfcfc; border-left: 4px solid #b49632; padding: 25px; margin: 30px 0; border-radius: 0 8px 8px 0; border: 1px solid #eeeeee;">
+                        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                            <tr>
+                                <td style="padding-bottom: 15px;">
+                                    <span style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #888888;">Estado Actual</span><br>
+                                    <div class="{{STATUS_CLASS}}" style="display: inline-block; padding: 4px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-top: 5px;">{{FLIGHT_STATUS}}</div>
+                                </td>
+                                <td align="right" style="padding-bottom: 15px;">
+                                    <span style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #888888;">Vuelo</span><br>
+                                    <span style="font-size: 16px; font-weight: 800; color: #1a1a2e;">{{FLIGHT_CODE}}</span>
+                                </td>
+                            </tr>
+                            <tr><td colspan="2" style="border-top: 1px solid #eeeeee; padding-top: 15px;"></td></tr>
+                            <tr>
+                                <td width="50%" style="padding-bottom: 10px;">
+                                    <span style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #888888;">Origen</span><br>
+                                    <strong style="color: #1a1a2e; font-size: 14px;">{{ORIGIN}}</strong><br>
+                                    <span style="font-size: 12px; color: #555555;">{{DEP_TIME}}</span>
+                                </td>
+                                <td width="50%" align="right" style="padding-bottom: 10px;">
+                                    <span style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #888888;">Destino</span><br>
+                                    <strong style="color: #1a1a2e; font-size: 14px;">{{DESTINATION}}</strong><br>
+                                    <span style="font-size: 12px; color: #555555;">{{ARR_TIME}}</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td colspan="2" style="padding-top: 15px;">
+                                    <span style="font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #888888;">Terminal / Puerta</span><br>
+                                    <strong style="color: #1a1a2e; font-size: 13px;">{{TERMINAL_GATE}}</strong>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    {{EXTRA_NOTES}}
+
+                    <!-- SIGNATURE -->
+                    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-top: 40px;">
+                        <tr>
+                            <td align="center" style="padding-top: 20px; border-top: 1px solid #eeeeee;">
+                                <p style="margin: 0; font-weight: 800; color: #1a1a2e; text-transform: uppercase; letter-spacing: 2px;">CREAR GLOBAL®</p>
+                                <p style="margin: 5px 0 0; color: #b49632; font-weight: 600;">Dirección de Operaciones</p>
+                                <p style="margin: 15px 0 0;">
+                                    <a href="mailto:operaciones@crearglobal.com" style="color: #1a1a2e; text-decoration: none; font-weight: bold;">operaciones@crearglobal.com</a>
+                                </p>
+                                <p class="footer-text" style="margin: 25px 0 0; text-align: justify; font-size: 9px; line-height: 15px; color: #bbbbbb;">
+                                    <b>AVISO DE CONFIDENCIALIDAD:</b> Esta comunicación contiene información logística operativa confidencial. Generada automáticamente por CREAR Logistics Cloud.
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </center>
+</body>
+</html>

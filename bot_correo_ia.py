@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import imaplib
 import smtplib
@@ -11,6 +12,10 @@ import pandas as pd
 import threading
 from dotenv import load_dotenv
 
+# Reconfigurar codificación para evitar caídas en Windows
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+
 load_dotenv()
 
 # Importar ecosistema CREAR LIMA
@@ -19,7 +24,7 @@ try:
     from ia_multimodelo import ia_responder
     from bot_whatsapp import wa
 except ImportError:
-    print("⚠️ Faltan módulos del CRM/Bot local. Asegúrate de ejecutar esto en la carpeta bot-cpsl-review.")
+    print("[WARNING] Faltan módulos del CRM/Bot local. Asegúrate de ejecutar esto en la carpeta bot-cpsl-review.")
 
 # ── CONFIGURACIÓN (A llenar por Gerencia) ──
 EMAIL_GERENCIA = "crearpodersinlimitesperu@gmail.com"
@@ -27,8 +32,7 @@ EMAIL_PASS = os.environ.get("GMAIL_APP_PASS", "AQUÍ_VA_TU_CLAVE_DE_16_LETRAS")
 
 COORDS_INFO = {
     "Diana Moscoso": {"email": "diana.moscoso@crearpsl.com", "wa": "51912379744"},
-    "Joyce Marin": {"email": "joyce.marin@crearpsl.com", "wa": "51933599903"},
-    "Zuley Urteaga": {"email": "zuley.urteaga@crearpsl.com", "wa": "51933599864"}
+    "Joyce Marin": {"email": "joyce.marin@crearpsl.com", "wa": "51933599903"}
 }
 
 # ── 1. RUTINA 8:50 AM: DISPARAR ALERTAS (CORREO + WA) ──

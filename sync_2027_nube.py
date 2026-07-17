@@ -44,8 +44,26 @@ def procesar_sede(wb, sheet_name, prefix_sede, updates_list):
         if inicio.year not in [2026, 2027]:
             continue
             
-        equipo_str = str(equipo) if equipo else ""
-        if isinstance(equipo, float): equipo_str = str(int(equipo))
+        # Extraer equipo resolviendo fórmulas simples si `data_only=True` falla
+        equipo_val = ws.cell(row=r, column=4).value
+        
+        def resolve_equipo(val, current_ws, depth=0):
+            if depth > 5 or val is None: return ""
+            if isinstance(val, (int, float)): return str(int(val))
+            val_str = str(val).strip()
+            # Si es una fórmula como =+D285+1 o =D36+1
+            import re
+            match = re.match(r'^=?[+]?D(\d+)(?:\+(\d+))?$', val_str.replace(' ', ''))
+            if match:
+                target_row = int(match.group(1))
+                add_val = int(match.group(2)) if match.group(2) else 0
+                target_val = current_ws.cell(row=target_row, column=4).value
+                base_str = resolve_equipo(target_val, current_ws, depth+1)
+                if base_str.isdigit():
+                    return str(int(base_str) + add_val)
+            return val_str
+
+        equipo_str = resolve_equipo(equipo_val, ws)
         equipo_str = equipo_str.replace('*', ' ').replace('+', ' ').strip()
         
         # ID Único

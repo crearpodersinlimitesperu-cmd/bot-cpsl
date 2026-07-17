@@ -1,0 +1,1327 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Protocolo de Respaldo Absoluto – Crear Global</title>
+  <meta name="description" content="Guía institucional interactiva para el Protocolo de Respaldo Absoluto de Información de Crear Global." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --navy: #0a1628;
+      --navy-mid: #0f2044;
+      --navy-light: #1a3260;
+      --blue: #1e5fc2;
+      --blue-bright: #2979ff;
+      --gold: #f0b429;
+      --gold-light: #ffd166;
+      --white: #ffffff;
+      --gray-100: #f0f4ff;
+      --gray-200: #dde4f5;
+      --gray-400: #8896b3;
+      --gray-600: #4a5778;
+      --accent-teal: #00c9b1;
+      --accent-purple: #7c4dff;
+      --success: #00c853;
+      --phase1: #2979ff;
+      --phase2: #00c9b1;
+      --gold-glow: rgba(240,180,41,0.35);
+      --blue-glow: rgba(41,121,255,0.30);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--navy);
+      color: var(--white);
+      overflow-x: hidden;
+    }
+
+    /* ---- PARTICLES BG ---- */
+    #particles-bg {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .particle {
+      position: absolute;
+      border-radius: 50%;
+      opacity: 0;
+      animation: floatParticle linear infinite;
+    }
+
+    @keyframes floatParticle {
+      0%   { transform: translateY(110vh) translateX(0); opacity: 0; }
+      10%  { opacity: 0.6; }
+      90%  { opacity: 0.3; }
+      100% { transform: translateY(-10vh) translateX(var(--drift)); opacity: 0; }
+    }
+
+    /* ---- PROGRESS BAR ---- */
+    #progress-bar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--gold), var(--blue-bright));
+      z-index: 1000;
+      width: 0%;
+      transition: width 0.2s ease;
+      box-shadow: 0 0 10px var(--gold);
+    }
+
+    /* ---- NAV ---- */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 900;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 40px;
+      background: rgba(10,22,40,0.88);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid rgba(240,180,41,0.18);
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 1.2rem;
+      letter-spacing: 0.05em;
+    }
+
+    .nav-logo img {
+      height: 38px;
+      width: 38px;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+
+    .nav-logo span.cg { color: var(--gold); }
+
+    .nav-links {
+      display: flex;
+      gap: 24px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--gray-200);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      transition: color 0.2s;
+      padding: 4px 0;
+      border-bottom: 2px solid transparent;
+    }
+
+    .nav-links a:hover {
+      color: var(--gold);
+      border-bottom-color: var(--gold);
+    }
+
+    .nav-badge {
+      background: linear-gradient(135deg, var(--blue), var(--blue-bright));
+      color: white;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 6px 16px;
+      border-radius: 20px;
+      letter-spacing: 0.04em;
+    }
+
+    /* ---- HERO ---- */
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 120px 40px 80px;
+      z-index: 1;
+      overflow: hidden;
+    }
+
+    .hero-bg {
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+    }
+
+    .hero-bg img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      opacity: 0.22;
+    }
+
+    .hero-bg::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(160deg, rgba(10,22,40,0.7) 0%, rgba(10,22,40,0.3) 50%, rgba(10,22,40,0.85) 100%);
+    }
+
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(240,180,41,0.12);
+      border: 1px solid rgba(240,180,41,0.4);
+      color: var(--gold-light);
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      padding: 6px 18px;
+      border-radius: 30px;
+      margin-bottom: 28px;
+      animation: fadeInDown 0.8s ease both;
+    }
+
+    .hero-eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); animation: pulse 1.6s infinite; }
+
+    @keyframes pulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.5; transform:scale(1.4); } }
+    @keyframes fadeInDown { from { opacity:0; transform:translateY(-20px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes fadeInUp   { from { opacity:0; transform:translateY(30px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes fadeIn     { from { opacity:0; } to { opacity:1; } }
+
+    .hero h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: clamp(2.2rem, 5vw, 3.8rem);
+      font-weight: 800;
+      line-height: 1.15;
+      margin-bottom: 20px;
+      animation: fadeInDown 0.9s 0.1s ease both;
+    }
+
+    .hero h1 .highlight {
+      background: linear-gradient(90deg, var(--gold), var(--gold-light));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-sub {
+      font-size: 1.05rem;
+      color: var(--gray-200);
+      max-width: 680px;
+      line-height: 1.7;
+      margin-bottom: 40px;
+      animation: fadeInUp 0.9s 0.2s ease both;
+    }
+
+    .hero-stats {
+      display: flex;
+      gap: 40px;
+      justify-content: center;
+      flex-wrap: wrap;
+      animation: fadeIn 1s 0.4s ease both;
+    }
+
+    .stat-chip {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.12);
+      padding: 18px 28px;
+      border-radius: 16px;
+      backdrop-filter: blur(10px);
+      transition: transform 0.25s, border-color 0.25s;
+    }
+
+    .stat-chip:hover { transform: translateY(-4px); border-color: var(--gold); }
+
+    .stat-chip .val {
+      font-family: 'Outfit', sans-serif;
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--gold);
+    }
+
+    .stat-chip .lbl {
+      font-size: 0.78rem;
+      color: var(--gray-400);
+      letter-spacing: 0.06em;
+    }
+
+    .scroll-hint {
+      position: absolute;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      animation: fadeIn 1.2s 0.8s ease both;
+      color: var(--gray-400);
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+    }
+
+    .scroll-arrow {
+      width: 24px; height: 24px;
+      border-right: 2px solid var(--gold);
+      border-bottom: 2px solid var(--gold);
+      transform: rotate(45deg);
+      animation: bounceDown 1.4s infinite;
+    }
+
+    @keyframes bounceDown {
+      0%,100% { transform: rotate(45deg) translateY(0); }
+      50%      { transform: rotate(45deg) translateY(6px); }
+    }
+
+    /* ---- TIMELINE SECTION ---- */
+    .section {
+      position: relative;
+      z-index: 1;
+      padding: 80px 40px;
+    }
+
+    .section-header {
+      text-align: center;
+      margin-bottom: 60px;
+    }
+
+    .phase-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 7px 20px;
+      border-radius: 30px;
+      margin-bottom: 16px;
+    }
+
+    .phase-badge.p1 {
+      background: rgba(41,121,255,0.15);
+      border: 1px solid rgba(41,121,255,0.45);
+      color: #7eb3ff;
+    }
+
+    .phase-badge.p2 {
+      background: rgba(0,201,177,0.12);
+      border: 1px solid rgba(0,201,177,0.4);
+      color: #5eebd8;
+    }
+
+    .phase-icon {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+    }
+
+    .p1 .phase-icon { background: var(--phase1); }
+    .p2 .phase-icon { background: var(--phase2); }
+
+    .section-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: clamp(1.7rem, 3.5vw, 2.5rem);
+      font-weight: 800;
+      margin-bottom: 12px;
+    }
+
+    .section-title .accent1 {
+      background: linear-gradient(90deg, var(--blue-bright), #6fa8ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .section-title .accent2 {
+      background: linear-gradient(90deg, var(--accent-teal), #a8fff3);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .section-desc {
+      color: var(--gray-400);
+      font-size: 0.95rem;
+      max-width: 560px;
+      margin: 0 auto;
+      line-height: 1.7;
+    }
+
+    /* ---- TIMELINE ---- */
+    .timeline {
+      position: relative;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 48px;
+      top: 0; bottom: 0;
+      width: 2px;
+      background: linear-gradient(180deg, var(--blue-bright), transparent);
+      opacity: 0.35;
+    }
+
+    .timeline.t2::before {
+      background: linear-gradient(180deg, var(--accent-teal), transparent);
+    }
+
+    .step-card {
+      display: flex;
+      gap: 28px;
+      margin-bottom: 28px;
+      opacity: 0;
+      transform: translateX(-30px);
+      transition: opacity 0.55s ease, transform 0.55s ease;
+    }
+
+    .step-card.visible {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .step-node {
+      flex-shrink: 0;
+      width: 96px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .node-circle {
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 800;
+      font-size: 1.1rem;
+      position: relative;
+      z-index: 2;
+      box-shadow: 0 0 20px var(--node-glow, rgba(41,121,255,0.4));
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .step-card:hover .node-circle { transform: scale(1.12); }
+
+    .node-circle.c1 {
+      background: linear-gradient(135deg, var(--blue), var(--blue-bright));
+      --node-glow: rgba(41,121,255,0.55);
+    }
+
+    .node-circle.c2 {
+      background: linear-gradient(135deg, #00a896, var(--accent-teal));
+      --node-glow: rgba(0,201,177,0.5);
+    }
+
+    .node-time {
+      font-size: 0.68rem;
+      color: var(--gray-400);
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    .step-body {
+      flex: 1;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 18px;
+      padding: 24px 28px;
+      backdrop-filter: blur(8px);
+      transition: border-color 0.25s, background 0.25s, transform 0.25s;
+      cursor: default;
+    }
+
+    .step-card:hover .step-body {
+      background: rgba(255,255,255,0.07);
+      border-color: rgba(240,180,41,0.3);
+      transform: translateX(4px);
+    }
+
+    .step-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .step-label.l1 { color: #7eb3ff; }
+    .step-label.l2 { color: #5eebd8; }
+
+    .step-label .dot { width: 6px; height: 6px; border-radius: 50%; }
+    .l1 .dot { background: var(--blue-bright); }
+    .l2 .dot { background: var(--accent-teal); }
+
+    .step-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .step-narration {
+      color: var(--gray-200);
+      font-size: 0.9rem;
+      line-height: 1.75;
+      border-left: 3px solid rgba(240,180,41,0.35);
+      padding-left: 14px;
+      margin-bottom: 14px;
+    }
+
+    .step-visual {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: 0.8rem;
+      color: var(--gray-400);
+    }
+
+    .step-visual svg { flex-shrink: 0; }
+
+    .step-screen-text {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(240,180,41,0.1);
+      border: 1px solid rgba(240,180,41,0.35);
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--gold-light);
+      margin-top: 8px;
+      font-family: 'Outfit', monospace;
+      letter-spacing: 0.05em;
+    }
+
+    /* ---- GOLDEN RULES ---- */
+    .rules-section {
+      background: linear-gradient(135deg, rgba(15,32,68,0.9), rgba(10,22,40,0.95));
+      border-top: 1px solid rgba(240,180,41,0.15);
+      border-bottom: 1px solid rgba(240,180,41,0.15);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .rules-section::before {
+      content: '';
+      position: absolute;
+      top: -80px; right: -80px;
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(240,180,41,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .rules-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 24px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .rule-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 20px;
+      padding: 32px 26px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity 0.5s ease, transform 0.5s ease, border-color 0.3s;
+      cursor: pointer;
+    }
+
+    .rule-card.visible { opacity: 1; transform: translateY(0); }
+
+    .rule-card:hover {
+      border-color: var(--gold);
+      background: rgba(240,180,41,0.06);
+      transform: translateY(-4px) !important;
+    }
+
+    .rule-card.checked {
+      border-color: var(--success);
+      background: rgba(0,200,83,0.07);
+    }
+
+    .rule-num {
+      width: 48px; height: 48px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.4rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, rgba(240,180,41,0.2), rgba(240,180,41,0.05));
+      border: 1px solid rgba(240,180,41,0.35);
+      color: var(--gold);
+      transition: all 0.3s;
+    }
+
+    .rule-card.checked .rule-num {
+      background: linear-gradient(135deg, rgba(0,200,83,0.25), rgba(0,200,83,0.08));
+      border-color: var(--success);
+      color: var(--success);
+    }
+
+    .rule-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--white);
+    }
+
+    .rule-desc {
+      font-size: 0.88rem;
+      color: var(--gray-400);
+      line-height: 1.65;
+      flex: 1;
+    }
+
+    .rule-check {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.15);
+      color: var(--gray-400);
+      width: fit-content;
+      transition: all 0.3s;
+    }
+
+    .rule-card.checked .rule-check {
+      background: rgba(0,200,83,0.15);
+      border-color: var(--success);
+      color: var(--success);
+    }
+
+    .rule-check-icon { font-size: 0.9rem; }
+
+    /* ---- CLOSING ---- */
+    .closing-section {
+      text-align: center;
+      padding: 100px 40px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .closing-section::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(41,121,255,0.12) 0%, transparent 70%);
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    .completion-badge {
+      width: 120px; height: 120px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--navy-light), var(--blue));
+      border: 3px solid var(--gold);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 32px;
+      font-size: 3rem;
+      box-shadow: 0 0 40px rgba(240,180,41,0.3), 0 0 80px rgba(41,121,255,0.2);
+      animation: rotateSlow 8s linear infinite;
+    }
+
+    @keyframes rotateSlow {
+      0%   { box-shadow: 0 0 40px rgba(240,180,41,0.3), 0 0 80px rgba(41,121,255,0.2); }
+      50%  { box-shadow: 0 0 60px rgba(240,180,41,0.5), 0 0 100px rgba(41,121,255,0.3); }
+      100% { box-shadow: 0 0 40px rgba(240,180,41,0.3), 0 0 80px rgba(41,121,255,0.2); }
+    }
+
+    .closing-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: clamp(1.8rem, 4vw, 3rem);
+      font-weight: 800;
+      margin-bottom: 16px;
+    }
+
+    .closing-title .g { color: var(--gold); }
+
+    .closing-sub {
+      color: var(--gray-400);
+      font-size: 1rem;
+      max-width: 540px;
+      margin: 0 auto 48px;
+      line-height: 1.7;
+    }
+
+    /* ---- CONFIRM BUTTON ---- */
+    .confirm-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      background: linear-gradient(135deg, var(--gold), #e0a020);
+      color: var(--navy);
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 1rem;
+      padding: 16px 36px;
+      border-radius: 50px;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 8px 30px rgba(240,180,41,0.4);
+      transition: transform 0.25s, box-shadow 0.25s;
+      letter-spacing: 0.04em;
+    }
+
+    .confirm-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 14px 40px rgba(240,180,41,0.55);
+    }
+
+    .confirm-btn:active { transform: scale(0.97); }
+
+    .confirm-btn.done {
+      background: linear-gradient(135deg, var(--success), #00a040);
+      box-shadow: 0 8px 30px rgba(0,200,83,0.4);
+      color: white;
+    }
+
+    /* ---- MODAL ---- */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(10,22,40,0.88);
+      backdrop-filter: blur(12px);
+      z-index: 2000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.35s;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-box {
+      background: var(--navy-mid);
+      border: 1px solid rgba(240,180,41,0.35);
+      border-radius: 24px;
+      padding: 48px 44px;
+      max-width: 500px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+      transform: scale(0.85);
+      transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .modal-overlay.active .modal-box { transform: scale(1); }
+
+    .modal-icon { font-size: 4rem; margin-bottom: 20px; }
+
+    .modal-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.6rem;
+      font-weight: 800;
+      margin-bottom: 12px;
+      color: var(--gold);
+    }
+
+    .modal-desc {
+      color: var(--gray-200);
+      font-size: 0.95rem;
+      line-height: 1.7;
+      margin-bottom: 28px;
+    }
+
+    .modal-close {
+      background: linear-gradient(135deg, var(--blue), var(--blue-bright));
+      color: white;
+      border: none;
+      padding: 12px 32px;
+      border-radius: 30px;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 6px 20px rgba(41,121,255,0.4);
+    }
+
+    .modal-close:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(41,121,255,0.5); }
+
+    /* ---- FOOTER ---- */
+    footer {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      padding: 30px 40px;
+      border-top: 1px solid rgba(255,255,255,0.07);
+      color: var(--gray-600);
+      font-size: 0.8rem;
+    }
+
+    footer span { color: var(--gold); font-weight: 600; }
+
+    /* ---- DIVIDER ---- */
+    .divider {
+      max-width: 900px;
+      margin: 0 auto 60px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+    }
+
+    /* ---- RESPONSIVE ---- */
+    @media (max-width: 680px) {
+      nav { padding: 12px 20px; }
+      .nav-links { display: none; }
+      .hero { padding: 100px 20px 60px; }
+      .section { padding: 60px 20px; }
+      .timeline::before { left: 36px; }
+      .step-node { width: 76px; }
+      .node-circle { width: 44px; height: 44px; font-size: 0.95rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Animated particle background -->
+<div id="particles-bg"></div>
+
+<!-- Progress bar -->
+<div id="progress-bar"></div>
+
+<!-- ===================== NAV ===================== -->
+<nav>
+  <div class="nav-logo">
+    <img src="crear_global_logo_1780628461173.png" alt="Crear Global" onerror="this.style.display='none'" />
+    <span>Crear<span class="cg"> Global</span></span>
+  </div>
+  <ul class="nav-links">
+    <li><a href="#fase1">Fase 1 – Outlook</a></li>
+    <li><a href="#fase2">Fase 2 – OneDrive</a></li>
+    <li><a href="#reglas">Reglas de Oro</a></li>
+    <li><a href="#cierre">Cierre</a></li>
+  </ul>
+  <div class="nav-badge">🔒 Protocolo Oficial</div>
+</nav>
+
+<!-- ===================== HERO ===================== -->
+<section class="hero" id="inicio">
+  <div class="hero-bg">
+    <img src="backup_hero_banner_1780628475664.png" alt="Seguridad digital" />
+  </div>
+
+  <div class="hero-eyebrow">
+    <span class="dot"></span>
+    Protocolo Institucional · Crear Global
+  </div>
+
+  <h1>
+    Protocolo de<br />
+    <span class="highlight">Respaldo Absoluto</span><br />
+    de Información
+  </h1>
+
+  <p class="hero-sub">
+    Garantizamos que el 100% de la información institucional quede resguardada de forma local y segura en cada computadora, protegiendo los activos de la organización ante cualquier contingencia técnica.
+  </p>
+
+  <div class="hero-stats">
+    <div class="stat-chip">
+      <span class="val">2</span>
+      <span class="lbl">Fases clave</span>
+    </div>
+    <div class="stat-chip">
+      <span class="val">10</span>
+      <span class="lbl">Pasos guiados</span>
+    </div>
+    <div class="stat-chip">
+      <span class="val">100%</span>
+      <span class="lbl">Info protegida</span>
+    </div>
+    <div class="stat-chip">
+      <span class="val">~5</span>
+      <span class="lbl">Minutos</span>
+    </div>
+  </div>
+
+  <div class="scroll-hint">
+    <span>DESPLÁZATE</span>
+    <div class="scroll-arrow"></div>
+  </div>
+</section>
+
+<!-- ===================== FASE 1: OUTLOOK ===================== -->
+<section class="section" id="fase1">
+  <div class="section-header">
+    <div class="phase-badge p1">
+      <span class="phase-icon"></span>
+      Fase 1 de 2
+    </div>
+    <h2 class="section-title">
+      Respaldo en <span class="accent1">Microsoft Outlook</span>
+    </h2>
+    <p class="section-desc">Exporta todos tus correos, agendas y contactos institucionales en un único archivo PST seguro.</p>
+  </div>
+
+  <div class="timeline" id="timeline1">
+
+    <!-- PASO 1 -->
+    <div class="step-card" data-delay="0">
+      <div class="step-node">
+        <div class="node-circle c1">1</div>
+        <span class="node-time">0:20–0:35</span>
+      </div>
+      <div class="step-body">
+        <div class="step-label l1"><span class="dot"></span>Paso 1</div>
+        <div class="step-title">Ingresar al Menú de Configuración</div>
+        <div class="step-narration">
+          Abra la aplicación Outlook instalada en su computadora. En la esquina superior izquierda, haga clic en la pestaña <strong>Archivo</strong>.
+        </div>
+        <div class="step-visual">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8896b3" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          Usuario abre Outlook → selecciona "Archivo"
+        </div>
+      </div>
+    </div>
+
+    <!-- PASO 2 -->
+    <div class="step-card" data-delay="80">
+      <div class="step-node">
+        <div class="node-circle c1">2</div>
+        <span class="node-time">0:35–0:50</span>
+      </div>
+      <div class="step-body">
+        <div class="step-label l1"><span class="dot"></span>Paso 2</div>
+        <div class="step-title">Acceder al Asistente de Exportación</div>
+        <div class="step-narration">
+          En la columna izquierda seleccione <strong>Abrir y exportar</strong>. Después, haga clic en <strong>Importar o exportar</strong>.
+        </div>
+        <div class="step-visual">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8896b3" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+          Menú "Abrir y exportar" → "Importar o exportar"
+        </div>
+      </div>
+    </div>
+
+    <!-- PASO 3 -->
+    <div class="step-card" data-delay="160">
+      <div class="step-node">
+        <div class="node-circle c1">3</div>
+        <span class="node-time">0:50–1:05</span>
+      </div>
+      <div class="step-body">
+        <div class="step-label l1"><span class="dot"></span>Paso 3</div>
+        <div class="step-title">Seleccionar la Acción de Salida</div>
+        <div class="step-narration">
+          Seleccione la opción <strong>Exportar a un archivo</strong> y luego haga clic en <strong>Siguiente</strong>.
+        </div>
+        <div class="step-visual">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8896b3" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 8 16 12 12 16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          Ventana emergente → "Exportar a un archivo"
+        </div>
+      </div>
+    </div>
+
+    <!-- PASO 4 -->
+    <div class="step-card" data-delay="240">
+      <div class="step-node">
+        <div class="node-circle c1">4</div>
+        <span class="node-time">1:05–1:25</span>
+      </div>
+      <div class="step-body">
+        <div class="step-label l1"><span class="dot"></span>Paso 4</div>
+        <div class="step-title">Establecer el Formato del Respaldo</div>
+        <div class="step-narration">
+          Seleccione <strong>Archivo de datos de Outlook (.PST)</strong>. Este archivo contendrá todos sus correos, carpetas y archivos adjuntos en un único respaldo.
+        </div>
+        <div class="step-visual">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8896b3" stroke-width="2"><path d="M13 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+          Selección de formato → "Archivo de datos de Outlook (.pst)"
+        </div>
+      </div>
+    </div>
+
+    <!-- PASO 5 -->
+    <div class="step-card" data-delay="320">
+      <div class="step-node">
+        <div class="node-circle c1">5</div>
+        <span class="node-time">1:25–1:50</span>
+      </div>
+      <div class="step-body">
+        <div class="step-label l1"><span class="dot"></span>Paso 5</div>
+        <div class="step-title">Seleccionar la Cuenta Completa</div>
+        <div class="step-narration">
+          Seleccione la cuenta institucional ubicada en la parte superior del árbol de carpetas y marque la opción <strong>Incluir subcarpetas</strong> para asegurar que toda la información sea respaldada.
+        </div>
+        <div class="step-visual">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8896b3" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+          Cuenta principal → ✅ "Incluir subcarpetas"
+        </div>
+      </div>
+    </div>
+
+    <!-- PASO 6 -->
+    <div class="step-card" data-delay="400">
+      <div class="step-node">
+        <div class="node-circle c1">6</div>
+        <span class="node-time">1:50–2:20</span>
+      </div>
+      <div class="step-body">
+        <div class="step-label l1"><span class="dot"></span>Paso 6</div>
+        <div class="step-title">Definir la Ruta de Descarga</div>
+        <div class="step-narration">
+          Presione <strong>Examinar</strong> y elija una ubicación fácil de identificar, como Escritorio o Documentos. Si Outlook solicita una contraseña, déjela en blanco y seleccione Aceptar. Espere hasta que el proceso finalice completamente.
+        </div>
+        <div class="step-visual">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8896b3" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+          Botón Examinar → Escritorio o Documentos
+        </div>
+        <div class="step-screen-text">
+          📄 Respaldo_Correo_[TuNombre].pst
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /timeline -->
+</section>
+
+<!-- ===================== FASE 2: ONEDRIVE ===================== -->
+<section class="section" id="fase2" style="background: rgba(0,201,177,0.03);">
+  <div class="section-header">
+    <div class="phase-badge p2">
+      <span class="phase-icon"></span>
+      Fase 2 de 2
+    </div>
+    <h2 class="section-title">
+      Descarga Completa en <span class="accent2">OneDrive</span>
+    </h2>
+    <p class="section-desc">Descarga todos tus documentos y carpetas desde la nube corporativa en un archivo ZIP local.</p>
+  </div>
+
+  <div class="timeline t2" id="timeline2">
+
+    <!-- PASO 1 -->
+    <div class="step-card" data-delay="0">
+      <div class="step-node">
+        <div class="node-circle c2">1</div>
+        <span class="node-time">2:20–2:45</span>
+      </div>
+      <div class="step-body">
+        <div class="step-label l2"><span class="dot"></span>Paso 1</div>
+        <div class="step-title">Ingresar al Portal de la Nube</div>
+        <div class="step-narration">
+          Ingrese a <strong>portal.office.com</strong> e inicie sesión con su cuenta corporativa. Luego acceda a OneDrive desde el menú de aplicaciones.
+        </div>
+        <div class="step-visual">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8896b3" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+          Navegador → portal.office.com → OneDrive
+        </div>
+      </div>
+    </div>
+
+    <!-- PASO 2 -->
+    <div class="step-card" data-delay="80">
+      <div class="step-node">
+        <div class="node-circle c2">2</div>
+        <span class="node-time">2:45–3:00</span>
+      </div>
+      <div class="step-body">
+        <div class="step-label l2"><span class="dot"></span>Paso 2</div>
+        <div class="step-title">Ir a Mis Archivos</div>
+        <div class="step-narration">
+          Seleccione <strong>Mis archivos</strong> para visualizar todas las carpetas y documentos con los que trabaja habitualmente.
+        </div>
+        <div class="step-visual">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8896b3" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+          Menú lateral → "Mis archivos"
+        </div>
+      </div>
+    </div>
+
+    <!-- PASO 3 -->
+    <div class="step-card" data-delay="160">
+      <div class="step-node">
+        <div class="node-circle c2">3</div>
+        <span class="node-time">3:00–3:20</span>
+      </div>
+      <div class="step-body">
+        <div class="step-label l2"><span class="dot"></span>Paso 3</div>
+        <div class="step-title">Selección Masiva de Carpetas</div>
+        <div class="step-narration">
+          Utilice la <strong>casilla principal de selección</strong> para marcar todos los archivos y carpetas de forma simultánea.
+        </div>
+        <div class="step-visual">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8896b3" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+          ☑ Casilla principal → selección total
+        </div>
+      </div>
+    </div>
+
+    <!-- PASO 4 -->
+    <div class="step-card" data-delay="240">
+      <div class="step-node">
+        <div class="node-circle c2">4</div>
+        <span class="node-time">3:20–3:45</span>
+      </div>
+      <div class="step-body">
+        <div class="step-label l2"><span class="dot"></span>Paso 4</div>
+        <div class="step-title">Descargar la Información</div>
+        <div class="step-narration">
+          Haga clic en <strong>Descargar</strong>. OneDrive comenzará a empaquetar toda la información en un archivo comprimido ZIP que será guardado en su computadora.
+        </div>
+        <div class="step-visual">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8896b3" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          Botón "Descargar" → generación de archivo .ZIP
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /timeline2 -->
+</section>
+
+<!-- ===================== REGLAS DE ORO ===================== -->
+<section class="section rules-section" id="reglas">
+  <div class="section-header">
+    <div class="phase-badge" style="background:rgba(240,180,41,0.12);border:1px solid rgba(240,180,41,0.4);color:var(--gold-light);">
+      <span class="phase-icon" style="background:var(--gold);"></span>
+      Reglas de Oro
+    </div>
+    <h2 class="section-title" style="font-family:'Outfit',sans-serif;">
+      Checklist de <span style="background:linear-gradient(90deg,var(--gold),var(--gold-light));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Cumplimiento</span>
+    </h2>
+    <p class="section-desc">Haz clic en cada regla para confirmar que la has seguido correctamente.</p>
+  </div>
+
+  <div class="rules-grid">
+
+    <div class="rule-card" onclick="toggleRule(this)" data-delay="0">
+      <div class="rule-num">1</div>
+      <div class="rule-title">🌐 Red Estable</div>
+      <div class="rule-desc">Asegúrese de utilizar una conexión a internet estable durante todo el proceso de exportación y descarga.</div>
+      <div class="rule-check"><span class="rule-check-icon">○</span> Confirmar cumplimiento</div>
+    </div>
+
+    <div class="rule-card" onclick="toggleRule(this)" data-delay="100">
+      <div class="rule-num">2</div>
+      <div class="rule-title">🚫 No Interrumpir</div>
+      <div class="rule-desc">No cierre el navegador ni apague el equipo mientras la descarga esté en progreso. Espere a que finalice por completo.</div>
+      <div class="rule-check"><span class="rule-check-icon">○</span> Confirmar cumplimiento</div>
+    </div>
+
+    <div class="rule-card" onclick="toggleRule(this)" data-delay="200">
+      <div class="rule-num">3</div>
+      <div class="rule-title">✅ Verificar Archivos</div>
+      <div class="rule-desc">Confirme que el archivo PST y el archivo ZIP se encuentren almacenados correctamente en su computadora antes de reportar.</div>
+      <div class="rule-check"><span class="rule-check-icon">○</span> Confirmar cumplimiento</div>
+    </div>
+
+  </div>
+
+  <div id="rules-progress" style="text-align:center;margin-top:40px;font-size:0.9rem;color:var(--gray-400);transition:color 0.3s;">
+    <span id="rules-count">0</span> de 3 reglas confirmadas
+  </div>
+
+</section>
+
+<!-- ===================== CIERRE ===================== -->
+<section class="section closing-section" id="cierre">
+
+  <div class="completion-badge">🛡️</div>
+
+  <h2 class="closing-title">
+    Información <span class="g">Protegida</span>.<br />Operación Completada.
+  </h2>
+
+  <p class="closing-sub">
+    Una vez que ambos archivos hayan sido guardados exitosamente, notifique de inmediato a la gerencia de su sede para registrar el cumplimiento del plan de transición regional.
+  </p>
+
+  <button class="confirm-btn" id="confirm-btn" onclick="confirmCompletion()">
+    <span>📤</span>
+    Notificar a Gerencia
+  </button>
+
+  <div style="margin-top:60px;padding-top:40px;border-top:1px solid rgba(255,255,255,0.08);">
+    <p style="color:var(--gray-400);font-size:0.85rem;line-height:1.7;max-width:560px;margin:0 auto;">
+      "Gracias por contribuir a la seguridad y continuidad de la información institucional de Crear Global."
+    </p>
+    <div style="margin-top:20px;font-family:'Outfit',sans-serif;font-weight:700;font-size:1.1rem;letter-spacing:0.1em;color:var(--gold);">
+      CREAR GLOBAL
+    </div>
+  </div>
+
+</section>
+
+<!-- ===================== FOOTER ===================== -->
+<footer>
+  © 2025 <span>Crear Global</span> · Protocolo de Respaldo Absoluto de Información · Documento de uso interno
+</footer>
+
+<!-- ===================== MODAL ===================== -->
+<div class="modal-overlay" id="modal">
+  <div class="modal-box">
+    <div class="modal-icon">✅</div>
+    <div class="modal-title">¡Notificación Enviada!</div>
+    <div class="modal-desc">
+      Has completado el Protocolo de Respaldo Absoluto de Información de Crear Global.<br /><br />
+      Tu gerencia ha sido notificada del cumplimiento del plan de transición regional.
+    </div>
+    <button class="modal-close" onclick="closeModal()">Aceptar</button>
+  </div>
+</div>
+
+<script>
+  /* ---- PARTICLES ---- */
+  (function() {
+    const bg = document.getElementById('particles-bg');
+    const colors = ['rgba(41,121,255,0.7)', 'rgba(240,180,41,0.6)', 'rgba(0,201,177,0.5)', 'rgba(124,77,255,0.5)'];
+    const sizes  = [3, 4, 5, 6, 7, 8];
+
+    for (let i = 0; i < 38; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      const size  = sizes[Math.floor(Math.random() * sizes.length)];
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      const left  = Math.random() * 100;
+      const dur   = 10 + Math.random() * 18;
+      const delay = Math.random() * 20;
+      const drift = (Math.random() - 0.5) * 120 + 'px';
+
+      p.style.cssText = `
+        width:${size}px; height:${size}px;
+        background:${color};
+        left:${left}%;
+        bottom:-10px;
+        animation-duration:${dur}s;
+        animation-delay:${delay}s;
+        --drift:${drift};
+        box-shadow: 0 0 ${size*2}px ${color};
+      `;
+      bg.appendChild(p);
+    }
+  })();
+
+  /* ---- PROGRESS BAR ---- */
+  window.addEventListener('scroll', () => {
+    const winH   = document.documentElement.scrollHeight - window.innerHeight;
+    const pct    = (window.scrollY / winH) * 100;
+    document.getElementById('progress-bar').style.width = pct + '%';
+  });
+
+  /* ---- INTERSECTION OBSERVER: step cards ---- */
+  const stepCards = document.querySelectorAll('.step-card');
+  const cardObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const delay = parseInt(entry.target.dataset.delay || 0);
+        setTimeout(() => entry.target.classList.add('visible'), delay);
+        cardObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15 });
+  stepCards.forEach(c => cardObserver.observe(c));
+
+  /* ---- INTERSECTION OBSERVER: rule cards ---- */
+  const ruleCards = document.querySelectorAll('.rule-card');
+  const ruleObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const delay = parseInt(entry.target.dataset.delay || 0);
+        setTimeout(() => entry.target.classList.add('visible'), delay);
+        ruleObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.2 });
+  ruleCards.forEach(c => ruleObserver.observe(c));
+
+  /* ---- RULE TOGGLE ---- */
+  let checkedCount = 0;
+
+  function toggleRule(card) {
+    const wasChecked = card.classList.contains('checked');
+    card.classList.toggle('checked');
+    const icon = card.querySelector('.rule-check-icon');
+    const label = card.querySelector('.rule-check');
+
+    if (!wasChecked) {
+      icon.textContent = '✓';
+      label.childNodes[0].textContent = '';
+      label.innerHTML = '<span class="rule-check-icon">✓</span> Cumplido';
+      checkedCount++;
+    } else {
+      icon.textContent = '○';
+      label.innerHTML = '<span class="rule-check-icon">○</span> Confirmar cumplimiento';
+      checkedCount--;
+    }
+
+    const prog = document.getElementById('rules-progress');
+    document.getElementById('rules-count').textContent = checkedCount;
+
+    if (checkedCount === 3) {
+      prog.style.color = '#00c853';
+      prog.innerHTML = '🎉 <strong>¡Todas las reglas confirmadas!</strong> Puedes proceder al cierre.';
+    } else {
+      prog.style.color = '';
+      prog.innerHTML = `<span id="rules-count">${checkedCount}</span> de 3 reglas confirmadas`;
+    }
+  }
+
+  /* ---- CONFIRM BUTTON ---- */
+  function confirmCompletion() {
+    const btn = document.getElementById('confirm-btn');
+    btn.classList.add('done');
+    btn.innerHTML = '<span>✅</span> Notificación Enviada';
+    btn.disabled = true;
+
+    setTimeout(() => {
+      document.getElementById('modal').classList.add('active');
+    }, 400);
+  }
+
+  function closeModal() {
+    document.getElementById('modal').classList.remove('active');
+  }
+
+  /* Close modal on overlay click */
+  document.getElementById('modal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
+</script>
+</body>
+</html>

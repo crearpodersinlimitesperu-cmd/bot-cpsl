@@ -1,0 +1,966 @@
+{
+  "contactos_crear_lima": {
+    "gerente": {
+      "nombre": "José Sánchez",
+      "telefono": "+51 919 563 284"
+    },
+    "coordinadoras": [
+      {
+        "nombre": "Linid",
+        "rol": "CMJ",
+        "telefono": "+51 912 379 686"
+      },
+      {
+        "nombre": "Leyla",
+        "rol": "CMJ",
+        "telefono": "+51 919 502 385"
+      },
+      {
+        "nombre": "Diana",
+        "rol": "CC1 y CC2",
+        "telefono": "+51 912 379 744"
+      },
+      {
+        "nombre": "Joyce",
+        "rol": "CC1 y CC2",
+        "telefono": "+51 933 599 903"
+      }
+    ]
+  },
+  "venues": {
+    "jose_antonio_deluxe": {
+      "nombre": "Hotel José Antonio Deluxe",
+      "direccion": "Calle Colón 325, Miraflores, Lima",
+      "telefono": "+51 1 445 4646",
+      "salon": "Salón 3",
+      "notas": "Límite de ruido (decibeles) y horario de cierre máximo 11:00 PM."
+    }
+  },
+  "entrenadores": [
+    {
+      "nombre": "ENTRENADOR EJEMPLO",
+      "email": "jose.sanchez@crearpsl.com",
+      "programa": "MAESTRIA DEL JUEGO",
+      "equipo": "E27",
+      "fds": "4FDS",
+      "vuelo_llegada": {
+        "fecha": "Por confirmar",
+        "hora": "Por confirmar",
+        "aerolinea": "Por confirmar",
+        "referencia": "Por confirmar"
+      },
+      "vuelo_salida": {
+        "fecha": "Por confirmar",
+        "hora": "Por confirmar",
+        "aerolinea": "Por confirmar",
+        "referencia": "Por confirmar"
+      },
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "horarios": {
+        "grounding": "12:00 PM",
+        "registro": "1:00 PM",
+        "inicio": "2:00 PM",
+        "cierre_diario": "10:00 PM aprox."
+      }
+    },
+    {
+      "nombre": "MARIA PATIN O GALARRAGA",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "26/06/25",
+        "hora": "22:20",
+        "aerolinea": "LATAM Airlines",
+        "referencia": "USYMMM"
+      },
+      "vuelo_salida": {
+        "fecha": "30/06/25",
+        "hora": "12:00",
+        "aerolinea": "LATAM Airlines",
+        "referencia": "USYMMM"
+      }
+    },
+    {
+      "nombre": "MICHAEL BOADA RUBIAN O",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "31/07/25",
+        "hora": "20:15",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "QLRWB"
+      },
+      "vuelo_salida": {
+        "fecha": "04/08/25",
+        "hora": "16:00",
+        "aerolinea": "LATAM AIRLINES COLOMBIA",
+        "referencia": "QLRWB"
+      }
+    },
+    {
+      "nombre": "ERN ESTO DIAZ PABON",
+      "email": "POR DEFINIR",
+      "programa": "MAESTRIA DEL JUEGO",
+      "equipo": "E25 (Gratitud)",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "22/05/25",
+        "hora": "14:30",
+        "aerolinea": "LATAM AIRLIN ES GROUP",
+        "referencia": "LA1450"
+      },
+      "vuelo_salida": {
+        "fecha": "25/05/25",
+        "hora": "23:40",
+        "aerolinea": "LATAM AIRLIN ES GROUP",
+        "referencia": "LA1426"
+      }
+    },
+    {
+      "nombre": "HAYDIN  MEN DOZA CLAVIJO",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "19/02/26",
+        "hora": "11:00",
+        "aerolinea": "LATAM Airlines",
+        "referencia": null
+      },
+      "vuelo_salida": {
+        "fecha": "22/02/26",
+        "hora": "23:30",
+        "aerolinea": "LATAM Airlines",
+        "referencia": null
+      }
+    },
+    {
+      "nombre": "FERN AN DO ARAGON",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "19/03/26",
+        "hora": "06:45",
+        "aerolinea": "LATAM AIRLIN ES PERU",
+        "referencia": "LIDPQA"
+      },
+      "vuelo_salida": {
+        "fecha": "19/03/26",
+        "hora": "08:50",
+        "aerolinea": "LATAM AIRLIN ES PERU",
+        "referencia": "LIDPQA"
+      }
+    },
+    {
+      "nombre": "CARLOS GOMEZ GOMEZ",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "24/06/26",
+        "hora": "21:25",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "LRDHAV"
+      },
+      "vuelo_salida": {
+        "fecha": "29/06/26",
+        "hora": "13:10",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "LRDHAV"
+      }
+    },
+    {
+      "nombre": "EDISON  SOSA CARRERA",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "28/01/26",
+        "hora": "22:35",
+        "aerolinea": "LATAM Airlines",
+        "referencia": null
+      },
+      "vuelo_salida": {
+        "fecha": "02/02/26",
+        "hora": "11:50",
+        "aerolinea": "LATAM Airlines",
+        "referencia": null
+      }
+    },
+    {
+      "nombre": "LEAN DRO BRUN IS AVILES",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "10/07/25",
+        "hora": "14:30",
+        "aerolinea": "LATAM AIRLIN ES PERU",
+        "referencia": "QSQPME"
+      },
+      "vuelo_salida": {
+        "fecha": "13/07/25",
+        "hora": "23:40",
+        "aerolinea": "LATAM AIRLIN ES GROUP",
+        "referencia": "QSQPME"
+      }
+    },
+    {
+      "nombre": "DANIELA RAMOS TORRES",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "28/05/26",
+        "hora": "22:05",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "QPXRHG"
+      },
+      "vuelo_salida": {
+        "fecha": "05/06/26",
+        "hora": "08:45",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "QPXRHG"
+      }
+    },
+    {
+      "nombre": "ELMER IDROBO AN DRADE",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "10/07/25",
+        "hora": "14:30",
+        "aerolinea": "LATAM Airlines",
+        "referencia": "LMGCXD"
+      },
+      "vuelo_salida": {
+        "fecha": "13/07/25",
+        "hora": "23:40",
+        "aerolinea": "LATAM Airlines",
+        "referencia": "LMGCXD"
+      }
+    },
+    {
+      "nombre": "MILDRED MUN OZ VASQUEZ",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "27/08/25",
+        "hora": "21:25",
+        "aerolinea": "LATAM AIRLIN ES PERU",
+        "referencia": "QSFVBS"
+      },
+      "vuelo_salida": {
+        "fecha": "31/08/25",
+        "hora": "23:40",
+        "aerolinea": "LATAM AIRLIN ES PERU",
+        "referencia": "QSFVBS"
+      }
+    },
+    {
+      "nombre": "MON ICA CASTILLO ARMEN DARIZ",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "03/02/26",
+        "hora": "11:05",
+        "aerolinea": "LATAM Airlines",
+        "referencia": null
+      }
+    },
+    {
+      "nombre": "ERNESTO DIAZ PABON",
+      "email": "POR DEFINIR",
+      "programa": "MAESTRIA DEL JUEGO",
+      "equipo": "E25 (Gratitud)",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "26/11/25",
+        "hora": "17:35",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "NEXJKO"
+      },
+      "vuelo_salida": {
+        "fecha": "01/12/25",
+        "hora": "08:50",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "NEXJKO"
+      }
+    },
+    {
+      "nombre": "JESUS ACOSTA RODRIGUEZ",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "09/10/25",
+        "hora": "21:45",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "WNWWJJ"
+      },
+      "vuelo_salida": {
+        "fecha": "13/10/25",
+        "hora": "08:50",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "WNWWJJ"
+      }
+    },
+    {
+      "nombre": "ALON SO SOLARES SALAZAR",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "12/11/25",
+        "hora": "22:50",
+        "aerolinea": "LATAM Airlines",
+        "referencia": "DJYRBM"
+      },
+      "vuelo_salida": {
+        "fecha": "17/11/25",
+        "hora": "08:45",
+        "aerolinea": "LATAM Airlines",
+        "referencia": "DJYRBM"
+      }
+    },
+    {
+      "nombre": "LIN ID VALEN CIA HIN CAPIE",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "12/05/25",
+        "hora": "02:04",
+        "aerolinea": "LATAM Airlines",
+        "referencia": "CXTZSE"
+      },
+      "vuelo_salida": {
+        "fecha": "15/05/25",
+        "hora": "12:15",
+        "aerolinea": "LATAM Airlines",
+        "referencia": "CXTZSE"
+      }
+    },
+    {
+      "nombre": "CIRILO AGUSTIN MARTINEZ",
+      "email": "POR DEFINIR",
+      "programa": "MAESTRIA DEL JUEGO",
+      "equipo": "E27 (Creación)",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "21/05/26",
+        "hora": "22:05",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "ALSPKN"
+      },
+      "vuelo_salida": {
+        "fecha": "25/05/26",
+        "hora": "08:45",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "ALSPKN"
+      }
+    },
+    {
+      "nombre": "DIEGO BRAVO FIGUEROA",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "01/05/26",
+        "hora": "14:30",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "DCYBOW"
+      },
+      "vuelo_salida": {
+        "fecha": "04/05/26",
+        "hora": "12:30",
+        "aerolinea": "LATAM AIRLINES GROUP",
+        "referencia": "DCYBOW"
+      }
+    },
+    {
+      "nombre": "JUAN  ARREOLA MORALES",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "04/09/25",
+        "hora": "21:45",
+        "aerolinea": "LATAM Airlines",
+        "referencia": "SLDFMH"
+      },
+      "vuelo_salida": {
+        "fecha": "08/09/25",
+        "hora": "08:50",
+        "aerolinea": "LATAM Airlines",
+        "referencia": "SLDFMH"
+      }
+    },
+    {
+      "nombre": "JULIO N ARVAEZ MORA",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "23/10/25",
+        "hora": "14:30",
+        "aerolinea": "LATAM Airlines",
+        "referencia": null
+      },
+      "vuelo_salida": {
+        "fecha": "27/10/25",
+        "hora": "08:50",
+        "aerolinea": "LATAM Airlines",
+        "referencia": null
+      }
+    },
+    {
+      "nombre": "CARLOS BRUN IS VILLACIS",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "26/03/26",
+        "hora": "14:30",
+        "aerolinea": "LATAM Airlines",
+        "referencia": "EEWPTQ"
+      },
+      "vuelo_salida": {
+        "fecha": "30/03/26",
+        "hora": "08:45",
+        "aerolinea": "LATAM Airlines",
+        "referencia": "EEWPTQ"
+      }
+    },
+    {
+      "nombre": "MARIA PATINO GALARRAGA",
+      "email": "POR DEFINIR",
+      "programa": "MAESTRIA DEL JUEGO",
+      "equipo": "E26 (Relación)",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "16/04/26",
+        "hora": "22:35",
+        "aerolinea": "LATAM AIRLINES GROUP",
+        "referencia": "FEBQFD"
+      },
+      "vuelo_salida": {
+        "fecha": "20/04/26",
+        "hora": "08:45",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "FEBQFD"
+      }
+    },
+    {
+      "nombre": "JESSEN IA ARIAS VILLALTA",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "17/08/25",
+        "hora": "02:04",
+        "aerolinea": "LATAM Airlines",
+        "referencia": "WBMCBK"
+      }
+    },
+    {
+      "nombre": "EDISON SOSA CARRERA",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "13/05/26",
+        "hora": "22:35",
+        "aerolinea": "LATAM AIRLINES GROUP",
+        "referencia": "EEIXXW"
+      },
+      "vuelo_salida": {
+        "fecha": "18/05/26",
+        "hora": "08:45",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "EEIXXW"
+      }
+    },
+    {
+      "nombre": "JOSE SAN CHEZ MOREN O",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "09/11/25",
+        "hora": "14:19",
+        "aerolinea": "LATAM Airlines",
+        "referencia": null
+      },
+      "vuelo_salida": {
+        "fecha": "13/11/25",
+        "hora": "12:15",
+        "aerolinea": "LATAM Airlines",
+        "referencia": null
+      }
+    },
+    {
+      "nombre": "MICHAEL BOADA RUBIANO",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "12/03/26",
+        "hora": "15:05",
+        "aerolinea": "LATAM AIRLINES COLOMBIA",
+        "referencia": "ITN LJS"
+      },
+      "vuelo_salida": {
+        "fecha": "16/03/26",
+        "hora": "13:00",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "ITN LJS"
+      }
+    },
+    {
+      "nombre": "HAYDIN MENDOZA CLAVIJO",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "19/02/26",
+        "hora": "11:00",
+        "aerolinea": "LATAM AIRLINES GROUP",
+        "referencia": "AKVVMJ"
+      },
+      "vuelo_salida": {
+        "fecha": "22/02/26",
+        "hora": "23:30",
+        "aerolinea": "LATAM AIRLINES GROUP",
+        "referencia": "AKVVMJ"
+      }
+    },
+    {
+      "nombre": "FERNANDO ARAGON",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "27/11/25",
+        "hora": "10:30",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "EQNQHQ"
+      },
+      "vuelo_salida": {
+        "fecha": "01/12/25",
+        "hora": "09:35",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "EQNQHQ"
+      }
+    },
+    {
+      "nombre": "LEANDRO BRUNIS AVILES",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "15/01/26",
+        "hora": "14:30",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "NFZOPN"
+      },
+      "vuelo_salida": {
+        "fecha": "19/01/26",
+        "hora": "11:50",
+        "aerolinea": "LATAM AIRLINES GROUP",
+        "referencia": "NFZOPN"
+      }
+    },
+    {
+      "nombre": "ELMER IDROBO ANDRADE",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "26/06/26",
+        "hora": "08:15",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "OZARLU"
+      },
+      "vuelo_salida": {
+        "fecha": "29/06/26",
+        "hora": "08:45",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "OZARLU"
+      }
+    },
+    {
+      "nombre": "MILDRED MUNOZ VASQUEZ",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "04/09/25",
+        "hora": "21:25",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "AEWHLH"
+      },
+      "vuelo_salida": {
+        "fecha": "08/09/25",
+        "hora": "12:35",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "AEWHLH"
+      }
+    },
+    {
+      "nombre": "MONICA CASTILLO ARMENDARIZ",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_salida": {
+        "fecha": "03/02/26",
+        "hora": "08:50",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "HNJVVU"
+      }
+    },
+    {
+      "nombre": "ALONSO SOLARES SALAZAR",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "12/11/25",
+        "hora": "22:50",
+        "aerolinea": "LATAM AIRLIN ES PERU",
+        "referencia": "DJYRBM"
+      },
+      "vuelo_salida": {
+        "fecha": "17/11/25",
+        "hora": "08:45",
+        "aerolinea": "LATAM AIRLIN ES PERU",
+        "referencia": "DJYRBM"
+      }
+    },
+    {
+      "nombre": "LINID VALENCIA HINCAPIE",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "15/05/25",
+        "hora": "14:30",
+        "aerolinea": "LATAM AIRLINES GROUP",
+        "referencia": "CXTZSE"
+      },
+      "vuelo_salida": {
+        "fecha": "12/05/25",
+        "hora": "23:40",
+        "aerolinea": "LATAM AIRLINES GROUP",
+        "referencia": "CXTZSE"
+      }
+    },
+    {
+      "nombre": "CARLOS BRUNIS VILLACIS",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "26/03/26",
+        "hora": "14:30",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "EEWPTQ"
+      },
+      "vuelo_salida": {
+        "fecha": "30/03/26",
+        "hora": "08:45",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "EEWPTQ"
+      }
+    },
+    {
+      "nombre": "JUAN ARREOLA MORALES",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "04/09/25",
+        "hora": "21:45",
+        "aerolinea": "LATAM AIRLIN ES PERU",
+        "referencia": "SLDFMH"
+      },
+      "vuelo_salida": {
+        "fecha": "08/09/25",
+        "hora": "08:50",
+        "aerolinea": "LATAM AIRLIN ES PERU",
+        "referencia": "SLDFMH"
+      }
+    },
+    {
+      "nombre": "JULIO NARVAEZ MORA",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "23/10/25",
+        "hora": "14:30",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "UMINEQ"
+      },
+      "vuelo_salida": {
+        "fecha": "27/10/25",
+        "hora": "08:50",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "UMINEQ"
+      }
+    },
+    {
+      "nombre": "JOSE SANCHEZ MORENO",
+      "email": "POR DEFINIR",
+      "programa": "POR ASIGNAR",
+      "equipo": "POR ASIGNAR",
+      "hotel": "jose_antonio_deluxe",
+      "fechas_entrenamiento": [
+        "Viernes",
+        "Sábado",
+        "Domingo"
+      ],
+      "vuelo_llegada": {
+        "fecha": "13/11/25",
+        "hora": "14:30",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "HDGONJ"
+      },
+      "vuelo_salida": {
+        "fecha": "09/11/25",
+        "hora": "12:00",
+        "aerolinea": "LATAM AIRLINES PERU",
+        "referencia": "HDGONJ"
+      }
+    }
+  ]
+}

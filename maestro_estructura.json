@@ -1,0 +1,4092 @@
+{
+    "10431196391_F005_11.pdf": {
+        "file_name_pattern": "10431196391_F005_11.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "10482121468-R01-E001-99.pdf": {
+        "file_name_pattern": "10482121468-R01-E001-99.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "amount": "Total Neto Recibido:\\s*(.*)"
+        }
+    },
+    "20100538203-01-F375-00101117.pdf": {
+        "file_name_pattern": "20100538203-01-F375-00101117.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "20100910129-01-F301-37654.pdf": {
+        "file_name_pattern": "20100910129-01-F301-37654.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "FECHA DE EMISIÓN:\\s*(.*)"
+        }
+    },
+    "20303368877-01-F105-9215.pdf": {
+        "file_name_pattern": "20303368877-01-F105-9215.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "20303368877-01-F105-9864.pdf": {
+        "file_name_pattern": "20303368877-01-F105-9864.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "20379719440-01-F004-00009782.pdf": {
+        "file_name_pattern": "20379719440-01-F004-00009782.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "type": "Tipo de documento:\\s*(.*)",
+            "date": "Fecha de Vencimiento:\\s*(.*)",
+            "amount": "Importe total a pagar:\\s*(.*)"
+        }
+    },
+    "20379719440-01-F004-00009796.pdf": {
+        "file_name_pattern": "20379719440-01-F004-00009796.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "type": "Tipo de documento:\\s*(.*)",
+            "date": "Fecha:\\s*(.*)",
+            "amount": "Monto en letra:\\s*(.*)"
+        }
+    },
+    "20512108751-01-FF01-12302.pdf": {
+        "file_name_pattern": "20512108751-01-FF01-12302.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "20512108751-01-FF01-12657.pdf": {
+        "file_name_pattern": "20512108751-01-FF01-12657.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "20513215887-01-F170-5524.pdf": {
+        "file_name_pattern": "20513215887-01-F170-5524.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "FECHA DE EMISIÓN:\\s*(.*)"
+        }
+    },
+    "20513215887-01-F170-6696.pdf": {
+        "file_name_pattern": "20513215887-01-F170-6696.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "FECHA DE EMISIÓN:\\s*(.*)"
+        }
+    },
+    "20513215887-01-F170-7940.pdf": {
+        "file_name_pattern": "20513215887-01-F170-7940.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "FECHA DE EMISIÓN:\\s*(.*)"
+        }
+    },
+    "20524520070-01-FA19-231.pdf": {
+        "file_name_pattern": "20524520070-01-FA19-231.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "FECHA DE EMISION:\\s*(.*)"
+        }
+    },
+    "20524520070-01-FA19-69.pdf": {
+        "file_name_pattern": "20524520070-01-FA19-69.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "FECHA DE EMISION:\\s*(.*)"
+        }
+    },
+    "20524520070-01-FA19-71.pdf": {
+        "file_name_pattern": "20524520070-01-FA19-71.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "FECHA DE EMISION:\\s*(.*)"
+        }
+    },
+    "20537386488-01-FH04-3533.pdf": {
+        "file_name_pattern": "20537386488-01-FH04-3533.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "FECHA DE LLEGADA:\\s*(.*)",
+            "type": "TIPO DE PAGO:\\s*(.*)",
+            "amount": "MONTO DE DETRACCION:\\s*(.*)"
+        }
+    },
+    "20537386488-01-FH04-3762.pdf": {
+        "file_name_pattern": "20537386488-01-FH04-3762.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "FECHA DE LLEGADA:\\s*(.*)",
+            "type": "TIPO DE PAGO:\\s*(.*)",
+            "amount": "MONTO DE DETRACCION:\\s*(.*)"
+        }
+    },
+    "20537386488-01-FH04-3826.pdf": {
+        "file_name_pattern": "20537386488-01-FH04-3826.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "FECHA DE LLEGADA:\\s*(.*)",
+            "type": "TIPO DE PAGO:\\s*(.*)",
+            "amount": "MONTO DE DETRACCION:\\s*(.*)"
+        }
+    },
+    "20537386488-01-FH04-3890.pdf": {
+        "file_name_pattern": "20537386488-01-FH04-3890.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "FECHA DE LLEGADA:\\s*(.*)",
+            "type": "TIPO DE PAGO:\\s*(.*)"
+        }
+    },
+    "20537386488-01-FH04-3929.pdf": {
+        "file_name_pattern": "20537386488-01-FH04-3929.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "FECHA DE LLEGADA:\\s*(.*)",
+            "type": "TIPO DE PAGO:\\s*(.*)",
+            "amount": "MONTO DE DETRACCION:\\s*(.*)"
+        }
+    },
+    "20600323980-01-F002-00007305.pdf": {
+        "file_name_pattern": "20600323980-01-F002-00007305.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "20600323980-01-F002-00007349.pdf": {
+        "file_name_pattern": "20600323980-01-F002-00007349.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "20600323980-01-F002-00007435.pdf": {
+        "file_name_pattern": "20600323980-01-F002-00007435.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "20600323980-01-F002-00007436.pdf": {
+        "file_name_pattern": "20600323980-01-F002-00007436.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "20601007119-01-F003-00007776.pdf": {
+        "file_name_pattern": "20601007119-01-F003-00007776.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "FECHA DE EMISIÓN:\\s*(.*)",
+            "amount": "MONTO DE DETRACCION:\\s*(.*)"
+        }
+    },
+    "20601007119-01-F003-00007970.pdf": {
+        "file_name_pattern": "20601007119-01-F003-00007970.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "FECHA DE EMISIÓN:\\s*(.*)",
+            "amount": "MONTO DE DETRACCION:\\s*(.*)"
+        }
+    },
+    "20601007119-01-F003-00008877.pdf": {
+        "file_name_pattern": "20601007119-01-F003-00008877.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "FECHA DE EMISIÓN:\\s*(.*)"
+        }
+    },
+    "20601007119-01-F003-00009804.pdf": {
+        "file_name_pattern": "20601007119-01-F003-00009804.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "FECHA DE EMISIÓN:\\s*(.*)",
+            "amount": "MONTO DE DETRACCION:\\s*(.*)"
+        }
+    },
+    "20601007119-01-F003-00014888.pdf": {
+        "file_name_pattern": "20601007119-01-F003-00014888.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "FECHA DE EMISIÓN:\\s*(.*)",
+            "amount": "MONTO DE DETRACCION:\\s*(.*)"
+        }
+    },
+    "20602363245-FE01-00004119.pdf": {
+        "file_name_pattern": "20602363245-FE01-00004119.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "FECHA EMISIÓN:\\s*(.*)",
+            "amount": "IMPORTE TOTAL $:\\s*(.*)"
+        }
+    },
+    "20604775117-01-F012-00007421.pdf": {
+        "file_name_pattern": "20604775117-01-F012-00007421.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha Ingreso:\\s*(.*)",
+            "type": "Tipo Documento:\\s*(.*)"
+        }
+    },
+    "20604775117-01-F012-00007645.pdf": {
+        "file_name_pattern": "20604775117-01-F012-00007645.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha Ingreso:\\s*(.*)",
+            "type": "Tipo Documento:\\s*(.*)"
+        }
+    },
+    "20604775117-01-F012-00007810.pdf": {
+        "file_name_pattern": "20604775117-01-F012-00007810.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha Ingreso:\\s*(.*)",
+            "type": "Tipo Documento:\\s*(.*)"
+        }
+    },
+    "309140.pdf": {
+        "file_name_pattern": "309140.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "515391bb6f324c021a9ffea8e033b4a2f5de2e062e3032a83d922493391f17cd.pdf": {
+        "file_name_pattern": "515391bb6f324c021a9ffea8e033b4a2f5de2e062e3032a83d922493391f17cd.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "54658b99e4d59821c2d01c178b018b89290f0d3e705554fb55df613cb227c31f.pdf": {
+        "file_name_pattern": "54658b99e4d59821c2d01c178b018b89290f0d3e705554fb55df613cb227c31f.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "ad08907041960512500673126.pdf": {
+        "file_name_pattern": "ad08907041960512500673126.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "amount": "Total Ítems:\\s*(.*)"
+        }
+    },
+    "b95144bd-df6c-f002-19df-9ba59e3fed75.pdf": {
+        "file_name_pattern": "b95144bd-df6c-f002-19df-9ba59e3fed75.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Reserva:\\s*(.*)"
+        }
+    },
+    "bef19d4f-902b-404a-8aba-bbfb9c730442.pdf": {
+        "file_name_pattern": "bef19d4f-902b-404a-8aba-bbfb9c730442.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "FECHA DE EMISION:\\s*(.*)"
+        }
+    },
+    "Comprobante-LATAM-LA5440193HGTZ.pdf": {
+        "file_name_pattern": "Comprobante-LATAM-LA5440193HGTZ.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "Comprobante-LATAM-LA5441175IOEY.pdf": {
+        "file_name_pattern": "Comprobante-LATAM-LA5441175IOEY.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "Comprobante-LATAM-LA5446499MHCS.pdf": {
+        "file_name_pattern": "Comprobante-LATAM-LA5446499MHCS.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "Comprobante-LATAM-LA5446624HTTQ.pdf": {
+        "file_name_pattern": "Comprobante-LATAM-LA5446624HTTQ.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "Comprobante-LATAM-LA5449609CSEG.pdf": {
+        "file_name_pattern": "Comprobante-LATAM-LA5449609CSEG.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "CONSTANCIA AUTO DETRACCION FT.005-21269 - CREACION CUÁNTICA.pdf": {
+        "file_name_pattern": "CONSTANCIA AUTO DETRACCION FT.005-21269 - CREACION CUÁNTICA.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "Correo_ Maria de lourdes Patiño Galarraga - regreso Mexico.pdf": {
+        "file_name_pattern": "Correo_ Maria de lourdes Patiño Galarraga - regreso Mexico.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha Mié 29/4/2026 10:\\s*(.*)",
+            "type": "Tipo de tarifa:\\s*(.*)"
+        }
+    },
+    "CUADRE CAJA 160325.xlsx": {
+        "file_name_pattern": "CUADRE CAJA 160325.xlsx",
+        "extension": ".xlsx",
+        "date_col": "Fecha de comprobante",
+        "concept_col": null,
+        "amount_col": "DOLARES",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "CUENTA DE COBRO LIMA (2).pdf": {
+        "file_name_pattern": "CUENTA DE COBRO LIMA (2).pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "CUENTA DE COBRO LIMA (3).pdf": {
+        "file_name_pattern": "CUENTA DE COBRO LIMA (3).pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "CUENTAS BANCARIAS WORX COWORKING.pdf": {
+        "file_name_pattern": "CUENTAS BANCARIAS WORX COWORKING.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "DIP-FACT-Recibo_Ciclico_2025060005_S1AA-0043172690.pdf": {
+        "file_name_pattern": "DIP-FACT-Recibo_Ciclico_2025060005_S1AA-0043172690.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de (cid:\\s*(.*)",
+            "concept": "Detalle del recibo - N(cid:\\s*(.*)"
+        }
+    },
+    "DIP-FACT-Recibo_Ciclico_2025070005_S1AA-0044004950.pdf": {
+        "file_name_pattern": "DIP-FACT-Recibo_Ciclico_2025070005_S1AA-0044004950.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de (cid:\\s*(.*)",
+            "concept": "Detalle del recibo - N(cid:\\s*(.*)"
+        }
+    },
+    "DIP-FACT-Recibo_Ciclico_2025080005_S1AA-0044939897.pdf": {
+        "file_name_pattern": "DIP-FACT-Recibo_Ciclico_2025080005_S1AA-0044939897.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de (cid:\\s*(.*)",
+            "concept": "Detalle del recibo - N(cid:\\s*(.*)"
+        }
+    },
+    "DIP-FACT-Recibo_Ciclico_2025090005_S1AA-0045338417.pdf": {
+        "file_name_pattern": "DIP-FACT-Recibo_Ciclico_2025090005_S1AA-0045338417.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de (cid:\\s*(.*)",
+            "concept": "Detalle del recibo - N(cid:\\s*(.*)"
+        }
+    },
+    "DIP-FACT-Recibo_Ciclico_2025100005_S1AA-0046350006.pdf": {
+        "file_name_pattern": "DIP-FACT-Recibo_Ciclico_2025100005_S1AA-0046350006.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de (cid:\\s*(.*)",
+            "concept": "Detalle del recibo - N(cid:\\s*(.*)"
+        }
+    },
+    "DIP-FACT-Recibo_Ciclico_2025110005_S1AA-0047028978.pdf": {
+        "file_name_pattern": "DIP-FACT-Recibo_Ciclico_2025110005_S1AA-0047028978.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de (cid:\\s*(.*)",
+            "concept": "Detalle del recibo - N(cid:\\s*(.*)"
+        }
+    },
+    "DIP-FACT-Recibo_Ciclico_2025120005_S1AA-0047791250.pdf": {
+        "file_name_pattern": "DIP-FACT-Recibo_Ciclico_2025120005_S1AA-0047791250.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de (cid:\\s*(.*)",
+            "concept": "Detalle del recibo - N(cid:\\s*(.*)"
+        }
+    },
+    "DIP-FACT-Recibo_Ciclico_2026010005_S1AA-0048776371.pdf": {
+        "file_name_pattern": "DIP-FACT-Recibo_Ciclico_2026010005_S1AA-0048776371.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de (cid:\\s*(.*)",
+            "concept": "Detalle del recibo - N(cid:\\s*(.*)"
+        }
+    },
+    "DIP-FACT-Recibo_Ciclico_2026020005_S1AA-0049258536.pdf": {
+        "file_name_pattern": "DIP-FACT-Recibo_Ciclico_2026020005_S1AA-0049258536.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de (cid:\\s*(.*)",
+            "concept": "Detalle del recibo - N(cid:\\s*(.*)"
+        }
+    },
+    "DIP-FACT-Recibo_Ciclico_2026040005_S1AA-0050671484.pdf": {
+        "file_name_pattern": "DIP-FACT-Recibo_Ciclico_2026040005_S1AA-0050671484.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de (cid:\\s*(.*)",
+            "concept": "Detalle del recibo - N(cid:\\s*(.*)"
+        }
+    },
+    "DIP-FACT-Recibo_Ciclico_2026050005_S1AA-0051351680.pdf": {
+        "file_name_pattern": "DIP-FACT-Recibo_Ciclico_2026050005_S1AA-0051351680.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de (cid:\\s*(.*)",
+            "concept": "Detalle del recibo - N(cid:\\s*(.*)"
+        }
+    },
+    "E001-1099 CREACION CUANTICA.pdf": {
+        "file_name_pattern": "E001-1099 CREACION CUANTICA.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "type": "Tipo de Moneda:\\s*(.*)",
+            "amount": "Importe Total:\\s*(.*)"
+        }
+    },
+    "E001-1100 CREACION CUANTICA.pdf": {
+        "file_name_pattern": "E001-1100 CREACION CUANTICA.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "type": "Tipo de Moneda:\\s*(.*)",
+            "amount": "Importe Total:\\s*(.*)"
+        }
+    },
+    "E001-1102 CREACION CUANTICA.pdf": {
+        "file_name_pattern": "E001-1102 CREACION CUANTICA.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "type": "Tipo de Moneda:\\s*(.*)",
+            "amount": "Importe Total:\\s*(.*)"
+        }
+    },
+    "E001-1115 CREACION CUANTICA.pdf": {
+        "file_name_pattern": "E001-1115 CREACION CUANTICA.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "type": "Tipo de Moneda:\\s*(.*)",
+            "amount": "Importe Total:\\s*(.*)"
+        }
+    },
+    "E001-1122 CREACION CUANTICA.pdf": {
+        "file_name_pattern": "E001-1122 CREACION CUANTICA.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "type": "Tipo de Moneda:\\s*(.*)",
+            "amount": "Importe Total:\\s*(.*)"
+        }
+    },
+    "E001-1517 CREACION CUANTICA E.I.R.L..pdf": {
+        "file_name_pattern": "E001-1517 CREACION CUANTICA E.I.R.L..pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "type": "Tipo de Moneda:\\s*(.*)",
+            "amount": "Importe Total:\\s*(.*)"
+        }
+    },
+    "Electronic ticket receipt, March 12 for ANA ELENA MONROY THOMPSON.pdf": {
+        "file_name_pattern": "Electronic ticket receipt, March 12 for ANA ELENA MONROY THOMPSON.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "EMD_1757099387968.pdf": {
+        "file_name_pattern": "EMD_1757099387968.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de caducidad:\\s*(.*)"
+        }
+    },
+    "EMD_1759794786482.pdf": {
+        "file_name_pattern": "EMD_1759794786482.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de caducidad:\\s*(.*)"
+        }
+    },
+    "EstadoCuenta (1).pdf": {
+        "file_name_pattern": "EstadoCuenta (1).pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "amount": "üEl total a pagar incluye:\\s*(.*)"
+        }
+    },
+    "EstadoCuenta (2).pdf": {
+        "file_name_pattern": "EstadoCuenta (2).pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "amount": "üEl total a pagar incluye:\\s*(.*)"
+        }
+    },
+    "EstadoCuenta (3).pdf": {
+        "file_name_pattern": "EstadoCuenta (3).pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "amount": "üEl total a pagar incluye:\\s*(.*)"
+        }
+    },
+    "EstadoCuenta (4).pdf": {
+        "file_name_pattern": "EstadoCuenta (4).pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "amount": "üEl total a pagar incluye:\\s*(.*)"
+        }
+    },
+    "EstadoCuenta.pdf": {
+        "file_name_pattern": "EstadoCuenta.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "amount": "üEl total a pagar incluye:\\s*(.*)"
+        }
+    },
+    "EstadoCuentaenerom.pdf": {
+        "file_name_pattern": "EstadoCuentaenerom.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "amount": "üEl total a pagar incluye:\\s*(.*)"
+        }
+    },
+    "ETKT_1756307629900.pdf": {
+        "file_name_pattern": "ETKT_1756307629900.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de caducidad:\\s*(.*)"
+        }
+    },
+    "ETKT_1757099386069.pdf": {
+        "file_name_pattern": "ETKT_1757099386069.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de caducidad:\\s*(.*)"
+        }
+    },
+    "ETKT_1759794776379.pdf": {
+        "file_name_pattern": "ETKT_1759794776379.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de caducidad:\\s*(.*)"
+        }
+    },
+    "ETKT_1759794801698.pdf": {
+        "file_name_pattern": "ETKT_1759794801698.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de caducidad:\\s*(.*)"
+        }
+    },
+    "f-2753.pdf": {
+        "file_name_pattern": "f-2753.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "F001-1447 CREACION CUANTICA E.I.R.L..pdf": {
+        "file_name_pattern": "F001-1447 CREACION CUANTICA E.I.R.L..pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "F001-1510 CREACION CUANTICA E.I.R.L..pdf": {
+        "file_name_pattern": "F001-1510 CREACION CUANTICA E.I.R.L..pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "F004-00009782.pdf": {
+        "file_name_pattern": "F004-00009782.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha y hora de Pago:\\s*(.*)",
+            "type": "Tipo de Comprobante:\\s*(.*)",
+            "amount": "Monto depósito:\\s*(.*)"
+        }
+    },
+    "F005-00018344.pdf": {
+        "file_name_pattern": "F005-00018344.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "type": "Tipo Operación:\\s*(.*)"
+        }
+    },
+    "F005-00018937.pdf": {
+        "file_name_pattern": "F005-00018937.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "type": "Tipo Operación:\\s*(.*)"
+        }
+    },
+    "F005-00019749.pdf": {
+        "file_name_pattern": "F005-00019749.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "type": "Tipo Operación:\\s*(.*)"
+        }
+    },
+    "F005-00021412.pdf": {
+        "file_name_pattern": "F005-00021412.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "type": "Tipo Operación:\\s*(.*)"
+        }
+    },
+    "F101-00008111.pdf": {
+        "file_name_pattern": "F101-00008111.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "type": "Tipo Operación:\\s*(.*)"
+        }
+    },
+    "F101-00008122.pdf": {
+        "file_name_pattern": "F101-00008122.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "f1323c6a-78ce-0669-0b38-a931401f0567.pdf": {
+        "file_name_pattern": "f1323c6a-78ce-0669-0b38-a931401f0567.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Reserva:\\s*(.*)"
+        }
+    },
+    "f301 44850 CREACION CUANTICA.pdf": {
+        "file_name_pattern": "f301 44850 CREACION CUANTICA.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "F301-35980 CREACION CUANTICA.pdf": {
+        "file_name_pattern": "F301-35980 CREACION CUANTICA.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "F301-44704.pdf": {
+        "file_name_pattern": "F301-44704.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "F400-00019622 - CREACION CUANTICA.pdf": {
+        "file_name_pattern": "F400-00019622 - CREACION CUANTICA.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA 1 (2).pdf": {
+        "file_name_pattern": "FACTURA 1 (2).pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA 1.pdf": {
+        "file_name_pattern": "FACTURA 1.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA 2.pdf": {
+        "file_name_pattern": "FACTURA 2.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA 3.pdf": {
+        "file_name_pattern": "FACTURA 3.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura 50% evento creación cuantica 06 al 08 febrero 2026.pdf": {
+        "file_name_pattern": "factura 50% evento creación cuantica 06 al 08 febrero 2026.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura adelanto evento creacion cuantica 15 al 18 ene 2026.pdf": {
+        "file_name_pattern": "factura adelanto evento creacion cuantica 15 al 18 ene 2026.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA ADELANTO EVENTO CREACIÓN CUANTICA 17AL19ABR2026.pdf": {
+        "file_name_pattern": "FACTURA ADELANTO EVENTO CREACIÓN CUANTICA 17AL19ABR2026.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA ADELANTO EVENTO CREAR 22AL245MAY2026.pdf": {
+        "file_name_pattern": "FACTURA ADELANTO EVENTO CREAR 22AL245MAY2026.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA ADICIONALES EVENTO CREACION CUANTICA 24,25,26 Y 27JUL2025.pdf": {
+        "file_name_pattern": "FACTURA ADICIONALES EVENTO CREACION CUANTICA 24,25,26 Y 27JUL2025.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura alojamiento 32415347.pdf": {
+        "file_name_pattern": "factura alojamiento 32415347.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA ALOJAMIENTO 3248877.pdf": {
+        "file_name_pattern": "FACTURA ALOJAMIENTO 3248877.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura alojamiento Alonso Solares.pdf": {
+        "file_name_pattern": "factura alojamiento Alonso Solares.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura alojamiento creacion cuantica-fernando aragon.pdf": {
+        "file_name_pattern": "factura alojamiento creacion cuantica-fernando aragon.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura alojamiento creacion cuantica-Juan Arreola.pdf": {
+        "file_name_pattern": "factura alojamiento creacion cuantica-Juan Arreola.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA ALOJAMIENTO CREACION CUANTICA.pdf": {
+        "file_name_pattern": "FACTURA ALOJAMIENTO CREACION CUANTICA.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura alojamiento Creación Cuántica 12 al 17nov202.pdf": {
+        "file_name_pattern": "factura alojamiento Creación Cuántica 12 al 17nov202.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA ALOJAMIENTO EVENTO CREAR 32419455.pdf": {
+        "file_name_pattern": "FACTURA ALOJAMIENTO EVENTO CREAR 32419455.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA ALOJAMIENTO FERNANDO ARAGON  15 AL 16 DIC 2025.pdf": {
+        "file_name_pattern": "FACTURA ALOJAMIENTO FERNANDO ARAGON  15 AL 16 DIC 2025.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA ALOJAMIENTO FERNANDO ARAGON 27NOV AL 01DIC 2025.pdf": {
+        "file_name_pattern": "FACTURA ALOJAMIENTO FERNANDO ARAGON 27NOV AL 01DIC 2025.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura alojamiento jose antonio torron.pdf": {
+        "file_name_pattern": "factura alojamiento jose antonio torron.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura alojamiento Juan Arreola.pdf": {
+        "file_name_pattern": "factura alojamiento Juan Arreola.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura alojamiento Michael Boada.pdf": {
+        "file_name_pattern": "factura alojamiento Michael Boada.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA CREA.pdf": {
+        "file_name_pattern": "FACTURA CREA.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura creacion cuantica 27 al 30 nov 2025.pdf": {
+        "file_name_pattern": "factura creacion cuantica 27 al 30 nov 2025.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA CREACION CUANTICA EIRL 3241725.pdf": {
+        "file_name_pattern": "FACTURA CREACION CUANTICA EIRL 3241725.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA CREACION CUANTICA.pdf": {
+        "file_name_pattern": "FACTURA CREACION CUANTICA.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA CREACION.pdf": {
+        "file_name_pattern": "FACTURA CREACION.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura creación cuantica 09 al 12 abril 2026.pdf": {
+        "file_name_pattern": "factura creación cuantica 09 al 12 abril 2026.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura creación cuantica alojamiento Mildred Muñoz.pdf": {
+        "file_name_pattern": "factura creación cuantica alojamiento Mildred Muñoz.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA CREACIÓN CUANTICA ALOJAMIENTO.pdf": {
+        "file_name_pattern": "FACTURA CREACIÓN CUANTICA ALOJAMIENTO.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA DAÑOS EN ALFOMBRA.pdf": {
+        "file_name_pattern": "FACTURA DAÑOS EN ALFOMBRA.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA DAÑOS EN SILLA.pdf": {
+        "file_name_pattern": "FACTURA DAÑOS EN SILLA.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura de daños en sala evento creación cuantica 05 al 07 sep 2025.pdf": {
+        "file_name_pattern": "factura de daños en sala evento creación cuantica 05 al 07 sep 2025.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura evento creacion cuantica 19al22feb2026.pdf": {
+        "file_name_pattern": "factura evento creacion cuantica 19al22feb2026.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura evento creacion cuantica 24 al 27 julio 2025.pdf": {
+        "file_name_pattern": "factura evento creacion cuantica 24 al 27 julio 2025.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA EVENTO CREACION CUANTICA 28 AL 31 AGO2025.pdf": {
+        "file_name_pattern": "FACTURA EVENTO CREACION CUANTICA 28 AL 31 AGO2025.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura evento creacion cuantica 29ene2026 - 32411251.pdf": {
+        "file_name_pattern": "factura evento creacion cuantica 29ene2026 - 32411251.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA EVENTO CREACION CUANTICA.pdf": {
+        "file_name_pattern": "FACTURA EVENTO CREACION CUANTICA.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura evento creación cuantica 05 al 07 septiembre 2025.pdf": {
+        "file_name_pattern": "factura evento creación cuantica 05 al 07 septiembre 2025.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura evento creación cuantica 14 al 17 agosto 2025.pdf": {
+        "file_name_pattern": "factura evento creación cuantica 14 al 17 agosto 2025.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura evento creación cuantica 14al16nov2025.pdf": {
+        "file_name_pattern": "factura evento creación cuantica 14al16nov2025.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "Factura Lima .pdf": {
+        "file_name_pattern": "Factura Lima .pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura lima AM.pdf": {
+        "file_name_pattern": "factura lima AM.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura pizzas vuelos cap 2 e17.pdf": {
+        "file_name_pattern": "factura pizzas vuelos cap 2 e17.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA PREPAGO ALOJAMIENTO CREACION CUANTICA.pdf": {
+        "file_name_pattern": "FACTURA PREPAGO ALOJAMIENTO CREACION CUANTICA.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura saldo creación cuantica 27al30nov2025.pdf": {
+        "file_name_pattern": "factura saldo creación cuantica 27al30nov2025.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura saldo evento creacion cuantica 06 al 08 feb 2026.pdf": {
+        "file_name_pattern": "factura saldo evento creacion cuantica 06 al 08 feb 2026.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA SALDO EVENTO CREACION CUANTICA 11 AL 14 DIC 2025.pdf": {
+        "file_name_pattern": "FACTURA SALDO EVENTO CREACION CUANTICA 11 AL 14 DIC 2025.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA SALDO EVENTO CREACION CUANTICA 15 AL 18 ENE 2026.pdf": {
+        "file_name_pattern": "FACTURA SALDO EVENTO CREACION CUANTICA 15 AL 18 ENE 2026.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA SALDO EVENTO CREACION CUANTICA 23 AL 26OCT2025.pdf": {
+        "file_name_pattern": "FACTURA SALDO EVENTO CREACION CUANTICA 23 AL 26OCT2025.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA SALDO EVENTO CREACION CUANTICA DEL 05 AL 07 DE SEPTIEMBRE.pdf": {
+        "file_name_pattern": "FACTURA SALDO EVENTO CREACION CUANTICA DEL 05 AL 07 DE SEPTIEMBRE.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura saldo evento creación cuantica 05 al 08 mar 2026.pdf": {
+        "file_name_pattern": "factura saldo evento creación cuantica 05 al 08 mar 2026.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura saldo evento creación cuantica 18 al 21 sep2025.pdf": {
+        "file_name_pattern": "factura saldo evento creación cuantica 18 al 21 sep2025.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "factura saldo evento Crear 26al29mar2026.pdf": {
+        "file_name_pattern": "factura saldo evento Crear 26al29mar2026.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "FACTURA SALDO EVENTO CREAR 30ABRIL AL 03MAYO.pdf": {
+        "file_name_pattern": "FACTURA SALDO EVENTO CREAR 30ABRIL AL 03MAYO.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "Factura-20612838951-E001-3941.pdf": {
+        "file_name_pattern": "Factura-20612838951-E001-3941.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "amount": "Importe Total:\\s*(.*)"
+        }
+    },
+    "Ficha del Participante.pdf": {
+        "file_name_pattern": "Ficha del Participante.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "FECHA:\\s*(.*)"
+        }
+    },
+    "FORMATO DE RECIBO DE CAJA.pdf": {
+        "file_name_pattern": "FORMATO DE RECIBO DE CAJA.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "GASTOS SALONES 10 AL 12 25.xlsx": {
+        "file_name_pattern": "GASTOS SALONES 10 AL 12 25.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "INV301840924.pdf": {
+        "file_name_pattern": "INV301840924.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "amount": "TOTAL A PAGAR:\\s*(.*)",
+            "date": "cancelación de la totalidad del recibo a la fecha de vencimiento. INTERNET Y SERVICIOS DE VALOR AGREGADO:\\s*(.*)"
+        }
+    },
+    "INV302006772.pdf": {
+        "file_name_pattern": "INV302006772.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "amount": "TOTAL A PAGAR:\\s*(.*)",
+            "date": "cancelación de la totalidad del recibo a la fecha de vencimiento. INTERNET Y SERVICIOS DE VALOR AGREGADO:\\s*(.*)"
+        }
+    },
+    "INV302174012.pdf": {
+        "file_name_pattern": "INV302174012.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "amount": "TOTAL A PAGAR:\\s*(.*)",
+            "date": "cancelación de la totalidad del recibo a la fecha de vencimiento. INTERNET Y SERVICIOS DE VALOR AGREGADO:\\s*(.*)"
+        }
+    },
+    "INV325784119_A21734284_10142025.pdf": {
+        "file_name_pattern": "INV325784119_A21734284_10142025.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de vencimiento:\\s*(.*)"
+        }
+    },
+    "Invoice-RECLA-0171.pdf": {
+        "file_name_pattern": "Invoice-RECLA-0171.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA4625048CDWN-cc99d9af-e92d-43b4-af97-26c527003c4e-cuv-bill.pdf": {
+        "file_name_pattern": "LA4625048CDWN-cc99d9af-e92d-43b4-af97-26c527003c4e-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5440096MGNK-e11ae968-0910-431f-877b-ee4fff8ee1cb-cuv-bill (1).pdf": {
+        "file_name_pattern": "LA5440096MGNK-e11ae968-0910-431f-877b-ee4fff8ee1cb-cuv-bill (1).pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5440224ICAE-5f1da5be-537b-43b4-b8f8-078ce8e8ec8e-cuv-bill.pdf": {
+        "file_name_pattern": "LA5440224ICAE-5f1da5be-537b-43b4-b8f8-078ce8e8ec8e-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5440380OQGL-75d66ddf-1ad5-401b-8dd4-23ffeb4f71ac-cuv-bill.pdf": {
+        "file_name_pattern": "LA5440380OQGL-75d66ddf-1ad5-401b-8dd4-23ffeb4f71ac-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5441064TFUW-b207f75d-272f-424c-bab0-5a60e05d2e80-cuv-bill.pdf": {
+        "file_name_pattern": "LA5441064TFUW-b207f75d-272f-424c-bab0-5a60e05d2e80-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5441160DWUN-d9fa2cd9-b677-4876-85cb-4bebb7c366e1-cuv-bill.pdf": {
+        "file_name_pattern": "LA5441160DWUN-d9fa2cd9-b677-4876-85cb-4bebb7c366e1-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5441470FEHA-f02b3331-b5ec-4269-94ca-5c896aa52d7e-cuv-bill.pdf": {
+        "file_name_pattern": "LA5441470FEHA-f02b3331-b5ec-4269-94ca-5c896aa52d7e-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5441489HCZM-23b1c672-43dd-46ec-99fd-ca3c86a89e06-cuv-bill.pdf": {
+        "file_name_pattern": "LA5441489HCZM-23b1c672-43dd-46ec-99fd-ca3c86a89e06-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5441567IVDN-a857440e-3dd2-4cc1-9408-c6dc33b4e0cc-cuv-bill.pdf": {
+        "file_name_pattern": "LA5441567IVDN-a857440e-3dd2-4cc1-9408-c6dc33b4e0cc-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5441580CHFI-c317dd15-f28d-4534-abf9-e8fdf8273cc4-cuv-bill.pdf": {
+        "file_name_pattern": "LA5441580CHFI-c317dd15-f28d-4534-abf9-e8fdf8273cc4-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5442390KXPV-b53fdb74-193c-4e62-a6da-4d1c550499b1-cuv-bill.pdf": {
+        "file_name_pattern": "LA5442390KXPV-b53fdb74-193c-4e62-a6da-4d1c550499b1-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5442582JUOI-7e6b00b5-558b-47a7-96b8-7f6e970013f2-cuv-bill.pdf": {
+        "file_name_pattern": "LA5442582JUOI-7e6b00b5-558b-47a7-96b8-7f6e970013f2-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5442582JUOI-d805663e-294e-410c-b2f0-cd308c48f9f9-cuv-bill.pdf": {
+        "file_name_pattern": "LA5442582JUOI-d805663e-294e-410c-b2f0-cd308c48f9f9-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5442686GXKR-428caa92-745b-419c-996a-94bf6e19759f-cuv-bill.pdf": {
+        "file_name_pattern": "LA5442686GXKR-428caa92-745b-419c-996a-94bf6e19759f-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5442791VYLQ-1faff857-3a30-4d7a-b2be-22ceac478ef8-cuv-bill.pdf": {
+        "file_name_pattern": "LA5442791VYLQ-1faff857-3a30-4d7a-b2be-22ceac478ef8-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5442870QUAR-68907772-c493-44f8-a68e-cd54d8f9dcb1-cuv-bill.pdf": {
+        "file_name_pattern": "LA5442870QUAR-68907772-c493-44f8-a68e-cd54d8f9dcb1-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5443232PGUA-91d4827e-dd38-4ecf-9864-9c10b18ca65c-cuv-bill.pdf": {
+        "file_name_pattern": "LA5443232PGUA-91d4827e-dd38-4ecf-9864-9c10b18ca65c-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "amount": "Total pagado USD 658.63 (1) DG:\\s*(.*)"
+        }
+    },
+    "LA5443384ANUZ-9d1de167-39a7-4516-aa0e-53209ab38d89-cuv.pdf": {
+        "file_name_pattern": "LA5443384ANUZ-9d1de167-39a7-4516-aa0e-53209ab38d89-cuv.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5443994CJOK-88e18a9b-a99d-4ff9-af66-5e61b3772e8c-cuv-bill.pdf": {
+        "file_name_pattern": "LA5443994CJOK-88e18a9b-a99d-4ff9-af66-5e61b3772e8c-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5444083XOPL-ddb98b03-8204-4eb1-a351-8c976790d432-cuv-bill (1).pdf": {
+        "file_name_pattern": "LA5444083XOPL-ddb98b03-8204-4eb1-a351-8c976790d432-cuv-bill (1).pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5444083XOPL-ddb98b03-8204-4eb1-a351-8c976790d432-cuv-bill.pdf": {
+        "file_name_pattern": "LA5444083XOPL-ddb98b03-8204-4eb1-a351-8c976790d432-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5444317BOUO-51200528-adbb-4204-acd5-f3a8d39c9ecb-cuv-bill.pdf": {
+        "file_name_pattern": "LA5444317BOUO-51200528-adbb-4204-acd5-f3a8d39c9ecb-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5444318WMIU-83a7c973-0754-4dea-bbaf-7360b8f85295-cuv-bill.pdf": {
+        "file_name_pattern": "LA5444318WMIU-83a7c973-0754-4dea-bbaf-7360b8f85295-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5444689DWCM-2811058b-ac9e-4f40-81fd-ccd6b3e0a643-cuv-bill (1).pdf": {
+        "file_name_pattern": "LA5444689DWCM-2811058b-ac9e-4f40-81fd-ccd6b3e0a643-cuv-bill (1).pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5444689DWCM-2811058b-ac9e-4f40-81fd-ccd6b3e0a643-cuv-bill.pdf": {
+        "file_name_pattern": "LA5444689DWCM-2811058b-ac9e-4f40-81fd-ccd6b3e0a643-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5444689DWCM-e219bf3e-4d7d-4b2d-9b46-5d03cc345e6c-cuv-bill (1).pdf": {
+        "file_name_pattern": "LA5444689DWCM-e219bf3e-4d7d-4b2d-9b46-5d03cc345e6c-cuv-bill (1).pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5444689DWCM-e219bf3e-4d7d-4b2d-9b46-5d03cc345e6c-cuv-bill.pdf": {
+        "file_name_pattern": "LA5444689DWCM-e219bf3e-4d7d-4b2d-9b46-5d03cc345e6c-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5444949JWCA-a9209137-c518-4056-9a27-ec1324594d87-cuv-bill.pdf": {
+        "file_name_pattern": "LA5444949JWCA-a9209137-c518-4056-9a27-ec1324594d87-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5445118ZRUV-f006dca8-64f6-447c-bf9c-471b675ab267-cuv-bill.pdf": {
+        "file_name_pattern": "LA5445118ZRUV-f006dca8-64f6-447c-bf9c-471b675ab267-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5445170IOAA-cfd32ece-b2db-43dd-9921-826062ad582f-cuv-bill.pdf": {
+        "file_name_pattern": "LA5445170IOAA-cfd32ece-b2db-43dd-9921-826062ad582f-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "amount": "Total pagado USD 1,260.06 (1) DY:\\s*(.*)"
+        }
+    },
+    "LA5445185QTLS-5c692b9c-6486-463d-965b-da3059947761-cuv-bill.pdf": {
+        "file_name_pattern": "LA5445185QTLS-5c692b9c-6486-463d-965b-da3059947761-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5445198SVOW-1f57e8db-d6d9-4d18-97a2-df6e69a662e1-cuv-bill (1).pdf": {
+        "file_name_pattern": "LA5445198SVOW-1f57e8db-d6d9-4d18-97a2-df6e69a662e1-cuv-bill (1).pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5445198SVOW-1f57e8db-d6d9-4d18-97a2-df6e69a662e1-cuv-bill.pdf": {
+        "file_name_pattern": "LA5445198SVOW-1f57e8db-d6d9-4d18-97a2-df6e69a662e1-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5445466HZFC-6f3e819c-5281-429f-a815-6f0599d0c551-cuv-bill.pdf": {
+        "file_name_pattern": "LA5445466HZFC-6f3e819c-5281-429f-a815-6f0599d0c551-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5445527FHSW-3f0f7b7c-eaf2-415d-b043-7b098875f746-cuv-bill.pdf": {
+        "file_name_pattern": "LA5445527FHSW-3f0f7b7c-eaf2-415d-b043-7b098875f746-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5445657GKRY-0f1efb91-284b-4555-8d94-09c6e14bb4aa-cuv-bill.pdf": {
+        "file_name_pattern": "LA5445657GKRY-0f1efb91-284b-4555-8d94-09c6e14bb4aa-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5445744SQKU-283bb855-a473-4fb7-bf8b-292aadf3068c-cuv-bill.pdf": {
+        "file_name_pattern": "LA5445744SQKU-283bb855-a473-4fb7-bf8b-292aadf3068c-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "amount": "Total pagado USD 609.45 (1)EC:\\s*(.*)"
+        }
+    },
+    "LA5446072ZDBI-35103017-0140-43d2-aaa3-c964b7f6eed9-cuv-bill.pdf": {
+        "file_name_pattern": "LA5446072ZDBI-35103017-0140-43d2-aaa3-c964b7f6eed9-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5446298UBZS-a06eb567-034d-4255-9894-3875a7539dd9-cuv-bill.pdf": {
+        "file_name_pattern": "LA5446298UBZS-a06eb567-034d-4255-9894-3875a7539dd9-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5446386OLRW-7b7c9d59-9795-4f0c-98cc-b006244ca833-cuv-bill.pdf": {
+        "file_name_pattern": "LA5446386OLRW-7b7c9d59-9795-4f0c-98cc-b006244ca833-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5446438IUCI-996bf52c-d51a-46ad-b7e1-9da0317ade61-cuv-bill.pdf": {
+        "file_name_pattern": "LA5446438IUCI-996bf52c-d51a-46ad-b7e1-9da0317ade61-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5446486KFVE-7b96af1e-010f-4013-a34f-2f2889e244d8-cuv-bill.pdf": {
+        "file_name_pattern": "LA5446486KFVE-7b96af1e-010f-4013-a34f-2f2889e244d8-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5446550OIWZ-9f5713af-08f5-45e6-b336-eadae7e59cd5-cuv-bill.pdf": {
+        "file_name_pattern": "LA5446550OIWZ-9f5713af-08f5-45e6-b336-eadae7e59cd5-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5446624HTTQ-247057fc-c723-48c6-80ba-d34639b87142-cuv-bill (1).pdf": {
+        "file_name_pattern": "LA5446624HTTQ-247057fc-c723-48c6-80ba-d34639b87142-cuv-bill (1).pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5446624HTTQ-247057fc-c723-48c6-80ba-d34639b87142-cuv-bill.pdf": {
+        "file_name_pattern": "LA5446624HTTQ-247057fc-c723-48c6-80ba-d34639b87142-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5446624HTTQ-c785105c-06bf-41e4-b7e2-17890337e820-cuv (1).pdf": {
+        "file_name_pattern": "LA5446624HTTQ-c785105c-06bf-41e4-b7e2-17890337e820-cuv (1).pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5446703EYRD-f820d89c-ec0a-44ff-b6b7-cb59358b5916-cuv-bill.pdf": {
+        "file_name_pattern": "LA5446703EYRD-f820d89c-ec0a-44ff-b6b7-cb59358b5916-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5446775YVAR-45c5ec10-7548-4c6f-90de-778ddcf98b5a-cuv-bill.pdf": {
+        "file_name_pattern": "LA5446775YVAR-45c5ec10-7548-4c6f-90de-778ddcf98b5a-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5447125GHGF-f907914f-c393-43c4-a182-5a6cbb34f0d9-cuv-bill.pdf": {
+        "file_name_pattern": "LA5447125GHGF-f907914f-c393-43c4-a182-5a6cbb34f0d9-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "amount": "Total pagado USD 1,234.06 (1) DY:\\s*(.*)"
+        }
+    },
+    "LA5447206ERVS-fe94fd18-e508-44ed-ac07-555d4c79053e-cuv-bill.pdf": {
+        "file_name_pattern": "LA5447206ERVS-fe94fd18-e508-44ed-ac07-555d4c79053e-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5447259SGVO-d2919b4e-ca2c-4bff-90df-05244067cdf7-cuv-bill.pdf": {
+        "file_name_pattern": "LA5447259SGVO-d2919b4e-ca2c-4bff-90df-05244067cdf7-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5447373BJQY-8acd69b5-df17-495d-ae76-95dd25047140-cuv-bill.pdf": {
+        "file_name_pattern": "LA5447373BJQY-8acd69b5-df17-495d-ae76-95dd25047140-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5447373BJQY-8acd69b5-df17-495d-ae76-95dd25047140-cuv.pdf": {
+        "file_name_pattern": "LA5447373BJQY-8acd69b5-df17-495d-ae76-95dd25047140-cuv.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5447485YNUD-04195ff6-00c1-4b8f-b1d6-ca92ae9d69b1-cuv-bill.pdf": {
+        "file_name_pattern": "LA5447485YNUD-04195ff6-00c1-4b8f-b1d6-ca92ae9d69b1-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "amount": "Total pagado USD 501.15 (1) QB:\\s*(.*)"
+        }
+    },
+    "LA5447541MJED-87c029f2-60a1-4b2b-b953-24fb5c1cca5a-cuv-bill.pdf": {
+        "file_name_pattern": "LA5447541MJED-87c029f2-60a1-4b2b-b953-24fb5c1cca5a-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "amount": "Total pagado USD 985.56 (1) DY:\\s*(.*)"
+        }
+    },
+    "LA5447859ZGYE-f72c3f0c-59c6-4d2e-af94-dc3023bfe1a2-cuv-bill.pdf": {
+        "file_name_pattern": "LA5447859ZGYE-f72c3f0c-59c6-4d2e-af94-dc3023bfe1a2-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5448199YVDW-f8981234-94c0-495a-b1c7-0f06e07fb472-cuv-bill.pdf": {
+        "file_name_pattern": "LA5448199YVDW-f8981234-94c0-495a-b1c7-0f06e07fb472-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5448265TPDN-a9342f38-34f3-4dfb-bab5-41a1172ec425-cuv-bill.pdf": {
+        "file_name_pattern": "LA5448265TPDN-a9342f38-34f3-4dfb-bab5-41a1172ec425-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5448278BMZZ-0d8beedb-b673-4b3c-addb-62e4d65616f5-cuv-bill.pdf": {
+        "file_name_pattern": "LA5448278BMZZ-0d8beedb-b673-4b3c-addb-62e4d65616f5-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5448366DRNO-8e564df0-aba3-4cfb-952a-1b88eb2b1997-cuv-bill.pdf": {
+        "file_name_pattern": "LA5448366DRNO-8e564df0-aba3-4cfb-952a-1b88eb2b1997-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5448499XKKO-30b3c0de-6663-4870-acc3-141995d50c8a-cuv-bill.pdf": {
+        "file_name_pattern": "LA5448499XKKO-30b3c0de-6663-4870-acc3-141995d50c8a-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5448499XKKO-30b3c0de-6663-4870-acc3-141995d50c8a-cuv.pdf": {
+        "file_name_pattern": "LA5448499XKKO-30b3c0de-6663-4870-acc3-141995d50c8a-cuv.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5448605TAOD-87b71195-68af-458a-9bd9-18c5f3e36374-cuv-bill.pdf": {
+        "file_name_pattern": "LA5448605TAOD-87b71195-68af-458a-9bd9-18c5f3e36374-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "amount": "Total pagado USD 932.46 (1) DY:\\s*(.*)"
+        }
+    },
+    "LA5448900VJAV-9e2bf037-3b88-4eae-8559-4c2c234495a9-cuv-bill.pdf": {
+        "file_name_pattern": "LA5448900VJAV-9e2bf037-3b88-4eae-8559-4c2c234495a9-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5449097DVPZ-d124208b-8650-429c-97aa-fb6d14fcea1f-cuv-bill.pdf": {
+        "file_name_pattern": "LA5449097DVPZ-d124208b-8650-429c-97aa-fb6d14fcea1f-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5449218FUAT-b15c3d99-932c-42ad-995c-6494dc2fdf11-cuv-bill.pdf": {
+        "file_name_pattern": "LA5449218FUAT-b15c3d99-932c-42ad-995c-6494dc2fdf11-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5449223NUOE-d5f02461-ca25-48f7-80d7-b9fc03943b0b-cuv-bill.pdf": {
+        "file_name_pattern": "LA5449223NUOE-d5f02461-ca25-48f7-80d7-b9fc03943b0b-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5449281MEMH-93e4fc0e-ab92-45d8-9ff4-2bd0970c10a3-cuv-bill.pdf": {
+        "file_name_pattern": "LA5449281MEMH-93e4fc0e-ab92-45d8-9ff4-2bd0970c10a3-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "amount": "Total pagado USD 532.76 (1) DY:\\s*(.*)"
+        }
+    },
+    "LA5449455TMZA-bf6d0016-6bd1-4c07-918c-196de17270ef-cuv-bill.pdf": {
+        "file_name_pattern": "LA5449455TMZA-bf6d0016-6bd1-4c07-918c-196de17270ef-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5449601TIRW-e60a1988-ab90-4208-ac30-255ba8c65159-cuv-bill.pdf": {
+        "file_name_pattern": "LA5449601TIRW-e60a1988-ab90-4208-ac30-255ba8c65159-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5449739PYIJ-3f0ec4c0-bd23-48c2-9e85-a2034e685acc-cuv-bill.pdf": {
+        "file_name_pattern": "LA5449739PYIJ-3f0ec4c0-bd23-48c2-9e85-a2034e685acc-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5449848HOCQ-46267ef1-bcb0-4ac9-963d-38eaadf34983-cuv-bill.pdf": {
+        "file_name_pattern": "LA5449848HOCQ-46267ef1-bcb0-4ac9-963d-38eaadf34983-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5449854MBVQ-bc96f288-0af7-47b6-98d5-cafaf269547b-cuv-bill.pdf": {
+        "file_name_pattern": "LA5449854MBVQ-bc96f288-0af7-47b6-98d5-cafaf269547b-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5449861YHUM-2bff53df-2866-42ca-a729-a4c40906fbf9-cuv-bill.pdf": {
+        "file_name_pattern": "LA5449861YHUM-2bff53df-2866-42ca-a729-a4c40906fbf9-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "LA5449975PSZM-e40f6b60-6a2e-4b80-8239-2558cef108c6-cuv-bill.pdf": {
+        "file_name_pattern": "LA5449975PSZM-e40f6b60-6a2e-4b80-8239-2558cef108c6-cuv-bill.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "amount": "Total pagado USD 932.64 (1) DY:\\s*(.*)"
+        }
+    },
+    "NOTA DE CREDITO CREACION CUANTICA DIF DE DOBLE A SIMPLE.pdf": {
+        "file_name_pattern": "NOTA DE CREDITO CREACION CUANTICA DIF DE DOBLE A SIMPLE.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "PDF-DOC-E001-11120255547799.pdf": {
+        "file_name_pattern": "PDF-DOC-E001-11120255547799.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "type": "Tipo de Moneda:\\s*(.*)",
+            "amount": "Importe Total:\\s*(.*)"
+        }
+    },
+    "PDF-DOC-E001-13520609531062_250421_183226.pdf": {
+        "file_name_pattern": "PDF-DOC-E001-13520609531062_250421_183226.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "type": "Tipo de Moneda:\\s*(.*)",
+            "amount": "Importe Total:\\s*(.*)"
+        }
+    },
+    "PDF-DOC-E001-13620609531062_250421_183243.pdf": {
+        "file_name_pattern": "PDF-DOC-E001-13620609531062_250421_183243.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "type": "Tipo de Moneda:\\s*(.*)",
+            "amount": "Importe Total:\\s*(.*)"
+        }
+    },
+    "PDF-DOC-E001-13720609531062_250421_183259.pdf": {
+        "file_name_pattern": "PDF-DOC-E001-13720609531062_250421_183259.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "type": "Tipo de Moneda:\\s*(.*)",
+            "amount": "Importe Total:\\s*(.*)"
+        }
+    },
+    "PDF-DOC-E001-13820255547799.pdf": {
+        "file_name_pattern": "PDF-DOC-E001-13820255547799.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "type": "Tipo de Moneda:\\s*(.*)",
+            "amount": "Importe Total:\\s*(.*)"
+        }
+    },
+    "PDF-DOC-E001-14020255547799.pdf": {
+        "file_name_pattern": "PDF-DOC-E001-14020255547799.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "type": "Tipo de Moneda:\\s*(.*)",
+            "amount": "Importe Total:\\s*(.*)"
+        }
+    },
+    "PDF-DOC-E001-141820334777163.pdf": {
+        "file_name_pattern": "PDF-DOC-E001-141820334777163.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "type": "Tipo de Moneda:\\s*(.*)",
+            "amount": "Importe Total:\\s*(.*)"
+        }
+    },
+    "PDF-DOC-E001-162320334777163.pdf": {
+        "file_name_pattern": "PDF-DOC-E001-162320334777163.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "type": "Tipo de Moneda:\\s*(.*)",
+            "amount": "Importe Total:\\s*(.*)"
+        }
+    },
+    "PDF-DOC-E001-21410329384441.pdf": {
+        "file_name_pattern": "PDF-DOC-E001-21410329384441.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "type": "Tipo de Moneda:\\s*(.*)",
+            "amount": "Importe Total:\\s*(.*)"
+        }
+    },
+    "PDF-DOC-E001-27510066673974.pdf": {
+        "file_name_pattern": "PDF-DOC-E001-27510066673974.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "type": "Tipo de Moneda:\\s*(.*)",
+            "amount": "Importe Total:\\s*(.*)"
+        }
+    },
+    "PDF-DOC-E001-30920545450705.pdf": {
+        "file_name_pattern": "PDF-DOC-E001-30920545450705.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "type": "Tipo de Moneda:\\s*(.*)",
+            "amount": "Importe Total:\\s*(.*)"
+        }
+    },
+    "PDF-DOC-E001-38120545450705.pdf": {
+        "file_name_pattern": "PDF-DOC-E001-38120545450705.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "type": "Tipo de Moneda:\\s*(.*)",
+            "amount": "Importe Total:\\s*(.*)"
+        }
+    },
+    "PDF-DOC-E001-46110778214097[1].pdf": {
+        "file_name_pattern": "PDF-DOC-E001-46110778214097[1].pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de Emisión:\\s*(.*)",
+            "type": "Tipo de Moneda:\\s*(.*)",
+            "amount": "Importe Total:\\s*(.*)"
+        }
+    },
+    "QCS2MC.pdf": {
+        "file_name_pattern": "QCS2MC.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "Recibo de pasaje electrónico, 09 octubre para ANA ELENA MONROY THOMPSON.pdf": {
+        "file_name_pattern": "Recibo de pasaje electrónico, 09 octubre para ANA ELENA MONROY THOMPSON.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "concept": "Detalles De PagoForma de pago TARJETA DE CRÉDITO - VISA:\\s*(.*)"
+        }
+    },
+    "Reclamación 2025CF0A1B05.pdf": {
+        "file_name_pattern": "Reclamación 2025CF0A1B05.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de reclamación:\\s*(.*)",
+            "type": "Tipo:\\s*(.*)",
+            "amount": "Monto reclamado:\\s*(.*)"
+        }
+    },
+    "Reclamación 20264E1BC702.pdf": {
+        "file_name_pattern": "Reclamación 20264E1BC702.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "date": "Fecha de reclamación:\\s*(.*)",
+            "type": "Tipo:\\s*(.*)",
+            "amount": "Monto reclamado:\\s*(.*)"
+        }
+    },
+    "RHE10090449210E001141_251121_152704.pdf": {
+        "file_name_pattern": "RHE10090449210E001141_251121_152704.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "amount": "Total Neto Recibido:\\s*(.*)"
+        }
+    },
+    "RHE10098751209E001201.pdf": {
+        "file_name_pattern": "RHE10098751209E001201.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "amount": "Total Neto Recibido:\\s*(.*)"
+        }
+    },
+    "RHE10440011158E00138.pdf": {
+        "file_name_pattern": "RHE10440011158E00138.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "amount": "Total Neto Recibido:\\s*(.*)"
+        }
+    },
+    "RHE10440011158E00156.pdf": {
+        "file_name_pattern": "RHE10440011158E00156.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "amount": "Total Neto Recibido:\\s*(.*)"
+        }
+    },
+    "RHE15605934606E00113.pdf": {
+        "file_name_pattern": "RHE15605934606E00113.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "amount": "Total Neto Recibido:\\s*(.*)"
+        }
+    },
+    "S002-186831874_08_20250708.pdf": {
+        "file_name_pattern": "S002-186831874_08_20250708.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "S002-189940047_08_20250808.pdf": {
+        "file_name_pattern": "S002-189940047_08_20250808.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "S002-193089255_08_20250908.pdf": {
+        "file_name_pattern": "S002-193089255_08_20250908.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "S002-195484742_08_20251008.pdf": {
+        "file_name_pattern": "S002-195484742_08_20251008.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "S002-199521719_08_20251108.pdf": {
+        "file_name_pattern": "S002-199521719_08_20251108.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "S002-206060938_08_20260108.pdf": {
+        "file_name_pattern": "S002-206060938_08_20260108.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "S002-216177668_08_20260408.pdf": {
+        "file_name_pattern": "S002-216177668_08_20260408.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "S002-218749278_08_20260508.pdf": {
+        "file_name_pattern": "S002-218749278_08_20260508.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "Travel Reservation March 12 for ANA ELENA MONROY THOMPSON.pdf": {
+        "file_name_pattern": "Travel Reservation March 12 for ANA ELENA MONROY THOMPSON.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "XEXX010101000_QB5IQI_248680832_I_MXN_MX.pdf": {
+        "file_name_pattern": "XEXX010101000_QB5IQI_248680832_I_MXN_MX.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "type": "Tipo de Cambio:\\s*(.*)",
+            "date": "Fecha de Compra:\\s*(.*)",
+            "amount": "MXN Total Cargos:\\s*(.*)"
+        }
+    },
+    "XEXX010101000_SM4N6R_249340991_I_MXN_MX.pdf": {
+        "file_name_pattern": "XEXX010101000_SM4N6R_249340991_I_MXN_MX.pdf",
+        "extension": ".pdf",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {
+            "type": "Tipo de Cambio:\\s*(.*)",
+            "date": "Fecha de Compra:\\s*(.*)",
+            "amount": "MXN Total Cargos:\\s*(.*)"
+        }
+    },
+    "XEXX010101000_SM4N6R_249340991_I_MXN_MX.xml": {
+        "file_name_pattern": "XEXX010101000_SM4N6R_249340991_I_MXN_MX.xml",
+        "extension": ".xml",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "001PAGO SEMANALES  LIMA 09-16 ABRIL 2025.xlsx": {
+        "file_name_pattern": "001PAGO SEMANALES  LIMA 09-16 ABRIL 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "002 PAGO SEMANALES  LIMA 17 -23 ABRIL 2025.xlsx": {
+        "file_name_pattern": "002 PAGO SEMANALES  LIMA 17 -23 ABRIL 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "003 PAGO SEMANALES  LIMA 24 -30 ABRIL 2025.xlsx": {
+        "file_name_pattern": "003 PAGO SEMANALES  LIMA 24 -30 ABRIL 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "004 PAGO SEMANALES  LIMA 30 DE ABRIL -06 MAYO 2025 .xlsx": {
+        "file_name_pattern": "004 PAGO SEMANALES  LIMA 30 DE ABRIL -06 MAYO 2025 .xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "005 PAGO SEMANALES  LIMA 07 -13 MAYO 2025.xlsx": {
+        "file_name_pattern": "005 PAGO SEMANALES  LIMA 07 -13 MAYO 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "006 PAGO SEMANALES  LIMA 14 - 20 MAYO 2025.xlsx": {
+        "file_name_pattern": "006 PAGO SEMANALES  LIMA 14 - 20 MAYO 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "007 PAGO SEMANALES  LIMA 21-27 MAYO 2025.xlsx": {
+        "file_name_pattern": "007 PAGO SEMANALES  LIMA 21-27 MAYO 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "008 PAGO SEMANALES  LIMA 28 MAYO- 3 JUNIO 2025.xlsx": {
+        "file_name_pattern": "008 PAGO SEMANALES  LIMA 28 MAYO- 3 JUNIO 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "009 PAGO SEMANALES  LIMA 4-10 JUNIO 2025.xlsx": {
+        "file_name_pattern": "009 PAGO SEMANALES  LIMA 4-10 JUNIO 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "010 PAGO SEMANALES  LIMA 11 - 17 JUNIO 2025.xlsx": {
+        "file_name_pattern": "010 PAGO SEMANALES  LIMA 11 - 17 JUNIO 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "011 PAGO SEMANALES  LIMA 18 - 24 JUNIO 2025.xlsx": {
+        "file_name_pattern": "011 PAGO SEMANALES  LIMA 18 - 24 JUNIO 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "012 PAGO SEMANALES  LIMA 25 JUNIO - 1 JULIO  2025.xlsx": {
+        "file_name_pattern": "012 PAGO SEMANALES  LIMA 25 JUNIO - 1 JULIO  2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "013 PAGO SEMANALES  LIMA 2 -8 JULIO 2025.xlsx": {
+        "file_name_pattern": "013 PAGO SEMANALES  LIMA 2 -8 JULIO 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "014 PAGO SEMANALES  LIMA 9 -15 JULIO 2025.xlsx": {
+        "file_name_pattern": "014 PAGO SEMANALES  LIMA 9 -15 JULIO 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "015 PAGO SEMANALES  LIMA 16-22 JULIO 2025.xlsx": {
+        "file_name_pattern": "015 PAGO SEMANALES  LIMA 16-22 JULIO 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "016 PAGO SEMANALES  LIMA 23-29 JULIO 2025.xlsx": {
+        "file_name_pattern": "016 PAGO SEMANALES  LIMA 23-29 JULIO 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "017 PAGO SEMANALES  LIMA 30 JULIO - 5 AGOSTO 2025.xlsx": {
+        "file_name_pattern": "017 PAGO SEMANALES  LIMA 30 JULIO - 5 AGOSTO 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "018 PAGO SEMANALES  LIMA 06- 12 AGOSTO 2025.xlsx": {
+        "file_name_pattern": "018 PAGO SEMANALES  LIMA 06- 12 AGOSTO 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "019 PAGO SEMANALES  LIMA 13-19 AGOSTO 2025.xlsx": {
+        "file_name_pattern": "019 PAGO SEMANALES  LIMA 13-19 AGOSTO 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "020 PAGO SEMANALES  LIMA 20-26  AGOSTO 2025.xlsx": {
+        "file_name_pattern": "020 PAGO SEMANALES  LIMA 20-26  AGOSTO 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "021 PAGO SEMANALES  LIMA 27 AGOSTO - 02 SEPTIEMBRE 2025.xlsx": {
+        "file_name_pattern": "021 PAGO SEMANALES  LIMA 27 AGOSTO - 02 SEPTIEMBRE 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "022 PAGO SEMANALES  LIMA  03- 09  SEPTIEMBRE 2025.xlsx": {
+        "file_name_pattern": "022 PAGO SEMANALES  LIMA  03- 09  SEPTIEMBRE 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "023 PAGO SEMANALES  LIMA  10-16 SEPTIEMBRE 2025.xlsx": {
+        "file_name_pattern": "023 PAGO SEMANALES  LIMA  10-16 SEPTIEMBRE 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "024 PAGO SEMANALES  LIMA  17 - 23 SEPTIEMBRE 2025.xlsx": {
+        "file_name_pattern": "024 PAGO SEMANALES  LIMA  17 - 23 SEPTIEMBRE 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "025 PAGO SEMANALES  LIMA  24 - 30 SEPTIEMBRE 2025.xlsx": {
+        "file_name_pattern": "025 PAGO SEMANALES  LIMA  24 - 30 SEPTIEMBRE 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "026 PAGO SEMANALES  LIMA  01 - 07  OCTUBRE  2025.xlsx": {
+        "file_name_pattern": "026 PAGO SEMANALES  LIMA  01 - 07  OCTUBRE  2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "027 PAGO SEMANALES  LIMA  08 - 14  OCTUBRE  2025.xlsx": {
+        "file_name_pattern": "027 PAGO SEMANALES  LIMA  08 - 14  OCTUBRE  2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "028 PAGO SEMANALES  LIMA  15 - 21  OCTUBRE  2025.xlsx": {
+        "file_name_pattern": "028 PAGO SEMANALES  LIMA  15 - 21  OCTUBRE  2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "029 PAGO SEMANALES  LIMA  22-28  OCTUBRE  2025.xlsx": {
+        "file_name_pattern": "029 PAGO SEMANALES  LIMA  22-28  OCTUBRE  2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "030 PAGOS SEMANALES  LIMA  29 OCTUBRE - 2 NOVIEMBRE  2025.xlsx": {
+        "file_name_pattern": "030 PAGOS SEMANALES  LIMA  29 OCTUBRE - 2 NOVIEMBRE  2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "031 PAGOS SEMANALES  LIMA  5- 11 NOVIEMBRE  2025.xlsx": {
+        "file_name_pattern": "031 PAGOS SEMANALES  LIMA  5- 11 NOVIEMBRE  2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "032 PAGOS SEMANALES  LIMA  12 -18  NOVIEMBRE  2025.xlsx": {
+        "file_name_pattern": "032 PAGOS SEMANALES  LIMA  12 -18  NOVIEMBRE  2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "033 PAGOS SEMANALES  LIMA  18-24  NOVIEMBRE  2025.xlsx": {
+        "file_name_pattern": "033 PAGOS SEMANALES  LIMA  18-24  NOVIEMBRE  2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "034 PAGOS SEMANALES  LIMA  25 NOVIEMBRE - 1 DICIEMBRE.xlsx": {
+        "file_name_pattern": "034 PAGOS SEMANALES  LIMA  25 NOVIEMBRE - 1 DICIEMBRE.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "035 PAGOS SEMANALES  LIMA  2 - 8  DICIEMBRE 2025.xlsx": {
+        "file_name_pattern": "035 PAGOS SEMANALES  LIMA  2 - 8  DICIEMBRE 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "036 PAGOS SEMANALES  LIMA  9 - 15  DICIEMBRE 2025.xlsx": {
+        "file_name_pattern": "036 PAGOS SEMANALES  LIMA  9 - 15  DICIEMBRE 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "037 PAGOS SEMANALES  LIMA  16 -22  DICIEMBRE 2025.xlsx": {
+        "file_name_pattern": "037 PAGOS SEMANALES  LIMA  16 -22  DICIEMBRE 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "038 PAGOS SEMANALES  LIMA  16 DICEMBRE 2025 -  5 ENERO 2026.xlsx": {
+        "file_name_pattern": "038 PAGOS SEMANALES  LIMA  16 DICEMBRE 2025 -  5 ENERO 2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "039 PAGOS SEMANALES  LIMA  06 - 12 ENERO 2026.xlsx": {
+        "file_name_pattern": "039 PAGOS SEMANALES  LIMA  06 - 12 ENERO 2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "040 PAGOS SEMANALES  LIMA  13-19 ENERO 2026.xlsx": {
+        "file_name_pattern": "040 PAGOS SEMANALES  LIMA  13-19 ENERO 2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "041 PAGOS SEMANALES  LIMA  20-26 ENERO 2026.xlsx": {
+        "file_name_pattern": "041 PAGOS SEMANALES  LIMA  20-26 ENERO 2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "042 PAGOS SEMANALES  LIMA  27 ENERO - 2 FEBRERO 2026.xlsx": {
+        "file_name_pattern": "042 PAGOS SEMANALES  LIMA  27 ENERO - 2 FEBRERO 2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "043 PAGOS SEMANALES  LIMA  03 - 09 FEBRERO 2026.xlsx": {
+        "file_name_pattern": "043 PAGOS SEMANALES  LIMA  03 - 09 FEBRERO 2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "044 PAGOS SEMANALES  LIMA  10 - 16 FEBRERO 2026.xlsx": {
+        "file_name_pattern": "044 PAGOS SEMANALES  LIMA  10 - 16 FEBRERO 2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "045 PAGOS SEMANALES  LIMA  17 - 23 FEBRERO 2026.xlsx": {
+        "file_name_pattern": "045 PAGOS SEMANALES  LIMA  17 - 23 FEBRERO 2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "046 PAGOS SEMANALES  LIMA 24 FEBRERO - 2 MARZO 2026.xlsx": {
+        "file_name_pattern": "046 PAGOS SEMANALES  LIMA 24 FEBRERO - 2 MARZO 2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "047 PAGOS SEMANALES  LIMA 03 - 09 MARZO 2026.xlsx": {
+        "file_name_pattern": "047 PAGOS SEMANALES  LIMA 03 - 09 MARZO 2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "048 PAGOS SEMANALES  LIMA 10 -16 MARZO 2026.xlsx": {
+        "file_name_pattern": "048 PAGOS SEMANALES  LIMA 10 -16 MARZO 2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "049 PAGOS SEMANALES  LIMA 17- 23 MARZO 2026.xlsx": {
+        "file_name_pattern": "049 PAGOS SEMANALES  LIMA 17- 23 MARZO 2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "050 PAGOS SEMANALES  LIMA 24 - 30 MARZO 2026.xlsx": {
+        "file_name_pattern": "050 PAGOS SEMANALES  LIMA 24 - 30 MARZO 2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "051 PAGOS SEMANALES  LIMA 31 MARZO - 06 ABRIL 2026.xlsx": {
+        "file_name_pattern": "051 PAGOS SEMANALES  LIMA 31 MARZO - 06 ABRIL 2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "052 PAGOS SEMANALES  LIMA 07 -13 ABRIL 2026.xlsx": {
+        "file_name_pattern": "052 PAGOS SEMANALES  LIMA 07 -13 ABRIL 2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "053 PAGOS SEMANALES  LIMA 14 - 20 ABRIL 2026.xlsx": {
+        "file_name_pattern": "053 PAGOS SEMANALES  LIMA 14 - 20 ABRIL 2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "054 PAGOS SEMANALES  LIMA 21-27 ABRIL 2026.xlsx": {
+        "file_name_pattern": "054 PAGOS SEMANALES  LIMA 21-27 ABRIL 2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "055 PAGOS SEMANALES  LIMA 28 ABRIL - 4 MAYO 2026.xlsx": {
+        "file_name_pattern": "055 PAGOS SEMANALES  LIMA 28 ABRIL - 4 MAYO 2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "056 PAGOS SEMANALES  LIMA  5- 11 MAYO 2026.xlsx": {
+        "file_name_pattern": "056 PAGOS SEMANALES  LIMA  5- 11 MAYO 2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "057 PAGOS SEMANALES  LIMA  12-18 MAYO 2026.xlsx": {
+        "file_name_pattern": "057 PAGOS SEMANALES  LIMA  12-18 MAYO 2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "058 PAGOS SEMANALES  LIMA  19 -25 MAYO 2026.xlsx": {
+        "file_name_pattern": "058 PAGOS SEMANALES  LIMA  19 -25 MAYO 2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "059 PAGOS SEMANALES  LIMA  26 MAYO - 1 JUNIO  2026.xlsx": {
+        "file_name_pattern": "059 PAGOS SEMANALES  LIMA  26 MAYO - 1 JUNIO  2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "060 PAGOS SEMANALES  LIMA  02 - 08 JUNIO  2026.xlsx": {
+        "file_name_pattern": "060 PAGOS SEMANALES  LIMA  02 - 08 JUNIO  2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Detalle",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "agente_mensual.py": {
+        "file_name_pattern": "agente_mensual.py",
+        "extension": ".py",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "CAJA CHICA CREAR LIMA.xlsx": {
+        "file_name_pattern": "CAJA CHICA CREAR LIMA.xlsx",
+        "extension": ".xlsx",
+        "date_col": "Fecha",
+        "concept_col": "Detalle Adicional (Asignado)",
+        "amount_col": "Monto",
+        "type_col": null,
+        "category_col": "Categoría (Asignada)",
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "CONCILIACION_BANCARIA_MAYO_2026.xlsx": {
+        "file_name_pattern": "CONCILIACION_BANCARIA_MAYO_2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "desktop.ini": {
+        "file_name_pattern": "desktop.ini",
+        "extension": ".ini",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    },
+    "EGRESOS CREAR 2025.xlsx": {
+        "file_name_pattern": "EGRESOS CREAR 2025.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "EGRESOS CREAR 2026.xlsx": {
+        "file_name_pattern": "EGRESOS CREAR 2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "EJECUTADO_ABRIL_2026.xlsx": {
+        "file_name_pattern": "EJECUTADO_ABRIL_2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "EJECUTADO_MAYO_2026.xlsx": {
+        "file_name_pattern": "EJECUTADO_MAYO_2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "Concepto",
+        "amount_col": "Monto S/",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "EJECUTADO_MAYO_Y_PROYECCION_2026.xlsx": {
+        "file_name_pattern": "EJECUTADO_MAYO_Y_PROYECCION_2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "PAGOS SEMANALES ENTRENAMIENTO.xlsx": {
+        "file_name_pattern": "PAGOS SEMANALES ENTRENAMIENTO.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": "PROVEEDOR",
+        "amount_col": "DOLARES",
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "PAGOS_MAYO_2026_DETALLE.xlsx": {
+        "file_name_pattern": "PAGOS_MAYO_2026_DETALLE.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "PAGOS_MAYO_2026_DETALLE_ACTUALIZADO.xlsx": {
+        "file_name_pattern": "PAGOS_MAYO_2026_DETALLE_ACTUALIZADO.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "Presupuesto LIMA PERU 2026.xlsx": {
+        "file_name_pattern": "Presupuesto LIMA PERU 2026.xlsx",
+        "extension": ".xlsx",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "REPORTE DE ENERO A AGOSTO ingresos y egresos CREACION CUANTICO.xlsx": {
+        "file_name_pattern": "REPORTE DE ENERO A AGOSTO ingresos y egresos CREACION CUANTICO.xlsx",
+        "extension": ".xlsx",
+        "date_col": "Fecha",
+        "concept_col": "Concepto",
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": true,
+        "text_patterns": {}
+    },
+    "REPORTE_EJECUCION_AGENTE_05_2026.md": {
+        "file_name_pattern": "REPORTE_EJECUCION_AGENTE_05_2026.md",
+        "extension": ".md",
+        "date_col": null,
+        "concept_col": null,
+        "amount_col": null,
+        "type_col": null,
+        "category_col": null,
+        "is_tabular": false,
+        "text_patterns": {}
+    }
+}

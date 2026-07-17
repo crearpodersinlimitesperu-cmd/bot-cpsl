@@ -1038,3 +1038,31 @@ curl -X POST "https://graph.facebook.com/v18.0/1085205258006361/messages" \
 - Se automatizó el envío masivo para Diana y Joyce.
 - Menú dinámico perpetualizado.
 - Sincronización completa con GitHub.
+
+
+### Misión Crítica: Backup de Datos - 06/05/2026
+- Se implementó el endpoint /api/admin/backup_total para la descarga de todos los datos persistentes del disco de Render.
+- Motivo: Bloqueo de cuenta de WhatsApp y cierre preventivo de servicios.
+
+
+### 🚀 Evolución Cloud-Native (Headless) - 12/05/2026
+- **Objetivo:** Autonomía total sin intervención de Antigravity/PC local.
+- **Infraestructura:** Despliegue en Render (Web Service) + GitHub (Private Repo).
+- **Base de Datos:** Migración estratégica de SQLite a **PostgreSQL (Neon.tech)**.
+  - Se migraron exitosamente **3,027 registros** de participantes.
+  - Se migraron **328 registros** de desertores.
+- **Orquestación:** Implementación de arquitectura "All-in-One" para el Free Tier de Render.
+  - **Scheduler Interno:** Reemplazo de Cron Jobs externos por un hilo secundario con `schedule`.
+  - **Ciclos Activos:** Pipeline diario (08:00 AM Lima) y Monitor de Respuestas (Cada 4 horas).
+- **Gateway Híbrido:** El bot en la nube dispara órdenes al celular local vía **MacroDroid Webhook**.
+- **Monitoreo:** Activación de `/health` para auditoría de conectividad DB y Scheduler.
+- **Resultado:** El sistema opera de forma ininterrumpida y transparente desde la nube, manteniendo la trazabilidad inmutable de la "Caja Negra".
+
+
+## 🧠 PROTOCOLO DE AUDITORIA Y SEGUIMIENTO DIANA/JOYCE (MAYO 2026)
+- FUENTE: Asignacion_C1.xlsx
+- VALIDACION: Cruce obligatorio con Porcentaje Aliados C1/C2 OneDrive.
+- AUDITORIA: Gmail + Portal Productividad (Excluir No Interesa/Devolucion).
+- AUTONOMO: Seguimiento de rebotes 8 AM - 8 PM con SMS a PX e IMO.
+- REPORTES: Formato profesional a Coordinadoras sin redundancia.
+- PLANTILLAS: Usar ultimas aprobadas.

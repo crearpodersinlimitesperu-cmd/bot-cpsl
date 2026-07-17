@@ -1,6 +1,41 @@
-credenciales.json
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+
+# Logs y Archivos Temporales
+*.log
+*.txt
+scratch/
+scratch_*.py
+
+# Bases de Datos locales
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Entornos Virtuales
+venv/
+env/
 .env
-*.xlsx
+
+# Archivos de caché y configuraciones IDE
+.vscode/
+.idea/
+.pytest_cache/
+
+# Datos y recursos dinámicos
+pdfs_entrenadores/
+*.pdf
 *.csv
+*.xlsx
+*.png
+*.jpg
+*.jpeg
+*.json
+
+# Excepciones que sí queremos guardar en Git (si aplican)
+!maestro_estructura.json
+!entrenadores_data.json

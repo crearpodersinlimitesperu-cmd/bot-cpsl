@@ -24,41 +24,62 @@ META_OKS = 325
 # ── SESSION MANAGEMENT (REMEMBER ME) ─────────────────────────
 def check_auth():
     if "authenticated" not in st.session_state:
-        # Trivial implementation of "Remember Me" for demo/web purposes
-        # In a real app, this would use secure cookies or database
         st.session_state.authenticated = False
 
     if not st.session_state.authenticated:
+        # Estilos para centrar y pintar el fondo de oscuro en el login
         st.markdown("""
-            <div id="login-overlay">
-                <div style="background:white; padding:40px; border-radius:24px; width:400px; text-align:center;">
-                    <h2 style="color:#1e293b;">🔱 CRM Maestro</h2>
-                    <p style="color:#64748b;">Ingresa tus credenciales para acceder</p>
-                    <br>
-                    <input type="text" id="u" placeholder="Usuario" style="width:100%; padding:12px; border:1px solid #e2e8f0; border-radius:12px; margin-bottom:10px;">
-                    <input type="password" id="p" placeholder="Contraseña" style="width:100%; padding:12px; border:1px solid #e2e8f0; border-radius:12px; margin-bottom:10px;">
-                    <div style="text-align:left; margin-bottom:20px;">
-                        <input type="checkbox" id="rem" checked> <label for="rem" style="color:#475569; font-size:0.9rem;">Recordar sesión</label>
-                    </div>
-                    <button onclick="parent.postMessage('auth_ok', '*')" style="width:100%; background:#4f46e5; color:white; border:none; padding:14px; border-radius:12px; font-weight:700; cursor:pointer;">
-                        Iniciar Sesión
-                    </button>
-                </div>
-            </div>
+            <style>
+            .stApp {
+                background: #0f172a !important;
+            }
+            .login-card {
+                background: white;
+                padding: 40px 40px 20px 40px;
+                border-radius: 24px;
+                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+                text-align: center;
+                margin-top: 60px;
+                margin-bottom: 20px;
+            }
+            /* Quitar bordes por defecto del formulario de streamlit */
+            div[data-testid="stForm"] {
+                border: none !important;
+                padding: 0 !important;
+                background: transparent !important;
+            }
+            </style>
         """, unsafe_allow_html=True)
-        # Handle the postMessage (simplified for Streamlit)
-        if st.button("🔓 Entrar al Sistema (Bypass Demo)"):
-            st.session_state.authenticated = True
-            st.rerun()
-        st.stop()
+        
+        col1, col2, col3 = st.columns([1, 1.8, 1])
+        with col2:
+            st.markdown("""
+                <div class="login-card">
+                    <h2 style="color: #0f172a; margin-bottom: 5px; font-weight: 800; font-family: 'Inter', sans-serif;">🔱 CRM Maestro</h2>
+                    <p style="color: #64748b; margin-bottom: 5px; font-size: 0.95rem; font-family: 'Inter', sans-serif;">Ingresa tus credenciales para acceder</p>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            with st.form("login_form"):
+                username = st.text_input("Usuario", placeholder="Usuario (ej. jose)", label_visibility="collapsed")
+                password = st.text_input("Contraseña", type="password", placeholder="Contraseña", label_visibility="collapsed")
+                st.markdown('<div style="text-align:left; margin-bottom:15px; color:#94a3b8; font-size:0.9rem;"><input type="checkbox" id="rem_native" checked> <label for="rem_native">Recordar sesión</label></div>', unsafe_allow_html=True)
+                submit = st.form_submit_button("🔓 Iniciar Sesión", use_container_width=True)
+                
+                if submit:
+                    if username.strip().lower() in ("jose", "admin"):
+                        st.session_state.authenticated = True
+                        st.rerun()
+                    else:
+                        st.error("⚠️ Usuario no válido (ingresa 'jose')")
+            
+            st.stop()
 
 check_auth()
 
 COORDS = {
     "DIANA":  "Diana Moscoso",
-    "JOYCE":  "Joyce Marin",
-    "ZULEY":  "Zuley Urteaga",
-    "LUZ":    "L. Valencia"
+    "JOYCE":  "Joyce Marin"
 }
 
 # ── ESTILOS PREMIUM ──────────────────────────────────────────
@@ -423,7 +444,7 @@ def norm(text):
 df_master = load_master()
 df_hist   = load_history()
 
-LISTA_COORDS = ["Diana Moscoso", "Joyce Marin", "Zuley Urteaga", "L. Valencia", "General"]
+LISTA_COORDS = ["Diana Moscoso", "Joyce Marin", "General"]
 LISTA_ESTADOS = ["OK", "REZAGADO", "LLAMADO", "ALIADO", "PENDIENTE"]
 
 # ── SIDEBAR ───────────────────────────────────────────────────
@@ -634,8 +655,7 @@ with tabs[0]:
     # Datos reales extraídos de GRADUADOS LIMA / ALIADOS C1E27
     ALIADOS_DATA = {
         "DIANA":  {"asignados": 47, "ok": 6,  "nc": 12, "np": 10, "ni": 0,  "sig": 2, "xc": 0,  "pendientes": 17},
-        "JOYCE":  {"asignados": 53, "ok": 13, "nc": 15, "np": 10, "ni": 0,  "sig": 4, "xc": 3,  "pendientes": 8},
-        "OTTY":   {"asignados": 48, "ok": 5,  "nc": 13, "np": 13, "ni": 7,  "sig": 2, "xc": 3,  "pendientes": 5},
+        "JOYCE":  {"asignados": 53, "ok": 13, "nc": 15, "np": 10, "ni": 0,  "sig": 4, "xc": 3,  "pendientes": 8}
     }
     TOTAL_OK_ALIADOS = 28  # Confirmados reales
     TOTAL_ALIADOS = 154
@@ -706,7 +726,7 @@ with tabs[0]:
     # Tarjetas por coordinadora
     st.markdown("### 📋 Detalle por Coordinadora")
     coord_cols = st.columns(len(ALIADOS_DATA))
-    colores_cc = {"DIANA": "#8b5cf6", "JOYCE": "#3b82f6", "OTTY": "#f59e0b"}
+    colores_cc = {"DIANA": "#8b5cf6", "JOYCE": "#3b82f6"}
     
     for i, (cc, data) in enumerate(ALIADOS_DATA.items()):
         with coord_cols[i]:

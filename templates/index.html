@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPSL | TORRE DE CONTROL</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0a0c;--panel:#141418;--accent:#00d2ff;--danger:#ff4d4d;--warning:#ffaa00;--success:#00ff88;--text:#e0e0e6;--dim:#80808a}
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Outfit',sans-serif}
+body{background:var(--bg);color:var(--text)}
+header{padding:1.2rem 3%;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #222;background:rgba(10,10,12,.9);backdrop-filter:blur(10px);position:sticky;top:0;z-index:100}
+.logo{font-weight:800;font-size:1.4rem;letter-spacing:2px;color:var(--accent)}
+.badge{background:rgba(0,255,136,.1);color:var(--success);padding:.4rem .8rem;border-radius:50px;font-size:.75rem;font-weight:600;display:flex;align-items:center;gap:.4rem}
+.dot{width:8px;height:8px;background:var(--success);border-radius:50%;box-shadow:0 0 8px var(--success)}
+.dot.off{background:var(--danger);box-shadow:0 0 8px var(--danger)}
+
+/* Layout */
+.container{padding:1.5rem 3%;display:grid;gap:1.5rem}
+.row{display:grid;gap:1.5rem}
+.row-top{grid-template-columns:repeat(8,1fr)}
+.row-mid{grid-template-columns:2fr 1fr}
+.row-bot{grid-template-columns:1fr 1fr}
+
+/* Cards */
+.card{background:var(--panel);border:1px solid #222;border-radius:16px;padding:1.2rem}
+.card h2{font-size:.8rem;text-transform:uppercase;letter-spacing:2px;color:var(--dim);margin-bottom:1rem}
+.kpi{text-align:center}
+.kpi .val{font-size:2rem;font-weight:800;display:block}
+.kpi .lbl{font-size:.7rem;text-transform:uppercase;color:var(--dim);letter-spacing:1px}
+
+/* Search */
+.search-box{display:flex;gap:.5rem;margin-bottom:1rem}
+.search-box input{flex:1;background:#1e1e24;border:1px solid #333;color:var(--text);padding:.6rem 1rem;border-radius:10px;font-size:.9rem;outline:none}
+.search-box input:focus{border-color:var(--accent)}
+.search-box button{background:var(--accent);color:#000;border:none;padding:.6rem 1.2rem;border-radius:10px;font-weight:600;cursor:pointer}
+
+/* Tables */
+table{width:100%;border-collapse:collapse;font-size:.8rem}
+th{text-align:left;padding:.6rem;color:var(--dim);border-bottom:1px solid #333;font-size:.7rem;text-transform:uppercase;letter-spacing:1px}
+td{padding:.5rem .6rem;border-bottom:1px solid #1a1a1f}
+tr:hover{background:#1a1a20}
+.tag{padding:2px 8px;border-radius:6px;font-size:.7rem;font-weight:600}
+.tag-si{background:rgba(0,255,136,.15);color:var(--success)}
+.tag-no{background:rgba(255,77,77,.15);color:var(--danger)}
+.tag-pend{background:rgba(255,170,0,.15);color:var(--warning)}
+
+/* Buttons */
+.btn-action{background:#1e1e24;border:1px solid #333;padding:4px 10px;border-radius:8px;color:var(--accent);cursor:pointer;font-size:.7rem}
+.btn-action:hover{background:#2a2a34;border-color:var(--accent)}
+
+/* Caja Negra */
+.feed{background:#000;border-radius:10px;padding:.8rem;font-family:'Courier New',monospace;font-size:.75rem;color:#00ff88;max-height:300px;overflow-y:auto}
+.log{margin-bottom:.4rem;border-left:2px solid #333;padding-left:.5rem}
+.log-t{color:#555;margin-right:.4rem}
+.log-tag{font-weight:bold;color:var(--accent);margin-right:.4rem}
+
+/* Modal */
+.modal-bg{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:200;justify-content:center;align-items:center}
+.modal-bg.active{display:flex}
+.modal{background:var(--panel);border:1px solid #333;border-radius:20px;padding:2rem;width:700px;max-height:80vh;overflow-y:auto}
+.modal h3{color:var(--accent);margin-bottom:1rem}
+.modal pre{background:#000;color:#0f0;padding:1rem;border-radius:10px;white-space:pre-wrap;font-size:.8rem;max-height:400px;overflow-y:auto}
+.modal .close{float:right;cursor:pointer;font-size:1.2rem;color:var(--dim)}
+
+/* Tabs */
+.tabs{display:flex;gap:.5rem;margin-bottom:1rem}
+.tab{padding:.4rem 1rem;border-radius:8px;background:#1e1e24;border:1px solid #333;cursor:pointer;font-size:.8rem;color:var(--dim)}
+.tab.active{border-color:var(--accent);color:var(--accent)}
+
+@media(max-width:900px){.row-top,.row-mid,.row-bot{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">CPSL LIMA | TORRE DE CONTROL</div>
+  <div style="display:flex;align-items:center;gap:1rem">
+    <button class="btn-action" style="background:var(--accent);color:#000;font-weight:bold" onclick="verFilosofia()">📖 FILOSOFÍA CREAR</button>
+    <span id="clock" style="color:var(--dim);font-size:.85rem"></span>
+    <span class="badge"><span class="dot" id="dotStatus"></span><span id="txtStatus">CONECTANDO...</span></span>
+  </div>
+</header>
+
+<div class="container">
+  <!-- KPIs -->
+  <div class="row row-top" id="kpiRow">
+    <div class="card kpi"><span class="val" id="kTotal">—</span><span class="lbl">Total PX</span></div>
+    <div class="card kpi"><span class="val" id="kC1" style="color:var(--success)">—</span><span class="lbl">C1 Completado</span></div>
+    <div class="card kpi"><span class="val" id="kPend" style="color:var(--warning)">—</span><span class="lbl">Pendientes C1</span></div>
+    <div class="card kpi"><span class="val" id="kC2" style="color:var(--accent)">—</span><span class="lbl">C2 Completado</span></div>
+    <div class="card kpi"><span class="val" id="kMJ" style="color:#c084fc">—</span><span class="lbl">Maestría Juego</span></div>
+    <div class="card kpi"><span class="val" id="kDes" style="color:var(--danger)">—</span><span class="lbl">Desertores</span></div>
+    <div class="card kpi"><span class="val" id="kReniec" style="color:#60a5fa">—</span><span class="lbl">RENIEC ✓</span></div>
+    <div class="card kpi"><span class="val" id="kIMO" style="color:#fb923c">—</span><span class="lbl">IMOs Únicos</span></div>
+  </div>
+
+  <!-- Buscador + Caja Negra -->
+  <div class="row row-mid">
+    <div class="card">
+      <h2>🔍 Buscador de Participantes</h2>
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="Buscar por nombre, apellido o teléfono..." onkeydown="if(event.key==='Enter')buscar()">
+        <button onclick="buscar()">BUSCAR</button>
+      </div>
+      <div id="searchResults" style="max-height:250px;overflow-y:auto">
+        <p style="color:var(--dim);font-size:.85rem">Escribe un nombre o teléfono para buscar...</p>
+      </div>
+    </div>
+    <div class="card">
+      <h2>📦 Caja Negra</h2>
+      <div class="feed" id="feed"><div class="log"><span class="log-t">...</span><span class="log-tag">[SYSTEM]</span>Esperando conexión...</div></div>
+    </div>
+  </div>
+
+  <!-- Pendientes Diana & Joyce -->
+  <div class="card">
+    <h2>📋 Pendientes por Sentar — Diana & Joyce</h2>
+    <div class="tabs">
+      <div class="tab active" onclick="cargarPendientes('C1',this)">Pendientes C1</div>
+      <div class="tab" onclick="cargarPendientes('C2',this)">Pendientes C2</div>
+      <div class="tab" onclick="cargarImoStats(this)">⭐ Ranking de IMOs</div>
+      <div class="tab" onclick="cargarPendientes('',this)">Todos</div>
+    </div>
+    <div id="mainTableArea" style="max-height:450px;overflow-y:auto">
+      <p style="color:var(--dim)">Cargando datos...</p>
+    </div>
+  </div>
+
+  <!-- Plantillas y Auxiliares -->
+  <div class="row row-bot">
+    <div class="card">
+      <h2>✉️ Plantillas de Comunicación</h2>
+      <div id="plantillasList"></div>
+    </div>
+    <div class="card">
+      <h2>📊 Desertores por Equipo</h2>
+      <div id="desertoresChart" style="max-height:250px;overflow-y:auto"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Preview -->
+<div class="modal-bg" id="modalBg" onclick="if(event.target===this)cerrarModal()">
+  <div class="modal">
+    <span class="close" onclick="cerrarModal()">✕</span>
+    <h3 id="modalTitle">Vista Previa</h3>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<script>
+const API = '';
+
+async function api(path){
+  try{ const r=await fetch(API+path); return await r.json(); }
+  catch(e){ console.error(e); return null; }
+}
+
+// Clock
+setInterval(()=>{
+  const now=new Date();
+  document.getElementById('clock').textContent=now.toLocaleString('es-PE',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})+' — '+now.toLocaleDateString('es-PE',{weekday:'long',day:'numeric',month:'long'});
+},1000);
+
+// Stats
+async function cargarStats(){
+  const d=await api('/api/stats');
+  if(!d)return;
+  document.getElementById('kTotal').textContent=d.total_participantes.toLocaleString();
+  document.getElementById('kC1').textContent=d.c1_completado.toLocaleString();
+  document.getElementById('kPend').textContent=d.c1_pendiente.toLocaleString();
+  document.getElementById('kC2').textContent=d.c2_completado.toLocaleString();
+  document.getElementById('kMJ').textContent=(d.mj_completado||0).toLocaleString();
+  document.getElementById('kDes').textContent=d.desertores_historicos.toLocaleString();
+  document.getElementById('kReniec').textContent=(d.verificados_reniec||0).toLocaleString();
+  document.getElementById('kIMO').textContent=(d.imos_unicos||0).toLocaleString();
+  const dot=document.getElementById('dotStatus');
+  const txt=document.getElementById('txtStatus');
+  if(d.envio_permitido){dot.className='dot';txt.textContent='ONLINE — Envío Permitido';}
+  else{dot.className='dot off';txt.textContent='FUERA DE HORARIO (8AM-8PM)';}
+}
+
+function verFilosofia(){
+  document.getElementById('modalTitle').textContent='🏛️ FILOSOFÍA CREAR PODER SIN LÍMITES GLOBAL';
+  document.getElementById('modalContent').innerHTML=`
+    <div style="line-height:1.6;font-size:.9rem;color:var(--text)">
+      <h3 style="color:var(--accent);margin-bottom:1rem">Bienvenido a una experiencia de transformación humana y liderazgo de alto impacto</h3>
+      <p>En **CREAR Poder Sin Límites GLOBAL**, diseñamos experiencias educativas y de desarrollo humano orientadas a expandir posibilidades, fortalecer el liderazgo personal y generar resultados sostenibles.</p>
+      <ul style="margin:1rem 0;padding-left:1.5rem">
+        <li>Disney Institute</li>
+        <li>Ritz-Carlton</li>
+        <li>McKinsey</li>
+        <li>Liderazgo Transformacional Moderno</li>
+      </ul>
+      <h4 style="color:var(--warning);margin-top:1.5rem">Capítulo Uno®: El inicio del viaje del Creador</h4>
+      <p>Una experiencia intensiva para identificar límites, desafiar creencias y fortalecer la capacidad de acción.</p>
+      <div style="background:rgba(0,210,255,.05);padding:1rem;border-radius:10px;margin-top:1rem;border-left:4px solid var(--accent)">
+        <strong>"No se trata únicamente de motivación momentánea. Se trata de transformación aplicada."</strong>
+      </div>
+    </div>
+  `;
+  document.getElementById('modalBg').classList.add('active');
+}
+
+// Search
+async function buscar(){
+  const q=document.getElementById('searchInput').value.trim();
+  if(q.length<2)return;
+  const res=await api('/api/buscar?q='+encodeURIComponent(q));
+  if(!res||!res.length){document.getElementById('searchResults').innerHTML='<p style="color:var(--dim)">Sin resultados para "'+q+'"</p>';return;}
+  let html='<table><tr><th>Nombre</th><th>Teléfono</th><th>Equipo</th><th>C1</th><th>C2</th><th>CC</th><th></th></tr>';
+  res.forEach(p=>{
+    const nom=(p.nombre_preferido||p.nombre||'').split(' ')[0];
+    html+=`<tr>
+      <td><strong>${nom}</strong> ${p.apellido||''}</td>
+      <td>${p.telefono||''}</td>
+      <td>${p.equipo||''}</td>
+      <td><span class="tag ${p.c1==='SI'?'tag-si':'tag-no'}">${p.c1}</span></td>
+      <td><span class="tag ${p.c2==='SI'?'tag-si':'tag-no'}">${p.c2}</span></td>
+      <td>${(p.cc_nombre||'').split(' ')[0]}</td>
+      <td><button class="btn-action" onclick="verDetalle(${p.id})">Ver</button></td>
+    </tr>`;
+  });
+  html+='</table>';
+  document.getElementById('searchResults').innerHTML=html;
+}
+
+// Pendientes y Estadísticas IMO
+async function cargarPendientes(tipo,btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  const url=tipo?'/api/pendientes?entrenamiento='+tipo:'/api/pendientes';
+  const res=await api(url);
+  if(!res||!res.length){document.getElementById('mainTableArea').innerHTML='<p style="color:var(--dim);padding:1rem">No hay registros en esta categoría.</p>';return;}
+  let html=`<table><tr><th>Nombre</th><th>Teléfono</th><th>Equipo</th><th>C1</th><th>C2</th><th>CC</th><th>Plantilla</th></tr>`;
+  res.forEach(p=>{
+    const nom=(p.nombre_preferido||p.nombre||'').split(' ')[0];
+    const tpl=p.c1==='NO'?'PENDIENTE_C1':(p.c1==='SI'&&p.c2==='NO'?'REZAGADO_C2':'CONFIRMACION_C2');
+    html+=`<tr>
+      <td><strong>${nom}</strong> ${p.apellido||''}</td>
+      <td>${p.telefono||''}</td>
+      <td>${p.equipo||''}</td>
+      <td><span class="tag ${p.c1==='SI'?'tag-si':'tag-no'}">${p.c1}</span></td>
+      <td><span class="tag ${p.c2==='SI'?'tag-si':'tag-no'}">${p.c2}</span></td>
+      <td>${(p.cc_nombre||'').split(' ')[0]}</td>
+      <td><button class="btn-action" onclick="previewMsg('${tpl}',${p.id})">📧 Preview</button></td>
+    </tr>`;
+  });
+  html+='</table>';
+  document.getElementById('mainTableArea').innerHTML=html;
+}
+
+async function cargarImoStats(btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  const res=await api('/api/stats/imo');
+  if(!res||!res.length){document.getElementById('mainTableArea').innerHTML='<p style="color:var(--dim);padding:1rem">No hay datos de IMOs aún.</p>';return;}
+  let html=`<table><tr><th>IMO / Enrolador</th><th>Total Enrolados</th><th>Sentados C1</th><th>Sentados C2</th><th>Graduados MJ</th><th>% Efectividad</th></tr>`;
+  res.forEach(i=>{
+    const ef = i.total_enrolados > 0 ? Math.round((i.sentados_c1 / i.total_enrolados)*100) : 0;
+    html+=`<tr>
+      <td style="color:var(--accent);font-weight:600">${i.nombre_imo}</td>
+      <td style="text-align:center">${i.total_enrolados}</td>
+      <td style="text-align:center;color:var(--success)">${i.sentados_c1}</td>
+      <td style="text-align:center;color:var(--accent)">${i.sentados_c2}</td>
+      <td style="text-align:center;color:#c084fc">${i.graduados_mj}</td>
+      <td style="font-weight:bold">${ef}%</td>
+    </tr>`;
+  });
+  html+='</table>';
+  document.getElementById('mainTableArea').innerHTML=html;
+}
+
+// Preview Plantilla
+async function previewMsg(tipo,pxId){
+  const d=await api(`/api/preview_plantilla?tipo=${tipo}&px_id=${pxId}`);
+  if(!d){alert('Error al cargar preview');return;}
+  document.getElementById('modalTitle').textContent='📧 Preview: '+d.nombre_usado+' — '+d.plantilla_tipo;
+  document.getElementById('modalContent').innerHTML=`
+    <p style="color:var(--dim);margin-bottom:.5rem">Nombre usado: <strong style="color:var(--accent)">${d.nombre_usado}</strong> (de: ${d.px_nombre})</p>
+    <h4 style="color:var(--warning);margin:.5rem 0">EMAIL</h4>
+    <p style="font-size:.85rem;color:var(--dim)">Asunto: ${d.email_asunto}</p>
+    <pre>${d.email_cuerpo}</pre>
+    <h4 style="color:var(--success);margin:.8rem 0 .3rem">SMS</h4>
+    <pre style="color:var(--success)">${d.sms_texto}</pre>
+  `;
+  document.getElementById('modalBg').classList.add('active');
+}
+
+async function verDetalle(pxId){
+  const d=await api('/api/participante/'+pxId);
+  if(!d)return;
+  const p=d.participante;
+  const nom=p.nombre_preferido||p.nombre;
+  document.getElementById('modalTitle').textContent='👤 '+nom+' '+p.apellido;
+  let html=`<table>
+    <tr><td style="color:var(--dim)">Nombre Preferido</td><td><strong>${p.nombre_preferido||'(auto: '+p.nombre.split(' ')[0]+')'}</strong></td></tr>
+    <tr><td style="color:var(--dim)">Nombre Completo</td><td>${p.nombre} ${p.apellido}</td></tr>
+    ${p.verificado_reniec==='SI'?`<tr><td style="color:#60a5fa">✓ RENIEC Verificado</td><td><strong>${p.reniec_nombres} ${p.reniec_paterno} ${p.reniec_materno}</strong></td></tr>`:''}
+    <tr><td style="color:var(--dim)">Teléfono</td><td>${p.telefono}</td></tr>
+    <tr><td style="color:var(--dim)">Equipo</td><td>${p.equipo}</td></tr>
+    <tr><td style="color:var(--dim)">C1</td><td><span class="tag ${p.c1==='SI'?'tag-si':'tag-no'}">${p.c1}</span></td></tr>
+    <tr><td style="color:var(--dim)">C2</td><td><span class="tag ${p.c2==='SI'?'tag-si':'tag-no'}">${p.c2}</span></td></tr>
+    <tr><td style="color:var(--dim)">Maestría</td><td><span class="tag ${p.maestria==='SI'?'tag-si':'tag-no'}">${p.maestria||'NO'}</span></td></tr>
+    <tr><td style="color:var(--dim)">Coordinadora</td><td>${p.cc_nombre||'N/A'}</td></tr>
+    <tr><td style="color:var(--dim)">IMO Enrolador</td><td>${p.imo||'N/A'}</td></tr>
+    ${p.max_rango?`<tr><td style="color:#c084fc">Rango Máximo</td><td><strong>${p.max_rango}</strong></td></tr>`:''}
+    ${p.historial_trayectoria?`<tr><td style="color:#c084fc">Trayectoria</td><td style="font-family:monospace;font-size:.75rem">${p.historial_trayectoria}</td></tr>`:''}
+    <tr><td style="color:var(--dim)">Estado</td><td>${p.estado}</td></tr>
+  </table>`;
+  if(d.alertas&&d.alertas.length){
+    html+='<div style="margin-top:1rem;padding:.5rem;background:rgba(255,77,77,.1);border-radius:10px;border-left:3px solid var(--danger)">';
+    d.alertas.forEach(a=>{html+=`<p style="color:var(--warning);font-size:.8rem;margin:.2rem 0">${a}</p>`;});
+    html+='</div>';
+  }
+  if(d.comunicaciones.length){
+    html+='<h4 style="margin-top:1rem;color:var(--accent)">Comunicaciones</h4><table><tr><th>Fecha</th><th>Canal</th><th>Plantilla</th><th>Estado</th></tr>';
+    d.comunicaciones.forEach(c=>{html+=`<tr><td>${c.fecha_programada||''}</td><td>${c.canal}</td><td>${c.plantilla}</td><td>${c.estado}</td></tr>`;});
+    html+='</table>';
+  }
+  document.getElementById('modalContent').innerHTML=html;
+  document.getElementById('modalBg').classList.add('active');
+}
+
+function cerrarModal(){document.getElementById('modalBg').classList.remove('active');}
+
+// Plantillas
+async function cargarPlantillas(){
+  const d=await api('/api/plantillas');
+  if(!d)return;
+  let html='';
+  for(const[k,v]of Object.entries(d)){
+    html+=`<div style="background:#1e1e24;padding:.8rem;border-radius:10px;margin-bottom:.5rem;border-left:3px solid var(--accent)">
+      <strong style="color:var(--accent);font-size:.85rem">${k}</strong>
+      <p style="color:var(--dim);font-size:.75rem;margin-top:.3rem">${v.asunto}</p>
+    </div>`;
+  }
+  document.getElementById('plantillasList').innerHTML=html;
+}
+
+// Desertores
+async function cargarDesertores(){
+  const d=await api('/api/desertores');
+  if(!d)return;
+  const equipos={};
+  d.forEach(x=>{equipos[x.equipo]=(equipos[x.equipo]||0)+1;});
+  let html='<table><tr><th>Equipo</th><th>Desertores</th><th>Con Devolución</th></tr>';
+  const devs={};
+  d.forEach(x=>{if(x.devolucion==='SI')devs[x.equipo]=(devs[x.equipo]||0)+1;});
+  for(const[eq,cnt]of Object.entries(equipos).sort()){
+    html+=`<tr><td>${eq}</td><td>${cnt}</td><td>${devs[eq]||0}</td></tr>`;
+  }
+  html+='</table>';
+  document.getElementById('desertoresChart').innerHTML=html;
+}
+
+// Caja Negra
+async function cargarCajaNegra(){
+  const d=await api('/api/caja_negra');
+  if(!d||!d.length)return;
+  let html='';
+  d.slice(0,30).forEach(l=>{
+    html+=`<div class="log"><span class="log-t">${(l.timestamp||'').substring(11,19)}</span><span class="log-tag">[${l.tipo}]</span>${l.accion}: ${l.detalle}</div>`;
+  });
+  document.getElementById('feed').innerHTML=html;
+}
+
+// Init
+async function init(){
+  await cargarStats();
+  await cargarPendientes('C1',document.querySelector('.tab.active'));
+  await cargarPlantillas();
+  await cargarDesertores();
+  await cargarCajaNegra();
+  setInterval(cargarStats,15000);
+  setInterval(cargarCajaNegra,10000);
+}
+init();
+</script>
+</body>
+</html>

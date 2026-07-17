@@ -37,6 +37,8 @@ PROMPTS = {
     "clasificar": "Clasifica en UNA categoría: CONFIRMA, NEGATIVA, PREGUNTA_FECHA, PREGUNTA_PAGO, SALUDO, QUEJA, CONSULTA_GENERAL, SPAM. Responde SOLO la categoría.",
     "nuevo_info": CPSL_CTX + " Responde al prospecto nuevo con entusiasmo sin presionar. Máx 3 líneas.",
     "cc_intent": CPSL_CTX + ' Detecta intención. Responde JSON: {"intent":"CERRAR|ACTUALIZAR|NOTA|NINGUNA","nombre":"","resumen":""}',
+    "sms_respuesta": "CPSL PERÚ: Responde en MÁXIMO 140 CARACTERES. Sé ultra conciso. Evita caracteres extraños, no uses emojis. Solo da la respuesta o confirmación.",
+    "email_respuesta": CPSL_CTX + " Redacta un correo formal pero cálido. Usa lenguaje corporativo, incluye detalles completos si los piden, y firma siempre como 'Equipo de Coordinación CREAR LIMA'.",
 }
 
 # ── CACHE ────────────────────────────────────────────────────
