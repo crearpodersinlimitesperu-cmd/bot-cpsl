@@ -31,8 +31,10 @@ DATA_DIR = "/data" if os.path.exists("/data") else BASE_DIR
 ESTADO_FILE = os.path.join(DATA_DIR, "vigilante_estado.json")
 ALERTAS_LOG = os.path.join(DATA_DIR, "vigilante_alertas.json")
 
-# Throttle: no enviar más de 1 alerta del mismo tipo cada 2 horas
-THROTTLE_HORAS = 2
+# Throttle: no enviar más de 1 alerta del mismo tipo cada 6 horas
+# y evitar bucles infinitos limitando el total diario
+THROTTLE_HORAS = 6
+MAX_ALERTAS_DIA = 3
 
 
 def ahora():
@@ -82,7 +84,14 @@ def _enviar_alerta_whatsapp(mensaje):
 
 
 def _throttle_ok(tipo_alerta, estado):
-    """Verifica si se puede enviar esta alerta (anti-spam)."""
+    """Verifica si se puede enviar esta alerta (anti-spam y cuota diaria)."""
+    # 1. Chequeo de cuota diaria global
+    hoy = ahora().strftime("%d/%m")
+    alertas_hoy = sum(1 for e in estado.get("errores_acumulados", []) if e.get("ts", "").startswith(hoy))
+    if alertas_hoy >= MAX_ALERTAS_DIA:
+        return False
+
+    # 2. Chequeo de throttle por tipo
     ultimo = estado["alertas_enviadas"].get(tipo_alerta)
     if not ultimo:
         return True

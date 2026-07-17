@@ -275,7 +275,7 @@ def _ia_gemini15(p, s="", **kw):
 
 # ── CADENA: primero CON KEY (muy rápidas), luego SIN KEY (fallback) ──
 CADENA_IA = [
-    # CON KEY (Ultra Rápidas)
+    # CON KEY (Ultra Rápidas - 100% Gratis)
     (_ia_groq1, "Groq-Llama8B", True),
     (_ia_groq2, "Groq-Llama70B", True),
     (_ia_groq3, "Groq-Gemma9B", True),
@@ -284,8 +284,6 @@ CADENA_IA = [
     (_ia_or2, "OR-Gemma-Free", True),
     (_ia_or3, "OR-Mistral-Free", True),
     (_ia_or4, "OR-Qwen-Free", True),
-    (_ia_gemini, "Gemini-2.0", True),
-    (_ia_gemini15, "Gemini-1.5", True),
     
     # SIN KEY — funcionan siempre (más lentas, fallback)
     (_ia_ddg_gpt4mini, "DDG-GPT4mini", False),
@@ -297,6 +295,10 @@ CADENA_IA = [
     (_ia_hf_qwen_free, "HF-Qwen-Free", False),
     (_ia_hf_phi_free, "HF-Phi3-Free", False),
     (_ia_hf_gemma_free, "HF-Gemma-Free", False),
+
+    # GEMINI (Último recurso, para evitar costos en Google Cloud / Vertex AI)
+    (_ia_gemini, "Gemini-2.0", True),
+    (_ia_gemini15, "Gemini-1.5", True),
     
     # Fallback final sin key
     (None, "NLP-Local", False),

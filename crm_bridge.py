@@ -26,10 +26,10 @@ TZ  = timezone(timedelta(hours=-5))
 CRM_SHEET_ID = os.environ.get("SHEET_ID", "1IoCYs1qfOTdn3XWyeK64jsUfAXOFgv3Wa6uJBM-lR2Y")
 CRM_TAB      = "REPORTES_BOT"
 
-# Patrones para detectar a qué CC pertenece un reporte pegado
+# Patrones para detectar a qué CC pertenece un reporte pegado (con \b para evitar falsos positivos)
 _CC_PATTERNS = {
-    "DIANA": [r"diana", r"dmoscoso", r"moscoso", r"equipo\s*26", r"equipo\s*1[4-9]"],
-    "JOYCE": [r"joyce", r"jmarin", r"mar[ií]n", r"equipo\s*2[0125]"]
+    "DIANA": [r"\bdiana\b", r"\bdmoscoso\b", r"\bmoscoso\b", r"\bequipo\s*26\b", r"\bequipo\s*1[4-9]\b"],
+    "JOYCE": [r"\bjoyce\b", r"\bjmarin\b", r"\bmar[ií]n\b", r"\bequipo\s*2[0125]\b"]
 }
 
 def _detectar_cc(texto):

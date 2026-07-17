@@ -59,17 +59,12 @@ _SYSTEM = {
 
 # ── NLP LOCAL (sin IA) — para casos simples y rápidos ──────────
 _INTENTS_LOCAL = {
-    # Cierre / resolución
-    r'resolv[íi]|cerr[eé]|cerrado|solucion[eé]|listo\s+(el\s+caso)?|ok\s+resolv|atend[íi]': 'CERRAR_CASO',
-    r'ya\s+asist[íi]|ya\s+confirm[oó]|ya\s+viene|confirm[oó]\s+asistencia': 'CERRAR_CASO',
-    r'caso\s+(cerrado|resuelto)|resolv[íi]\s+(el\s+caso|a)': 'CERRAR_CASO',
+    # Cierre / resolución (prioridad alta)
+    r'\b(?:resolv[íi]|cerr[eé]|cerrado|solucion[eé]|listo\s*(?:el\s*caso)?|ok\s*resolv|atend[íi]|ya\s*asist[íi]|ya\s*confirm[oó]|ya\s*viene|confirm[oó]\s*asistencia|caso\s*(?:cerrado|resuelto))\b': 'CERRAR_CASO',
     # En gestión
-    r'contact[eé]\s+(a\s+)?|le\s+escrib[íi]|le\s+llam[eé]|en\s+proceso|gestion[aá]nd': 'ACTUALIZAR_CASO',
-    r'le\s+dej[eé]\s+mensaje|le\s+envi[eé]|habl[eé]\s+con|pend[ií]ente\s+de\s+respuesta': 'ACTUALIZAR_CASO',
-    r'me\s+pidi[oó]|me\s+dijo|habl[eé]\s+con|ya\s+le\s+escrib[íi]': 'ACTUALIZAR_CASO',
+    r'\b(?:contact[eé]|escrib[íi]|llam[eé]|en\s*proceso|gestion[aá]nd|dej[eé]\s*mensaje|envi[eé]|habl[eé]|pend[ií]ente\s*de\s*respuesta|pidi[oó]|dijo)\b': 'ACTUALIZAR_CASO',
     # Sin contacto
-    r'no\s+contest[oó]|no\s+responde|no\s+lo\s+(pude\s+)?contact': 'SIN_CONTACTO',
-    r'n[uú]mero\s+wrong|n[uú]mero\s+eq|tel[eé]fono\s+(mal|incorrecto|apagado)': 'SIN_CONTACTO',
+    r'\b(?:no\s*contest[oó]|no\s*responde|no\s*(?:lo\s*)?(?:pude\s*)?contact|n[uú]mero\s*(?:wrong|eq|equivocado)|tel[eé]fono\s*(?:mal|incorrecto|apagado))\b': 'SIN_CONTACTO',
 }
 
 def _intent_local(texto):
@@ -213,11 +208,11 @@ def ia_responder(prompt, contexto="general", timeout=8):
     """
     system = _SYSTEM.get(contexto, contexto)
     proveedores = [
-        (_gemini, "Gemini"),
         (_groq, "Groq"),
         (_deepseek, "DeepSeek"),
         (_mistral, "Mistral"),
-        (_cohere, "Cohere")
+        (_cohere, "Cohere"),
+        (_gemini, "Gemini") # Último recurso (costo en Google Cloud)
     ]
     for fn, nombre in proveedores:
         try:
